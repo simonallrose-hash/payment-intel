@@ -1,0 +1,15 @@
+# Reverse proxy with automatic TLS (NFR-S-01). SITE_ADDRESS is ":80" in dev
+# and the public hostname in production (Caddy obtains ACME certificates).
+{$SITE_ADDRESS}
+
+encode zstd gzip
+
+header {
+    Strict-Transport-Security "max-age=31536000; includeSubDomains"
+    X-Content-Type-Options "nosniff"
+    X-Frame-Options "DENY"
+    Referrer-Policy "no-referrer"
+    -Server
+}
+
+reverse_proxy {$API_UPSTREAM}

@@ -1,0 +1,116 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  UV_FROZEN: "1"
+
+jobs:
+  lint:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+      - run: uv sync --all-groups
+      - run: make lint
+      - run: make typecheck
+
+  secrets:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: gitleaks (NFR-S-06)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  audit:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+      - run: uv sync --all-groups
+      - name: pip-audit (NFR-S-10)
+        run: uv run pip-audit --strict
+
+  test:
+    runs-on: ubuntu-24.04   # Docker is available for testcontainers
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+      - run: uv sync --all-groups
+      - name: Tests with coverage (NFR-M-01)
+        run: make test
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage
+          path: coverage.json
+
+  eval:
+    # FR-QA-02 / AC-03: gold-set metrics as a CI artifact; the job fails when
+    # PSP precision drops below the threshold.
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: payintel
+          POSTGRES_PASSWORD: payintel
+          POSTGRES_DB: payintel
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U payintel" --health-interval 5s --health-timeout 5s --health-retries 10
+      clickhouse:
+        image: clickhouse/clickhouse-server:24.8
+        env:
+          CLICKHOUSE_USER: payintel
+          CLICKHOUSE_PASSWORD: payintel
+          CLICKHOUSE_DB: payintel
+        ports: ["8123:8123"]
+    env:
+      PAYINTEL_POSTGRES__DSN: postgresql+psycopg://payintel:payintel@localhost:5432/payintel
+      PAYINTEL_CLICKHOUSE__URL: http://localhost:8123
+      PAYINTEL_CLICKHOUSE__USER: payintel
+      PAYINTEL_CLICKHOUSE__PASSWORD: payintel
+      PAYINTEL_CLICKHOUSE__DATABASE: payintel
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+      - run: uv sync --all-groups
+      - run: make migrate
+      - run: make seed
+      - name: Import sample gold set and findings
+        run: |
+          uv run payintel gold import tests/fixtures/gold/sample_labels.csv --labeled-by ci
+          uv run payintel gold import-findings tests/fixtures/gold/sample_findings.csv
+      - run: make eval
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: eval-report
+          path: eval-report.json
+
+  build:
+    runs-on: ubuntu-24.04
+    needs: [lint, test]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build app image
+        run: docker build -f docker/app.Dockerfile -t payintel-app:ci .

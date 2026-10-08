@@ -1,0 +1,96 @@
+# Production composition (AS-17): one compose file, services split across
+# servers by `profiles` (app-1, crawl-1, data-1). Secrets come from `.env`
+# (NFR-S-06). Application process services are added per stage as they are
+# implemented; stage 0 ships the data stores, the reverse proxy, the resolver
+# and the one-shot `migrate` job.
+name: payintel
+
+x-app: &app
+  build:
+    context: .
+    dockerfile: docker/app.Dockerfile
+  image: payintel-app:latest
+  env_file: .env
+  restart: unless-stopped
+  read_only: true
+  tmpfs: [/tmp]
+  security_opt: [no-new-privileges:true]
+  cap_drop: [ALL]
+
+services:
+  caddy:
+    profiles: [app-1]
+    image: caddy:2.9-alpine
+    restart: unless-stopped
+    ports: ["80:80", "443:443"]
+    volumes:
+      - ./docker/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+    environment:
+      API_UPSTREAM: api:8000
+      SITE_ADDRESS: ${SITE_ADDRESS:-:80}
+
+  postgres:
+    profiles: [app-1]
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: payintel
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set in .env}
+      POSTGRES_DB: payintel
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U payintel -d payintel"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  redis:
+    profiles: [app-1]
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "1gb", "--maxmemory-policy", "allkeys-lru"]
+
+  clickhouse:
+    profiles: [data-1]
+    image: clickhouse/clickhouse-server:24.8
+    restart: unless-stopped
+    environment:
+      CLICKHOUSE_USER: payintel
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:?set in .env}
+      CLICKHOUSE_DB: payintel
+    volumes:
+      - ch-data:/var/lib/clickhouse
+    ulimits:
+      nofile: { soft: 262144, hard: 262144 }
+
+  minio:
+    profiles: [data-1]
+    image: minio/minio:RELEASE.2024-12-18T13-15-44Z
+    restart: unless-stopped
+    command: ["server", "/data"]
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?set in .env}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?set in .env}
+    volumes:
+      - minio-data:/data
+
+  unbound:
+    profiles: [crawl-1]
+    image: mvance/unbound:1.21.1
+    restart: unless-stopped
+    volumes:
+      - ./docker/unbound/unbound.conf:/opt/unbound/etc/unbound/unbound.conf:ro
+
+  migrate:
+    <<: *app
+    profiles: [app-1]
+    restart: "no"
+    command: ["payintel", "migrate"]
+
+volumes:
+  pg-data:
+  ch-data:
+  minio-data:
+  caddy-data:

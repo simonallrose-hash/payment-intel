@@ -1,0 +1,96 @@
+# Local development environment (AS-16): Postgres 16, ClickHouse 24.x, Redis 7,
+# MinIO, Unbound, Caddy. `make dev` starts it, applies migrations and seeds
+# reference data. Credentials here are for localhost only.
+name: payintel-dev
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: payintel
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-payintel}
+      POSTGRES_DB: payintel
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U payintel -d payintel"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:24.8
+    environment:
+      CLICKHOUSE_USER: payintel
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-payintel}
+      CLICKHOUSE_DB: payintel
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
+    ports:
+      - "127.0.0.1:8123:8123"
+      - "127.0.0.1:9000:9000"
+    volumes:
+      - ch-data:/var/lib/clickhouse
+    ulimits:
+      nofile: { soft: 262144, hard: 262144 }
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8123/ping | grep -q Ok"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    ports:
+      - "127.0.0.1:6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  minio:
+    image: minio/minio:RELEASE.2024-12-18T13-15-44Z
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-payintel}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-payintel-dev-secret}
+    ports:
+      - "127.0.0.1:9002:9000"
+      - "127.0.0.1:9001:9001"
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  unbound:
+    # Own recursive resolver with cache (FR-DS-06)
+    image: mvance/unbound:1.21.1
+    volumes:
+      - ./docker/unbound/unbound.conf:/opt/unbound/etc/unbound/unbound.conf:ro
+    ports:
+      - "127.0.0.1:5335:53/udp"
+      - "127.0.0.1:5335:53/tcp"
+
+  caddy:
+    image: caddy:2.9-alpine
+    volumes:
+      - ./docker/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+    ports:
+      - "127.0.0.1:8080:80"
+    environment:
+      API_UPSTREAM: host.docker.internal:8000
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+volumes:
+  pg-data:
+  ch-data:
+  minio-data:
+  caddy-data:
