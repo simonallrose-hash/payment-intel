@@ -212,6 +212,17 @@ class GuardedPage:
     def frame(self, selector: str) -> GuardedFrame:
         return GuardedFrame(self.page.frame_locator(selector), selector)
 
+    async def frames(self, selector: str) -> list[GuardedFrame]:
+        """One `GuardedFrame` per iframe matching the selector (hosted fields use several)."""
+        try:
+            n = await self.page.locator(selector).count()
+        except PlaywrightError:
+            return []
+        return [
+            GuardedFrame(self.page.frame_locator(selector).nth(i), f"{selector}:nth({i})")
+            for i in range(min(n, 12))
+        ]
+
     def clickables(self) -> GuardedLocator:
         return self.locator(CLICKABLE_SELECTOR)
 

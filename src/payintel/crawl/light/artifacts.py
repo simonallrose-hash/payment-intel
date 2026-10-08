@@ -37,6 +37,10 @@ class ArtifactWriter:
             content_type="application/json",
         )
 
+    def put_bytes(self, key: str, data: bytes, *, content_type: str) -> None:
+        if self.store is not None:
+            self.store.put_bytes(self.bucket, key, data, content_type=content_type)
+
     def put_html(self, key: str, html: str) -> int:
         data = gzip.compress(html.encode("utf-8"), compresslevel=6)
         if self.store is not None:
