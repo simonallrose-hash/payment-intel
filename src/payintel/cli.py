@@ -373,5 +373,82 @@ def worker_light(
     asyncio.run(loop())
 
 
+# --- stage 2: checkout worker ---------------------------------------------------
+
+
+@app.command("worker-checkout")
+def worker_checkout(
+    once: Annotated[bool, typer.Option(help="Process one batch and exit")] = False,
+    limit: Annotated[int, typer.Option(help="Tasks leased per batch")] = 16,
+    concurrency: Annotated[
+        int | None,
+        typer.Option(help="Parallel walks; default settings.checkout.concurrency_per_worker"),
+    ] = None,
+    worker_id: Annotated[str, typer.Option(help="Lease owner id")] = "worker-checkout-0",
+    poll_seconds: Annotated[float, typer.Option(help="Sleep when the queue is empty")] = 5.0,
+    allow_private: Annotated[
+        bool,
+        typer.Option(
+            help="LOCAL TEST STANDS ONLY: system resolver and private targets allowed (NFR-S-09)"
+        ),
+    ] = False,
+) -> None:
+    """Lease checkout tasks and walk them in a real browser (4.4): never past the payment step."""
+    from redis.asyncio import Redis
+
+    from payintel.crawl.checkout.runtime import build_browser_pool, build_checkout_context
+    from payintel.crawl.checkout.worker import CheckoutScanner
+    from payintel.crawl.checkout.worker import run_batch as run_checkout_batch
+    from payintel.crawl.checkout.worker import run_pipeline as run_checkout_pipeline
+
+    settings = get_settings()
+    store = ObjectStore(make_s3_client(settings.s3))
+    store.ensure_bucket(settings.s3.bucket_artifacts)
+    ch = make_ch_client(settings.clickhouse)
+    redis = Redis.from_url(settings.redis.url)
+    factory = sessionmaker(bind=get_engine(), expire_on_commit=False)
+    conc = concurrency or settings.checkout.concurrency_per_worker
+
+    async def loop() -> None:
+        async with build_browser_pool(settings) as pool:
+            ctx = build_checkout_context(
+                settings,
+                pool=pool,
+                worker_id=worker_id,
+                ch_client=ch,
+                store=store,
+                limiter=RedisRateLimiter(redis),
+                allow_private=allow_private,
+            )
+            if ctx.accounts is None:
+                log.warning(
+                    "PAYINTEL_SECRETS__ENCRYPTION_KEY is not set: account registration disabled"
+                )
+            scanner = CheckoutScanner(ctx)
+            try:
+                if once:
+                    started = time.monotonic()
+                    outcomes = await run_checkout_batch(
+                        factory, scanner, limit=limit, concurrency=conc
+                    )
+                    elapsed = time.monotonic() - started
+                    reached = sum(o.reached_payment for o in outcomes)
+                    typer.echo(
+                        f"batch: {len(outcomes)} walks in {elapsed:.1f}s; "
+                        f"reached payment step {reached}; "
+                        f"browser restarts {pool.restarts}"
+                    )
+                    return
+                await run_checkout_pipeline(
+                    factory, scanner, concurrency=conc, poll_seconds=poll_seconds
+                )
+            finally:
+                ctx.buffer.flush()
+                await ctx.fetcher.aclose()
+                await redis.aclose()
+
+    asyncio.run(loop())
+
+
 if __name__ == "__main__":  # pragma: no cover
     app()

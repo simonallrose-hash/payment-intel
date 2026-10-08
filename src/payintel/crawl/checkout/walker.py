@@ -189,6 +189,8 @@ class WalkInput:
     platform_id: str | None = None
     product_urls: list[str] = field(default_factory=list)
     credentials: Credentials | None = None
+    # (homepage html, url) → platform id, used to pick the adapter when the profile has none
+    platform_detect: Callable[[str, str], str | None] | None = None
 
 
 @dataclass
@@ -224,6 +226,7 @@ class WalkResult:
     cookie_names: list[str] = field(default_factory=list)
     product_url: str = ""
     checkout_url: str = ""
+    checkout_entry_index: int = -1  # index into recorder.entries where the checkout began
 
     @property
     def reached_payment(self) -> bool:
@@ -263,10 +266,6 @@ class WalkerConfig:
     allow_private: bool = False
     rewrite: Callable[[str], str | None] | None = None
     global_candidates: list[str] = field(default_factory=list)
-
-
-class _Deadline(Exception):
-    pass
 
 
 class CheckoutWalker:
@@ -334,6 +333,7 @@ class CheckoutWalker:
             stop = stop_from_exception(exc, _safe_url(page))
         screenshot, dom = b"", ""
         if stop is not None:
+            run.close_open_step()
             screenshot, dom = await self._evidence(page)
             journal.add("stop", step=stop.step.value, reason=stop.reason, detail=stop.detail[:200])
         dom_blocked: list[dict[str, Any]] = []
@@ -368,6 +368,7 @@ class CheckoutWalker:
             cookie_names=cookie_names,
             product_url=run.product_url,
             checkout_url=run.checkout_url,
+            checkout_entry_index=run.checkout_entry_index,
         )
 
     async def _evidence(self, page: Page) -> tuple[bytes, str]:
@@ -433,8 +434,10 @@ class _Run:
         self.registration: RegistrationEvent | None = None
         self.product_url = ""
         self.checkout_url = ""
+        self.checkout_entry_index = -1  # first network entry made from the checkout on
         self._base = inp.url
         self._tried: set[str] = set()
+        self._open_step: tuple[WalkStep, float] | None = None
 
     # --- helpers --------------------------------------------------------------------
     def _begin(self, step: WalkStep) -> float:
@@ -442,10 +445,19 @@ class _Run:
         if list(WalkStep).index(step) > list(WalkStep).index(self.furthest):
             self.furthest = step
         self.journal.add("step", step=step.value)
-        return self.w.monotonic()
+        t0 = self.w.monotonic()
+        self._open_step = (step, t0)
+        return t0
 
     def _end(self, step: WalkStep, t0: float) -> None:
+        self._open_step = None
         self.timings.append(StepTiming(step.value, int((self.w.monotonic() - t0) * 1000)))
+
+    def close_open_step(self) -> None:
+        """A stop interrupts a step: its duration still goes into the timings (FR-CW-13)."""
+        if self._open_step is not None:
+            step, t0 = self._open_step
+            self._end(step, t0)
 
     def _stop(self, step: WalkStep, reason: str, detail: str = "", **kw: Any) -> WalkStopped:
         return WalkStopped(Stop(step, reason, detail[:500], page_url=self.gp.url, **kw))
@@ -612,6 +624,11 @@ class _Run:
         t = self._begin(WalkStep.NAVIGATION)
         await self._goto(self.inp.url, WalkStep.NAVIGATION)
         self._base = self.gp.url
+        if self.inp.platform_id is None and self.inp.platform_detect is not None:
+            detected = self.inp.platform_detect(await self.gp.content(), self.gp.url)
+            if detected:
+                self.adapter = adapter_for(detected)
+                self.journal.add("platform_detected", platform=detected, adapter=self.adapter.name)
         self._end(WalkStep.NAVIGATION, t)
 
         t = self._begin(WalkStep.PRODUCT)
@@ -623,6 +640,7 @@ class _Run:
         self._end(WalkStep.CART, t)
 
         t = self._begin(WalkStep.CHECKOUT)
+        self.checkout_entry_index = len(self.recorder.entries)
         await self._checkout()
         self._end(WalkStep.CHECKOUT, t)
 
@@ -793,8 +811,8 @@ class _Run:
                 try:
                     await target._locator.first.check(timeout=self.w.cfg.action_timeout_ms)
                     self.journal.add("guest", control=control.describe())
-                except PlaywrightError:
-                    pass
+                except PlaywrightError as exc:
+                    self.journal.add("guest_check_failed", error=str(exc)[:120])
             return
         await self.gp.click(target, Purpose.GUEST)
         await self.gp.wait_idle(self.w.cfg.network_idle_timeout_ms)

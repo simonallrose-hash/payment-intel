@@ -327,7 +327,14 @@ class GuardedPage:
         refusal = self.url_check(url)
         if refusal is not None:
             self.journal.add("goto_refused", url=url, reason=refusal)
-            raise WalkStopped(Stop(step, refusal, f"navigation refused: {url}", page_url=url))
+            raise WalkStopped(
+                Stop(
+                    WalkStep.NAVIGATION,
+                    refusal,
+                    f"navigation refused during {step.value}: {url}",
+                    page_url=url,
+                )
+            )
         self.journal.add("goto", url=url)
         try:
             return await self.page.goto(

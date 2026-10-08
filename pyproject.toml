@@ -73,6 +73,7 @@ ignore = [
 "tests/**" = ["S101", "S105", "S106", "S108"]   # asserts and dummy credentials in tests only
 "alembic/**" = ["E501"]
 "tests/e2e/shopsim.py" = ["E501"]                                 # embedded HTML
+"tests/e2e/test_checkout_worker.py" = ["E501"]                    # long SQL/asserts
 "src/payintel/crawl/checkout/guardrails/injection.py" = ["E501"]   # embedded JavaScript
 "src/payintel/crawl/checkout/guardrails/page.py" = ["E501"]        # embedded JavaScript
 "src/payintel/crawl/checkout/capture.py" = ["E501"]                # embedded JavaScript

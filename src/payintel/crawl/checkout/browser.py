@@ -14,9 +14,11 @@ No fingerprint is altered: headless or headed is a plain launch flag (AS-20).
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import os
 import tempfile
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -60,6 +62,7 @@ class WalkContext:
     har_path: Path | None
     allow_private: bool = False
     rewrite: Rewriter | None = None
+    on_close: Callable[[], Awaitable[None]] | None = None
     _closed: bool = False
 
     async def new_page(self) -> Page:
@@ -80,12 +83,13 @@ class WalkContext:
             await self.context.close()
         except PlaywrightError:
             return None
+        finally:
+            if self.on_close is not None:
+                await self.on_close()
         if self.har_path is not None and self.har_path.exists():
             data = self.har_path.read_bytes()
-            try:
+            with contextlib.suppress(OSError):
                 self.har_path.unlink()
-            except OSError:
-                pass
             return data
         return None
 
@@ -116,6 +120,8 @@ class BrowserPool:
         self._init_script = init_script(dictionary)
         self.walks_since_restart = 0
         self.restarts = 0
+        self.active_contexts = 0
+        self._cond: asyncio.Condition | None = None
 
     async def __aenter__(self) -> BrowserPool:
         await self.start()
@@ -140,10 +146,8 @@ class BrowserPool:
 
     async def restart(self) -> None:
         if self._browser is not None:
-            try:
+            with contextlib.suppress(PlaywrightError):
                 await self._browser.close()
-            except PlaywrightError:
-                pass
         await self._launch()
         self.restarts += 1
         if self.on_restart:
@@ -151,10 +155,8 @@ class BrowserPool:
 
     async def close(self) -> None:
         if self._browser is not None:
-            try:
+            with contextlib.suppress(PlaywrightError):
                 await self._browser.close()
-            except PlaywrightError:
-                pass
             self._browser = None
         if self._pw is not None:
             await self._pw.stop()
@@ -170,11 +172,37 @@ class BrowserPool:
     def version(self) -> str:
         return self.browser.version
 
+    def _condition(self) -> asyncio.Condition:
+        if self._cond is None:
+            self._cond = asyncio.Condition()
+        return self._cond
+
+    async def _release(self) -> None:
+        async with self._condition():
+            self.active_contexts = max(0, self.active_contexts - 1)
+            self._condition().notify_all()
+
     async def new_walk_context(self, opts: ContextOptions) -> WalkContext:
-        """A fresh isolated context (FR-CW-01); restarts the browser every `restart_every` walks."""
-        if self.walks_since_restart >= self.restart_every or not self.browser.is_connected():
-            await self.restart()
-        self.walks_since_restart += 1
+        """A fresh isolated context (FR-CW-01); restarts the browser every `restart_every` walks.
+
+        A restart closes every context of the browser, so it waits until the walks
+        in flight have closed theirs (new walks queue behind the restart meanwhile).
+        """
+        cond = self._condition()
+        async with cond:
+            if self.walks_since_restart >= self.restart_every or not self.browser.is_connected():
+                while self.active_contexts > 0 and self.browser.is_connected():
+                    await cond.wait()
+                await self.restart()
+            self.walks_since_restart += 1
+            self.active_contexts += 1
+        try:
+            return await self._new_context(opts)
+        except BaseException:
+            await self._release()
+            raise
+
+    async def _new_context(self, opts: ContextOptions) -> WalkContext:
         har_path = opts.har_path
         if har_path is None and self.har_dir is not None:
             fd, name = tempfile.mkstemp(prefix="walk-", suffix=".har", dir=self.har_dir)
@@ -208,6 +236,7 @@ class BrowserPool:
             har_path=har_path,
             allow_private=opts.allow_private,
             rewrite=opts.rewrite,
+            on_close=self._release,
         )
 
     @staticmethod

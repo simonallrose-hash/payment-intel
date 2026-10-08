@@ -13,7 +13,7 @@ from datetime import datetime
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from payintel.core.models.base import ConfidenceLevel, ProviderRole
+from payintel.core.models.base import ConfidenceLevel, ProviderRole, ScanType
 from payintel.core.models.store import StoreProfile, StoreProvider
 
 _RANK = {ConfidenceLevel.LOW: 0, ConfidenceLevel.MEDIUM: 1, ConfidenceLevel.HIGH: 2}
@@ -40,13 +40,29 @@ class ProfileUpdate:
 
 
 def upsert_profile(
-    session: Session, host_id: int, upd: ProfileUpdate, *, scanned_at: datetime
+    session: Session,
+    host_id: int,
+    upd: ProfileUpdate,
+    *,
+    scanned_at: datetime,
+    scan_type: ScanType = ScanType.LIGHT,
 ) -> StoreProfile:
     profile = session.get(StoreProfile, host_id)
     if profile is None:
         profile = StoreProfile(host_id=host_id)
         session.add(profile)
-    if upd.platform_id is not None:
+    # A light scan (homepage, generator tags) is the authority on the platform; a checkout
+    # scan only fills a gap or confirms with at least the same confidence.
+    platform_wins = upd.platform_id is not None and (
+        scan_type == ScanType.LIGHT
+        or profile.platform_id is None
+        or profile.platform_confidence is None
+        or (
+            upd.platform_confidence is not None
+            and _RANK[upd.platform_confidence] >= _RANK[profile.platform_confidence]
+        )
+    )
+    if platform_wins:
         profile.platform_id = upd.platform_id
         profile.platform_confidence = upd.platform_confidence
         if upd.platform_version:
@@ -63,7 +79,10 @@ def upsert_profile(
         profile.currency = upd.currency
     if upd.traffic_rank is not None:
         profile.traffic_rank = upd.traffic_rank
-    profile.last_light_scan_at = scanned_at
+    if scan_type == ScanType.LIGHT:
+        profile.last_light_scan_at = scanned_at
+    else:
+        profile.last_checkout_scan_at = scanned_at
     profile.updated_at = scanned_at
     session.flush()
     return profile

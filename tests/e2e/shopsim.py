@@ -219,10 +219,12 @@ class Flavour:
     final_button: str
     guest_control: str  # "" = tab/button text based
     form_action: str = ""  # where step forms post; defaults to checkout_path
+    form_class: str = "checkout"  # class of the checkout form
 
 
 FLAVOURS: dict[str, Flavour] = {
     "woocommerce": Flavour(
+        form_class="checkout woocommerce-checkout",
         product_path="/product/{slug}/",
         product_link_class="woocommerce-LoopProduct-link",
         add_button='<button type="submit" name="add-to-cart" value="{pid}" class="single_add_to_cart_button button alt">{add}</button>',
@@ -488,11 +490,18 @@ class Sim:
     ) -> tuple[int, dict[str, str], str, str]:
         st = self.server.shops.get(shop)
         if st is None and path == "/v1/tokens":  # the tokenizer host: attribute by Origin
-            origin_host = (urlsplit(origin).hostname or "").removesuffix(".test")
+            origin_host = shop_of(urlsplit(origin).hostname or "", self.server.shops)
             st = self.server.shops.get(origin_host)
             if st is None:
                 return 200, {"Content-Type": "application/json"}, '{"id":"tok_test"}', ""
             shop = origin_host
+        if st is None and path == "/v3/":  # the PSP script host (rewritten to this server)
+            return (
+                200,
+                {"Content-Type": "application/javascript"},
+                "window.Stripe = function(){};",
+                "",
+            )
         if st is None:
             return 404, {}, "no such shop", ""
         cfg, fl, t = st.config, FLAVOURS[st.config.flavour], L[st.config.language]
@@ -821,12 +830,16 @@ class Sim:
         payment = fl.payment_block.format(
             methods=methods_html, final=fl.final_button.format(final=t["final"])
         )
+        if cfg.tokenizer == "stripe":
+            payment += '<script src="https://js.stripe.com/v3/"></script>'
         payment = f'<fieldset class="payment"><legend>{t["pay"]}</legend>{payment}</fieldset>'
         cont = fl.step_button.format(cont=t["continue"])
         action = fl.form_action or fl.checkout_path
         if total == 0:
             inner = address + shipping + payment
-            form_open = f'<form name="checkout" class="checkout woocommerce-checkout" action="{action}" method="post">'
+            form_open = (
+                f'<form name="checkout" class="{fl.form_class}" action="{action}" method="post">'
+            )
             body = f"<h1>{t['checkout']}</h1>{err}{form_open}{inner}</form>"
         elif step == 0:
             body = f"<h1>{t['checkout']} 1/{total + 1}</h1>{err}<form action=\"{action}\" method=\"post\" class=\"form-address\">{address}{cont}</form>"
@@ -851,7 +864,7 @@ def _handler(server: SimServer, sim: Sim) -> type[BaseHTTPRequestHandler]:
             length = int(self.headers.get("content-length") or 0)
             raw = self.rfile.read(length).decode("utf-8", "replace") if length else ""
             host = self.headers.get("x-forwarded-host", self.headers.get("host", "")).split(":")[0]
-            shop = host[: -len(".test")] if host.endswith(".test") else host
+            shop = shop_of(host, server.shops)
             u = urlsplit(self.path)
             query = parse_qs(u.query, keep_blank_values=True)
             body = parse_qs(raw, keep_blank_values=True)
@@ -877,6 +890,14 @@ def _handler(server: SimServer, sim: Sim) -> type[BaseHTTPRequestHandler]:
         do_POST = _serve
 
     return Handler
+
+
+def shop_of(host: str, shops: dict[str, ShopState]) -> str:
+    """`<shop>.test` or any `<shop>.<real tld>` (the worker tests need a PSL-valid name)."""
+    if host.endswith(".test"):
+        return host[: -len(".test")]
+    first = host.split(".")[0]
+    return first if first in shops else host
 
 
 def start_server(

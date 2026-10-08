@@ -12,6 +12,7 @@ payment block. Everything is read-only; nothing here clicks or submits.
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import re
 from collections.abc import Awaitable, Callable
@@ -165,10 +166,8 @@ class NetworkRecorder:
         if len(self.entries) >= MAX_ENTRIES:
             return
         frame_url = ""
-        try:
+        with contextlib.suppress(PlaywrightError):  # detached frame: no initiator
             frame_url = request.frame.url
-        except PlaywrightError:
-            pass
         entry = NetworkEntry(
             url=request.url[:2048],
             method=request.method,
