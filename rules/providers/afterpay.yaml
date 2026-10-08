@@ -1,0 +1,50 @@
+# Detection rules for provider `afterpay` (FR-DT-01, FR-DT-02).
+# Signatures come from the provider's official documentation (see `source`);
+# rules with needs_verification: true are disabled until confirmed (brief rule 8).
+target_type: provider
+target_id: afterpay
+source: https://developers.afterpay.com/afterpay-online/
+rules:
+- id: provider.afterpay.script_src.1
+  version: 1
+  signal_type: script_src
+  pattern: js.afterpay.com/afterpay-1.x.js
+  weight: 0.6
+  page_scope: any
+  enabled: true
+- id: provider.afterpay.script_src.2
+  version: 1
+  signal_type: script_src
+  pattern: js.sandbox.afterpay.com
+  weight: 0.2
+  page_scope: any
+  enabled: true
+  note: sandbox
+- id: provider.afterpay.js_global.1
+  version: 1
+  signal_type: js_global
+  pattern: AfterPay
+  weight: 0.4
+  page_scope: any
+  enabled: true
+- id: provider.afterpay.network_host.1
+  version: 1
+  signal_type: network_host
+  pattern: '*.afterpay.com'
+  weight: 0.5
+  page_scope: any
+  enabled: true
+- id: provider.afterpay.network_host.2
+  version: 1
+  signal_type: network_host
+  pattern: '*.clearpay.co.uk'
+  weight: 0.5
+  page_scope: any
+  enabled: true
+- id: provider.afterpay.checkout_label.1
+  version: 1
+  signal_type: checkout_label
+  pattern: (?i)afterpay|clearpay
+  weight: 0.5
+  page_scope: checkout
+  enabled: true

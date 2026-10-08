@@ -1,0 +1,49 @@
+# Detection rules for provider `mollie` (FR-DT-01, FR-DT-02).
+# Signatures come from the provider's official documentation (see `source`);
+# rules with needs_verification: true are disabled until confirmed (brief rule 8).
+target_type: provider
+target_id: mollie
+source: https://docs.mollie.com/docs/mollie-components
+rules:
+- id: provider.mollie.script_src.1
+  version: 1
+  signal_type: script_src
+  pattern: js.mollie.com/v1/mollie.js
+  weight: 0.6
+  page_scope: any
+  enabled: true
+- id: provider.mollie.js_global.1
+  version: 1
+  signal_type: js_global
+  pattern: Mollie
+  weight: 0.5
+  page_scope: any
+  enabled: true
+- id: provider.mollie.network_host.1
+  version: 1
+  signal_type: network_host
+  pattern: js.mollie.com
+  weight: 0.5
+  page_scope: any
+  enabled: true
+- id: provider.mollie.network_host.2
+  version: 1
+  signal_type: network_host
+  pattern: api.mollie.com
+  weight: 0.7
+  page_scope: checkout
+  enabled: true
+- id: provider.mollie.network_host.3
+  version: 1
+  signal_type: network_host
+  pattern: www.mollie.com
+  weight: 0.3
+  page_scope: any
+  enabled: true
+- id: provider.mollie.iframe_src.1
+  version: 1
+  signal_type: iframe_src
+  pattern: js.mollie.com
+  weight: 0.6
+  page_scope: checkout
+  enabled: true

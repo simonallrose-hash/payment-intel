@@ -1,0 +1,35 @@
+# Detection rules for provider `affirm` (FR-DT-01, FR-DT-02).
+# Signatures come from the provider's official documentation (see `source`);
+# rules with needs_verification: true are disabled until confirmed (brief rule 8).
+target_type: provider
+target_id: affirm
+source: https://docs.affirm.com/
+rules:
+- id: provider.affirm.script_src.1
+  version: 1
+  signal_type: script_src
+  pattern: cdn1.affirm.com/js/v2/affirm.js
+  weight: 0.6
+  page_scope: any
+  enabled: true
+- id: provider.affirm.js_global.1
+  version: 1
+  signal_type: js_global
+  pattern: affirm
+  weight: 0.4
+  page_scope: any
+  enabled: true
+- id: provider.affirm.network_host.1
+  version: 1
+  signal_type: network_host
+  pattern: '*.affirm.com'
+  weight: 0.5
+  page_scope: any
+  enabled: true
+- id: provider.affirm.checkout_label.1
+  version: 1
+  signal_type: checkout_label
+  pattern: (?i)\baffirm\b
+  weight: 0.5
+  page_scope: checkout
+  enabled: true

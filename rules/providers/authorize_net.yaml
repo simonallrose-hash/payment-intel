@@ -1,0 +1,57 @@
+# Detection rules for provider `authorize_net` (FR-DT-01, FR-DT-02).
+# Signatures come from the provider's official documentation (see `source`);
+# rules with needs_verification: true are disabled until confirmed (brief rule 8).
+target_type: provider
+target_id: authorize_net
+source: https://developer.authorize.net/api/reference/features/acceptjs.html
+rules:
+- id: provider.authorize_net.script_src.1
+  version: 1
+  signal_type: script_src
+  pattern: js.authorize.net/v1/Accept.js
+  weight: 0.6
+  page_scope: any
+  enabled: true
+- id: provider.authorize_net.script_src.2
+  version: 1
+  signal_type: script_src
+  pattern: jstest.authorize.net
+  weight: 0.2
+  page_scope: any
+  enabled: true
+  note: sandbox
+- id: provider.authorize_net.js_global.1
+  version: 1
+  signal_type: js_global
+  pattern: Accept
+  weight: 0.3
+  page_scope: any
+  enabled: true
+- id: provider.authorize_net.network_host.1
+  version: 1
+  signal_type: network_host
+  pattern: js.authorize.net
+  weight: 0.5
+  page_scope: any
+  enabled: true
+- id: provider.authorize_net.network_host.2
+  version: 1
+  signal_type: network_host
+  pattern: api.authorize.net
+  weight: 0.7
+  page_scope: checkout
+  enabled: true
+- id: provider.authorize_net.network_host.3
+  version: 1
+  signal_type: network_host
+  pattern: api2.authorize.net
+  weight: 0.7
+  page_scope: checkout
+  enabled: true
+- id: provider.authorize_net.network_host.4
+  version: 1
+  signal_type: network_host
+  pattern: accept.authorize.net
+  weight: 0.6
+  page_scope: checkout
+  enabled: true

@@ -1,0 +1,35 @@
+# Detection rules for provider `spreedly` (FR-DT-01, FR-DT-02).
+# Signatures come from the provider's official documentation (see `source`);
+# rules with needs_verification: true are disabled until confirmed (brief rule 8).
+target_type: provider
+target_id: spreedly
+source: https://docs.spreedly.com/reference/iframe/v1/
+rules:
+- id: provider.spreedly.script_src.1
+  version: 1
+  signal_type: script_src
+  pattern: core.spreedly.com/iframe/iframe-v1.min.js
+  weight: 0.6
+  page_scope: any
+  enabled: true
+- id: provider.spreedly.js_global.1
+  version: 1
+  signal_type: js_global
+  pattern: Spreedly
+  weight: 0.5
+  page_scope: any
+  enabled: true
+- id: provider.spreedly.network_host.1
+  version: 1
+  signal_type: network_host
+  pattern: core.spreedly.com
+  weight: 0.7
+  page_scope: checkout
+  enabled: true
+- id: provider.spreedly.network_host.2
+  version: 1
+  signal_type: network_host
+  pattern: '*.spreedly.com'
+  weight: 0.4
+  page_scope: any
+  enabled: true

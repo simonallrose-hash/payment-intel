@@ -1,0 +1,38 @@
+# Detection rules for provider `unzer` (FR-DT-01, FR-DT-02).
+# Signatures come from the provider's official documentation (see `source`);
+# rules with needs_verification: true are disabled until confirmed (brief rule 8).
+target_type: provider
+target_id: unzer
+source: https://docs.unzer.com/
+rules:
+- id: provider.unzer.network_host.1
+  version: 1
+  signal_type: network_host
+  pattern: '*.unzer.com'
+  weight: 0.5
+  page_scope: any
+  enabled: true
+- id: provider.unzer.network_host.2
+  version: 1
+  signal_type: network_host
+  pattern: api.unzer.com
+  weight: 0.7
+  page_scope: checkout
+  enabled: false
+  needs_verification: true
+- id: provider.unzer.script_src.1
+  version: 1
+  signal_type: script_src
+  pattern: static.unzer.com/v1/unzer.js
+  weight: 0.6
+  page_scope: any
+  enabled: false
+  needs_verification: true
+- id: provider.unzer.js_global.1
+  version: 1
+  signal_type: js_global
+  pattern: unzer
+  weight: 0.4
+  page_scope: any
+  enabled: false
+  needs_verification: true

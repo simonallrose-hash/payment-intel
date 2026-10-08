@@ -1,0 +1,32 @@
+# Detection rules for provider `shopify_payments` (FR-DT-01, FR-DT-02).
+# Signatures come from the provider's official documentation (see `source`);
+# rules with needs_verification: true are disabled until confirmed (brief rule 8).
+target_type: provider
+target_id: shopify_payments
+source: https://help.shopify.com/en/manual/payments/shopify-payments
+rules:
+- id: provider.shopify_payments.network_host.1
+  version: 1
+  signal_type: network_host
+  pattern: checkout.shopify.com
+  weight: 0.3
+  page_scope: checkout
+  enabled: false
+  needs_verification: true
+  note: hosted checkout; does not alone prove Shopify Payments
+- id: provider.shopify_payments.network_host.2
+  version: 1
+  signal_type: network_host
+  pattern: pay.shopify.com
+  weight: 0.5
+  page_scope: checkout
+  enabled: false
+  needs_verification: true
+- id: provider.shopify_payments.js_global.1
+  version: 1
+  signal_type: js_global
+  pattern: Shopify.PaymentButton
+  weight: 0.3
+  page_scope: any
+  enabled: false
+  needs_verification: true

@@ -1,0 +1,13 @@
+# Detection rules for payment_method `twint` (FR-DT-01, FR-DT-02).
+# Signatures come from the provider's official documentation (see `source`);
+# rules with needs_verification: true are disabled until confirmed (brief rule 8).
+target_type: payment_method
+target_id: twint
+rules:
+- id: payment_method.twint.checkout_label.1
+  version: 1
+  signal_type: checkout_label
+  pattern: (?i)\btwint\b
+  weight: 0.5
+  page_scope: checkout
+  enabled: true

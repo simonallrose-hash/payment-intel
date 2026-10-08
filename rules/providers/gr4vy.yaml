@@ -1,0 +1,37 @@
+# Detection rules for provider `gr4vy` (FR-DT-01, FR-DT-02).
+# Signatures come from the provider's official documentation (see `source`);
+# rules with needs_verification: true are disabled until confirmed (brief rule 8).
+target_type: provider
+target_id: gr4vy
+source: https://docs.gr4vy.com/
+rules:
+- id: provider.gr4vy.network_host.1
+  version: 1
+  signal_type: network_host
+  pattern: '*.gr4vy.app'
+  weight: 0.5
+  page_scope: any
+  enabled: true
+- id: provider.gr4vy.network_host.2
+  version: 1
+  signal_type: network_host
+  pattern: '*.gr4vy.com'
+  weight: 0.3
+  page_scope: any
+  enabled: true
+- id: provider.gr4vy.js_global.1
+  version: 1
+  signal_type: js_global
+  pattern: gr4vy
+  weight: 0.4
+  page_scope: any
+  enabled: false
+  needs_verification: true
+- id: provider.gr4vy.script_src.1
+  version: 1
+  signal_type: script_src
+  pattern: cdn.gr4vy.app
+  weight: 0.6
+  page_scope: any
+  enabled: false
+  needs_verification: true

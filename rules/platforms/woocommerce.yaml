@@ -1,0 +1,42 @@
+# Detection rules for platform `woocommerce` (FR-DT-01, FR-DT-02).
+# Signatures come from the provider's official documentation (see `source`);
+# rules with needs_verification: true are disabled until confirmed (brief rule 8).
+target_type: platform
+target_id: woocommerce
+source: https://developer.woocommerce.com/
+rules:
+- id: platform.woocommerce.html_pattern.1
+  version: 1
+  signal_type: html_pattern
+  pattern: /wp-content/plugins/woocommerce/
+  weight: 0.7
+  page_scope: any
+  enabled: true
+- id: platform.woocommerce.html_pattern.2
+  version: 1
+  signal_type: html_pattern
+  pattern: \bwoocommerce-
+  weight: 0.3
+  page_scope: any
+  enabled: true
+- id: platform.woocommerce.js_global.1
+  version: 1
+  signal_type: js_global
+  pattern: wc_add_to_cart_params
+  weight: 0.5
+  page_scope: any
+  enabled: true
+- id: platform.woocommerce.cookie.1
+  version: 1
+  signal_type: cookie
+  pattern: woocommerce_items_in_cart
+  weight: 0.5
+  page_scope: any
+  enabled: true
+- id: platform.woocommerce.html_pattern.3
+  version: 1
+  signal_type: html_pattern
+  pattern: <meta name="generator" content="WooCommerce
+  weight: 0.7
+  page_scope: any
+  enabled: true

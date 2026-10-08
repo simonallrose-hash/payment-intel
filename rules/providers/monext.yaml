@@ -1,0 +1,44 @@
+# Detection rules for provider `monext` (FR-DT-01, FR-DT-02).
+# Signatures come from the provider's official documentation (see `source`);
+# rules with needs_verification: true are disabled until confirmed (brief rule 8).
+target_type: provider
+target_id: monext
+source: https://docs.monext.fr/
+rules:
+- id: provider.monext.network_host.1
+  version: 1
+  signal_type: network_host
+  pattern: payment.payline.com
+  weight: 0.7
+  page_scope: checkout
+  enabled: true
+- id: provider.monext.network_host.2
+  version: 1
+  signal_type: network_host
+  pattern: homologation-payment.payline.com
+  weight: 0.2
+  page_scope: any
+  enabled: true
+  note: test
+- id: provider.monext.network_host.3
+  version: 1
+  signal_type: network_host
+  pattern: '*.payline.com'
+  weight: 0.4
+  page_scope: any
+  enabled: true
+- id: provider.monext.network_host.4
+  version: 1
+  signal_type: network_host
+  pattern: '*.monext.fr'
+  weight: 0.3
+  page_scope: any
+  enabled: true
+- id: provider.monext.js_global.1
+  version: 1
+  signal_type: js_global
+  pattern: Payline
+  weight: 0.4
+  page_scope: any
+  enabled: false
+  needs_verification: true

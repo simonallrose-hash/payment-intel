@@ -1,0 +1,44 @@
+# Detection rules for platform `magento2` (FR-DT-01, FR-DT-02).
+# Signatures come from the provider's official documentation (see `source`);
+# rules with needs_verification: true are disabled until confirmed (brief rule 8).
+target_type: platform
+target_id: magento2
+source: https://developer.adobe.com/commerce/
+rules:
+- id: platform.magento2.html_pattern.1
+  version: 1
+  signal_type: html_pattern
+  pattern: /static/version\d+/frontend/
+  weight: 0.7
+  page_scope: any
+  enabled: true
+- id: platform.magento2.html_pattern.2
+  version: 1
+  signal_type: html_pattern
+  pattern: Magento_
+  weight: 0.4
+  page_scope: any
+  enabled: true
+- id: platform.magento2.cookie.1
+  version: 1
+  signal_type: cookie
+  pattern: mage-cache-sessid
+  weight: 0.5
+  page_scope: any
+  enabled: true
+- id: platform.magento2.cookie.2
+  version: 1
+  signal_type: cookie
+  pattern: form_key
+  weight: 0.3
+  page_scope: any
+  enabled: true
+- id: platform.magento2.js_global.1
+  version: 1
+  signal_type: js_global
+  pattern: require
+  weight: 0.0
+  page_scope: any
+  enabled: false
+  needs_verification: true
+  note: too generic; kept for reference

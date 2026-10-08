@@ -1,0 +1,36 @@
+# Detection rules for provider `multisafepay` (FR-DT-01, FR-DT-02).
+# Signatures come from the provider's official documentation (see `source`);
+# rules with needs_verification: true are disabled until confirmed (brief rule 8).
+target_type: provider
+target_id: multisafepay
+source: https://docs.multisafepay.com/
+rules:
+- id: provider.multisafepay.network_host.1
+  version: 1
+  signal_type: network_host
+  pattern: payv2.multisafepay.com
+  weight: 0.7
+  page_scope: checkout
+  enabled: true
+- id: provider.multisafepay.network_host.2
+  version: 1
+  signal_type: network_host
+  pattern: pay.multisafepay.com
+  weight: 0.7
+  page_scope: checkout
+  enabled: true
+- id: provider.multisafepay.network_host.3
+  version: 1
+  signal_type: network_host
+  pattern: testpayv2.multisafepay.com
+  weight: 0.2
+  page_scope: any
+  enabled: true
+  note: test
+- id: provider.multisafepay.network_host.4
+  version: 1
+  signal_type: network_host
+  pattern: '*.multisafepay.com'
+  weight: 0.4
+  page_scope: any
+  enabled: true

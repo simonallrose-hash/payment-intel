@@ -1,0 +1,23 @@
+# Detection rules for provider `cellpoint_digital` (FR-DT-01, FR-DT-02).
+# Signatures come from the provider's official documentation (see `source`);
+# rules with needs_verification: true are disabled until confirmed (brief rule 8).
+target_type: provider
+target_id: cellpoint_digital
+source: https://www.cellpointdigital.com/
+rules:
+- id: provider.cellpoint_digital.network_host.1
+  version: 1
+  signal_type: network_host
+  pattern: '*.cellpointdigital.com'
+  weight: 0.4
+  page_scope: any
+  enabled: true
+- id: provider.cellpoint_digital.network_host.2
+  version: 1
+  signal_type: network_host
+  pattern: '*.cellpointmobile.com'
+  weight: 0.5
+  page_scope: any
+  enabled: false
+  needs_verification: true
+  note: Velocity API host to confirm

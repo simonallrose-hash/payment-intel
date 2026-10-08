@@ -1,0 +1,31 @@
+# Detection rules for provider `apexx` (FR-DT-01, FR-DT-02).
+# Signatures come from the provider's official documentation (see `source`);
+# rules with needs_verification: true are disabled until confirmed (brief rule 8).
+target_type: provider
+target_id: apexx
+source: https://docs.apexx.global/
+rules:
+- id: provider.apexx.network_host.1
+  version: 1
+  signal_type: network_host
+  pattern: '*.apexx.global'
+  weight: 0.5
+  page_scope: any
+  enabled: true
+- id: provider.apexx.network_host.2
+  version: 1
+  signal_type: network_host
+  pattern: sandmgw.apexxfintech.com
+  weight: 0.2
+  page_scope: any
+  enabled: false
+  needs_verification: true
+  note: sandbox host to confirm
+- id: provider.apexx.network_host.3
+  version: 1
+  signal_type: network_host
+  pattern: '*.apexxfintech.com'
+  weight: 0.5
+  page_scope: any
+  enabled: false
+  needs_verification: true

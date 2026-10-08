@@ -1,0 +1,13 @@
+# Detection rules for payment_method `cash_on_delivery` (FR-DT-01, FR-DT-02).
+# Signatures come from the provider's official documentation (see `source`);
+# rules with needs_verification: true are disabled until confirmed (brief rule 8).
+target_type: payment_method
+target_id: cash_on_delivery
+rules:
+- id: payment_method.cash_on_delivery.checkout_label.1
+  version: 1
+  signal_type: checkout_label
+  pattern: (?i)cash on delivery|nachnahme|contre.?remboursement|rembours|contrassegno|za pobraniem|contra reembolso
+  weight: 0.5
+  page_scope: checkout
+  enabled: true

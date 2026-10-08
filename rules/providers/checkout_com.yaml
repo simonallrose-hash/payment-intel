@@ -1,0 +1,51 @@
+# Detection rules for provider `checkout_com` (FR-DT-01, FR-DT-02).
+# Signatures come from the provider's official documentation (see `source`);
+# rules with needs_verification: true are disabled until confirmed (brief rule 8).
+target_type: provider
+target_id: checkout_com
+source: https://www.checkout.com/docs/payments/accept-payments/accept-a-payment-on-your-website/frames
+rules:
+- id: provider.checkout_com.script_src.1
+  version: 1
+  signal_type: script_src
+  pattern: cdn.checkout.com/js/framesv2.min.js
+  weight: 0.6
+  page_scope: any
+  enabled: true
+- id: provider.checkout_com.js_global.1
+  version: 1
+  signal_type: js_global
+  pattern: Frames
+  weight: 0.4
+  page_scope: any
+  enabled: true
+- id: provider.checkout_com.network_host.1
+  version: 1
+  signal_type: network_host
+  pattern: cdn.checkout.com
+  weight: 0.5
+  page_scope: any
+  enabled: true
+- id: provider.checkout_com.network_host.2
+  version: 1
+  signal_type: network_host
+  pattern: api.checkout.com
+  weight: 0.7
+  page_scope: checkout
+  enabled: true
+- id: provider.checkout_com.iframe_src.1
+  version: 1
+  signal_type: iframe_src
+  pattern: cdn.checkout.com
+  weight: 0.6
+  page_scope: checkout
+  enabled: true
+- id: provider.checkout_com.network_host.3
+  version: 1
+  signal_type: network_host
+  pattern: checkout-web-components.checkout.com
+  weight: 0.6
+  page_scope: checkout
+  enabled: false
+  needs_verification: true
+  note: Flow components host

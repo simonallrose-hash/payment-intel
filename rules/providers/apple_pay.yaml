@@ -1,0 +1,28 @@
+# Detection rules for provider `apple_pay` (FR-DT-01, FR-DT-02).
+# Signatures come from the provider's official documentation (see `source`);
+# rules with needs_verification: true are disabled until confirmed (brief rule 8).
+target_type: provider
+target_id: apple_pay
+source: https://developer.apple.com/documentation/apple_pay_on_the_web
+rules:
+- id: provider.apple_pay.js_global.1
+  version: 1
+  signal_type: js_global
+  pattern: ApplePaySession
+  weight: 0.4
+  page_scope: any
+  enabled: true
+- id: provider.apple_pay.network_host.1
+  version: 1
+  signal_type: network_host
+  pattern: apple-pay-gateway.apple.com
+  weight: 0.7
+  page_scope: checkout
+  enabled: true
+- id: provider.apple_pay.checkout_label.1
+  version: 1
+  signal_type: checkout_label
+  pattern: (?i)apple\s*pay
+  weight: 0.5
+  page_scope: checkout
+  enabled: true

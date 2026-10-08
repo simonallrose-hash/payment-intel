@@ -1,0 +1,50 @@
+# Detection rules for provider `elavon` (FR-DT-01, FR-DT-02).
+# Signatures come from the provider's official documentation (see `source`);
+# rules with needs_verification: true are disabled until confirmed (brief rule 8).
+target_type: provider
+target_id: elavon
+source: https://developer.elavon.com/ and https://developer.opayo.co.uk/
+rules:
+- id: provider.elavon.network_host.1
+  version: 1
+  signal_type: network_host
+  pattern: api.convergepay.com
+  weight: 0.7
+  page_scope: checkout
+  enabled: true
+- id: provider.elavon.network_host.2
+  version: 1
+  signal_type: network_host
+  pattern: '*.convergepay.com'
+  weight: 0.5
+  page_scope: any
+  enabled: true
+- id: provider.elavon.network_host.3
+  version: 1
+  signal_type: network_host
+  pattern: pi-live.sagepay.com
+  weight: 0.7
+  page_scope: checkout
+  enabled: true
+- id: provider.elavon.network_host.4
+  version: 1
+  signal_type: network_host
+  pattern: live.sagepay.com
+  weight: 0.6
+  page_scope: checkout
+  enabled: true
+- id: provider.elavon.network_host.5
+  version: 1
+  signal_type: network_host
+  pattern: '*.sagepay.com'
+  weight: 0.4
+  page_scope: any
+  enabled: true
+- id: provider.elavon.network_host.6
+  version: 1
+  signal_type: network_host
+  pattern: '*.opayo.eu'
+  weight: 0.5
+  page_scope: any
+  enabled: false
+  needs_verification: true

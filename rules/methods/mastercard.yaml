@@ -1,0 +1,13 @@
+# Detection rules for payment_method `mastercard` (FR-DT-01, FR-DT-02).
+# Signatures come from the provider's official documentation (see `source`);
+# rules with needs_verification: true are disabled until confirmed (brief rule 8).
+target_type: payment_method
+target_id: mastercard
+rules:
+- id: payment_method.mastercard.checkout_label.1
+  version: 1
+  signal_type: checkout_label
+  pattern: (?i)master\s*card
+  weight: 0.3
+  page_scope: checkout
+  enabled: true

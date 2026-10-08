@@ -1,0 +1,49 @@
+# Detection rules for provider `stripe` (FR-DT-01, FR-DT-02).
+# Signatures come from the provider's official documentation (see `source`);
+# rules with needs_verification: true are disabled until confirmed (brief rule 8).
+target_type: provider
+target_id: stripe
+source: https://docs.stripe.com/js/including
+rules:
+- id: provider.stripe.script_src.1
+  version: 1
+  signal_type: script_src
+  pattern: js.stripe.com/v3
+  weight: 0.6
+  page_scope: any
+  enabled: true
+- id: provider.stripe.js_global.1
+  version: 1
+  signal_type: js_global
+  pattern: Stripe
+  weight: 0.5
+  page_scope: any
+  enabled: true
+- id: provider.stripe.network_host.1
+  version: 1
+  signal_type: network_host
+  pattern: js.stripe.com
+  weight: 0.5
+  page_scope: any
+  enabled: true
+- id: provider.stripe.network_host.2
+  version: 1
+  signal_type: network_host
+  pattern: api.stripe.com
+  weight: 0.7
+  page_scope: checkout
+  enabled: true
+- id: provider.stripe.network_host.3
+  version: 1
+  signal_type: network_host
+  pattern: m.stripe.network
+  weight: 0.4
+  page_scope: any
+  enabled: true
+- id: provider.stripe.iframe_src.1
+  version: 1
+  signal_type: iframe_src
+  pattern: js.stripe.com
+  weight: 0.7
+  page_scope: checkout
+  enabled: true

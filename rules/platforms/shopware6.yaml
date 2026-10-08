@@ -1,0 +1,48 @@
+# Detection rules for platform `shopware6` (FR-DT-01, FR-DT-02).
+# Signatures come from the provider's official documentation (see `source`);
+# rules with needs_verification: true are disabled until confirmed (brief rule 8).
+target_type: platform
+target_id: shopware6
+source: https://developer.shopware.com/
+rules:
+- id: platform.shopware6.html_pattern.1
+  version: 1
+  signal_type: html_pattern
+  pattern: /bundles/storefront/
+  weight: 0.6
+  page_scope: any
+  enabled: true
+- id: platform.shopware6.html_pattern.2
+  version: 1
+  signal_type: html_pattern
+  pattern: /theme/[0-9a-f]{32}/
+  weight: 0.4
+  page_scope: any
+  enabled: false
+  needs_verification: true
+  note: themed asset path to confirm
+- id: platform.shopware6.js_global.1
+  version: 1
+  signal_type: js_global
+  pattern: shopware
+  weight: 0.4
+  page_scope: any
+  enabled: false
+  needs_verification: true
+- id: platform.shopware6.cookie.1
+  version: 1
+  signal_type: cookie
+  pattern: sw-cache-hash
+  weight: 0.5
+  page_scope: any
+  enabled: false
+  needs_verification: true
+- id: platform.shopware6.cookie.2
+  version: 1
+  signal_type: cookie
+  pattern: session-
+  weight: 0.1
+  page_scope: any
+  enabled: false
+  needs_verification: true
+  note: too generic

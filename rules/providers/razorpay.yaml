@@ -1,0 +1,42 @@
+# Detection rules for provider `razorpay` (FR-DT-01, FR-DT-02).
+# Signatures come from the provider's official documentation (see `source`);
+# rules with needs_verification: true are disabled until confirmed (brief rule 8).
+target_type: provider
+target_id: razorpay
+source: https://razorpay.com/docs/payments/payment-gateway/web-integration/standard/
+rules:
+- id: provider.razorpay.script_src.1
+  version: 1
+  signal_type: script_src
+  pattern: checkout.razorpay.com/v1/checkout.js
+  weight: 0.6
+  page_scope: any
+  enabled: true
+- id: provider.razorpay.js_global.1
+  version: 1
+  signal_type: js_global
+  pattern: Razorpay
+  weight: 0.5
+  page_scope: any
+  enabled: true
+- id: provider.razorpay.network_host.1
+  version: 1
+  signal_type: network_host
+  pattern: api.razorpay.com
+  weight: 0.7
+  page_scope: checkout
+  enabled: true
+- id: provider.razorpay.network_host.2
+  version: 1
+  signal_type: network_host
+  pattern: checkout.razorpay.com
+  weight: 0.6
+  page_scope: any
+  enabled: true
+- id: provider.razorpay.network_host.3
+  version: 1
+  signal_type: network_host
+  pattern: '*.razorpay.com'
+  weight: 0.3
+  page_scope: any
+  enabled: true

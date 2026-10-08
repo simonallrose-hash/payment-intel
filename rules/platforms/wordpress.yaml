@@ -1,0 +1,28 @@
+# Detection rules for platform `wordpress` (FR-DT-01, FR-DT-02).
+# Signatures come from the provider's official documentation (see `source`);
+# rules with needs_verification: true are disabled until confirmed (brief rule 8).
+target_type: platform
+target_id: wordpress
+source: https://wordpress.org/
+rules:
+- id: platform.wordpress.html_pattern.1
+  version: 1
+  signal_type: html_pattern
+  pattern: <meta name="generator" content="WordPress
+  weight: 0.7
+  page_scope: any
+  enabled: true
+- id: platform.wordpress.html_pattern.2
+  version: 1
+  signal_type: html_pattern
+  pattern: /wp-content/
+  weight: 0.4
+  page_scope: any
+  enabled: true
+- id: platform.wordpress.html_pattern.3
+  version: 1
+  signal_type: html_pattern
+  pattern: /wp-includes/
+  weight: 0.3
+  page_scope: any
+  enabled: true

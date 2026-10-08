@@ -1,0 +1,30 @@
+# Detection rules for platform `prestashop` (FR-DT-01, FR-DT-02).
+# Signatures come from the provider's official documentation (see `source`);
+# rules with needs_verification: true are disabled until confirmed (brief rule 8).
+target_type: platform
+target_id: prestashop
+source: https://devdocs.prestashop-project.org/
+rules:
+- id: platform.prestashop.html_pattern.1
+  version: 1
+  signal_type: html_pattern
+  pattern: <meta name="generator" content="PrestaShop
+  weight: 0.7
+  page_scope: any
+  enabled: true
+- id: platform.prestashop.js_global.1
+  version: 1
+  signal_type: js_global
+  pattern: prestashop
+  weight: 0.5
+  page_scope: any
+  enabled: true
+- id: platform.prestashop.cookie.1
+  version: 1
+  signal_type: cookie
+  pattern: PrestaShop-
+  weight: 0.5
+  page_scope: any
+  enabled: true
+  match: regex
+  note: cookie name prefix

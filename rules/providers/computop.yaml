@@ -1,0 +1,21 @@
+# Detection rules for provider `computop` (FR-DT-01, FR-DT-02).
+# Signatures come from the provider's official documentation (see `source`);
+# rules with needs_verification: true are disabled until confirmed (brief rule 8).
+target_type: provider
+target_id: computop
+source: https://developer.computop.com/
+rules:
+- id: provider.computop.network_host.1
+  version: 1
+  signal_type: network_host
+  pattern: www.computop-paygate.com
+  weight: 0.7
+  page_scope: checkout
+  enabled: true
+- id: provider.computop.network_host.2
+  version: 1
+  signal_type: network_host
+  pattern: '*.computop-paygate.com'
+  weight: 0.5
+  page_scope: any
+  enabled: true

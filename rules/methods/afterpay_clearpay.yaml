@@ -1,0 +1,21 @@
+# Detection rules for payment_method `afterpay_clearpay` (FR-DT-01, FR-DT-02).
+# Signatures come from the provider's official documentation (see `source`);
+# rules with needs_verification: true are disabled until confirmed (brief rule 8).
+target_type: payment_method
+target_id: afterpay_clearpay
+source: https://developers.afterpay.com/
+rules:
+- id: payment_method.afterpay_clearpay.script_src.1
+  version: 1
+  signal_type: script_src
+  pattern: js.afterpay.com/afterpay-1.x.js
+  weight: 0.5
+  page_scope: any
+  enabled: true
+- id: payment_method.afterpay_clearpay.checkout_label.1
+  version: 1
+  signal_type: checkout_label
+  pattern: (?i)afterpay|clearpay
+  weight: 0.5
+  page_scope: checkout
+  enabled: true

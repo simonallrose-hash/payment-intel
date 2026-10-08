@@ -1,0 +1,21 @@
+# Detection rules for payment_method `amazon_pay` (FR-DT-01, FR-DT-02).
+# Signatures come from the provider's official documentation (see `source`);
+# rules with needs_verification: true are disabled until confirmed (brief rule 8).
+target_type: payment_method
+target_id: amazon_pay
+source: https://developer.amazon.com/docs/amazon-pay-checkout/introduction.html
+rules:
+- id: payment_method.amazon_pay.script_src.1
+  version: 1
+  signal_type: script_src
+  pattern: payments-amazon.com/checkout.js
+  weight: 0.5
+  page_scope: any
+  enabled: true
+- id: payment_method.amazon_pay.checkout_label.1
+  version: 1
+  signal_type: checkout_label
+  pattern: (?i)amazon\s*pay
+  weight: 0.5
+  page_scope: checkout
+  enabled: true

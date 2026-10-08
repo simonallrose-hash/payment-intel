@@ -1,0 +1,56 @@
+# Detection rules for provider `klarna` (FR-DT-01, FR-DT-02).
+# Signatures come from the provider's official documentation (see `source`);
+# rules with needs_verification: true are disabled until confirmed (brief rule 8).
+target_type: provider
+target_id: klarna
+source: https://docs.klarna.com/
+rules:
+- id: provider.klarna.script_src.1
+  version: 1
+  signal_type: script_src
+  pattern: x.klarnacdn.net/kp/lib/v1/api.js
+  weight: 0.6
+  page_scope: any
+  enabled: true
+- id: provider.klarna.script_src.2
+  version: 1
+  signal_type: script_src
+  pattern: js.klarna.com/web-sdk/v1/klarna.js
+  weight: 0.4
+  page_scope: any
+  enabled: true
+- id: provider.klarna.js_global.1
+  version: 1
+  signal_type: js_global
+  pattern: Klarna
+  weight: 0.5
+  page_scope: any
+  enabled: true
+- id: provider.klarna.network_host.1
+  version: 1
+  signal_type: network_host
+  pattern: x.klarnacdn.net
+  weight: 0.5
+  page_scope: any
+  enabled: true
+- id: provider.klarna.network_host.2
+  version: 1
+  signal_type: network_host
+  pattern: '*.klarna.com'
+  weight: 0.4
+  page_scope: any
+  enabled: true
+- id: provider.klarna.iframe_src.1
+  version: 1
+  signal_type: iframe_src
+  pattern: '*.klarna.com'
+  weight: 0.6
+  page_scope: checkout
+  enabled: true
+- id: provider.klarna.network_host.3
+  version: 1
+  signal_type: network_host
+  pattern: '*.klarnaservices.com'
+  weight: 0.3
+  page_scope: any
+  enabled: true

@@ -1,0 +1,28 @@
+# Detection rules for platform `bigcommerce` (FR-DT-01, FR-DT-02).
+# Signatures come from the provider's official documentation (see `source`);
+# rules with needs_verification: true are disabled until confirmed (brief rule 8).
+target_type: platform
+target_id: bigcommerce
+source: https://developer.bigcommerce.com/
+rules:
+- id: platform.bigcommerce.network_host.1
+  version: 1
+  signal_type: network_host
+  pattern: cdn11.bigcommerce.com
+  weight: 0.6
+  page_scope: any
+  enabled: true
+- id: platform.bigcommerce.html_pattern.1
+  version: 1
+  signal_type: html_pattern
+  pattern: cdn11\.bigcommerce\.com
+  weight: 0.5
+  page_scope: any
+  enabled: true
+- id: platform.bigcommerce.cookie.1
+  version: 1
+  signal_type: cookie
+  pattern: SHOP_SESSION_TOKEN
+  weight: 0.6
+  page_scope: any
+  enabled: true

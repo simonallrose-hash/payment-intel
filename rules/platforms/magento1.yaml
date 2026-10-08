@@ -1,0 +1,20 @@
+# Detection rules for platform `magento1` (FR-DT-01, FR-DT-02).
+# Signatures come from the provider's official documentation (see `source`);
+# rules with needs_verification: true are disabled until confirmed (brief rule 8).
+target_type: platform
+target_id: magento1
+rules:
+- id: platform.magento1.html_pattern.1
+  version: 1
+  signal_type: html_pattern
+  pattern: /skin/frontend/
+  weight: 0.6
+  page_scope: any
+  enabled: true
+- id: platform.magento1.html_pattern.2
+  version: 1
+  signal_type: html_pattern
+  pattern: /js/varien/
+  weight: 0.6
+  page_scope: any
+  enabled: true

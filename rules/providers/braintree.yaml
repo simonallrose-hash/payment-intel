@@ -1,0 +1,49 @@
+# Detection rules for provider `braintree` (FR-DT-01, FR-DT-02).
+# Signatures come from the provider's official documentation (see `source`);
+# rules with needs_verification: true are disabled until confirmed (brief rule 8).
+target_type: provider
+target_id: braintree
+source: https://developer.paypal.com/braintree/docs/start/hello-client
+rules:
+- id: provider.braintree.script_src.1
+  version: 1
+  signal_type: script_src
+  pattern: js.braintreegateway.com
+  weight: 0.6
+  page_scope: any
+  enabled: true
+- id: provider.braintree.js_global.1
+  version: 1
+  signal_type: js_global
+  pattern: braintree
+  weight: 0.5
+  page_scope: any
+  enabled: true
+- id: provider.braintree.network_host.1
+  version: 1
+  signal_type: network_host
+  pattern: api.braintreegateway.com
+  weight: 0.7
+  page_scope: checkout
+  enabled: true
+- id: provider.braintree.network_host.2
+  version: 1
+  signal_type: network_host
+  pattern: client-analytics.braintreegateway.com
+  weight: 0.5
+  page_scope: any
+  enabled: true
+- id: provider.braintree.network_host.3
+  version: 1
+  signal_type: network_host
+  pattern: assets.braintreegateway.com
+  weight: 0.5
+  page_scope: any
+  enabled: true
+- id: provider.braintree.iframe_src.1
+  version: 1
+  signal_type: iframe_src
+  pattern: assets.braintreegateway.com
+  weight: 0.7
+  page_scope: checkout
+  enabled: true

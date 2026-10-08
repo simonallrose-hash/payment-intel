@@ -1,0 +1,38 @@
+# Detection rules for provider `primer` (FR-DT-01, FR-DT-02).
+# Signatures come from the provider's official documentation (see `source`);
+# rules with needs_verification: true are disabled until confirmed (brief rule 8).
+target_type: provider
+target_id: primer
+source: https://primer.io/docs
+rules:
+- id: provider.primer.network_host.1
+  version: 1
+  signal_type: network_host
+  pattern: '*.primer.io'
+  weight: 0.5
+  page_scope: any
+  enabled: true
+- id: provider.primer.network_host.2
+  version: 1
+  signal_type: network_host
+  pattern: api.primer.io
+  weight: 0.7
+  page_scope: checkout
+  enabled: false
+  needs_verification: true
+- id: provider.primer.network_host.3
+  version: 1
+  signal_type: network_host
+  pattern: sdk.primer.io
+  weight: 0.6
+  page_scope: any
+  enabled: false
+  needs_verification: true
+- id: provider.primer.js_global.1
+  version: 1
+  signal_type: js_global
+  pattern: Primer
+  weight: 0.4
+  page_scope: any
+  enabled: false
+  needs_verification: true

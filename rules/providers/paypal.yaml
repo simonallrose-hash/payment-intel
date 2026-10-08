@@ -1,0 +1,50 @@
+# Detection rules for provider `paypal` (FR-DT-01, FR-DT-02).
+# Signatures come from the provider's official documentation (see `source`);
+# rules with needs_verification: true are disabled until confirmed (brief rule 8).
+target_type: provider
+target_id: paypal
+source: https://developer.paypal.com/sdk/js/
+rules:
+- id: provider.paypal.script_src.1
+  version: 1
+  signal_type: script_src
+  pattern: www.paypal.com/sdk/js
+  weight: 0.6
+  page_scope: any
+  enabled: true
+- id: provider.paypal.js_global.1
+  version: 1
+  signal_type: js_global
+  pattern: paypal
+  weight: 0.4
+  page_scope: any
+  enabled: true
+- id: provider.paypal.network_host.1
+  version: 1
+  signal_type: network_host
+  pattern: www.paypal.com
+  weight: 0.5
+  page_scope: any
+  enabled: true
+- id: provider.paypal.network_host.2
+  version: 1
+  signal_type: network_host
+  pattern: www.paypalobjects.com
+  weight: 0.4
+  page_scope: any
+  enabled: true
+- id: provider.paypal.network_host.3
+  version: 1
+  signal_type: network_host
+  pattern: www.sandbox.paypal.com
+  weight: 0.2
+  page_scope: any
+  enabled: true
+  note: sandbox
+- id: provider.paypal.iframe_src.1
+  version: 1
+  signal_type: iframe_src
+  pattern: www.paypal.com
+  weight: 0.6
+  page_scope: checkout
+  enabled: true

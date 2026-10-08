@@ -1,0 +1,28 @@
+# Detection rules for payment_method `paypal` (FR-DT-01, FR-DT-02).
+# Signatures come from the provider's official documentation (see `source`);
+# rules with needs_verification: true are disabled until confirmed (brief rule 8).
+target_type: payment_method
+target_id: paypal
+source: https://developer.paypal.com/sdk/js/
+rules:
+- id: payment_method.paypal.script_src.1
+  version: 1
+  signal_type: script_src
+  pattern: www.paypal.com/sdk/js
+  weight: 0.5
+  page_scope: any
+  enabled: true
+- id: payment_method.paypal.iframe_src.1
+  version: 1
+  signal_type: iframe_src
+  pattern: www.paypal.com
+  weight: 0.6
+  page_scope: checkout
+  enabled: true
+- id: payment_method.paypal.checkout_label.1
+  version: 1
+  signal_type: checkout_label
+  pattern: (?i)paypal
+  weight: 0.5
+  page_scope: checkout
+  enabled: true
