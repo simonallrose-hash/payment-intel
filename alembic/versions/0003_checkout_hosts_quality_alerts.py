@@ -69,9 +69,7 @@ def upgrade() -> None:
         sa.Column("acknowledged_by", sa.String(length=128), nullable=True),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_quality_alert")),
     )
-    op.create_index(
-        "ix_quality_alert_detected_at", "quality_alert", ["detected_at"], unique=False
-    )
+    op.create_index("ix_quality_alert_detected_at", "quality_alert", ["detected_at"], unique=False)
 
 
 def downgrade() -> None:
