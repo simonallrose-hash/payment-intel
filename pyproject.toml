@@ -1,0 +1,116 @@
+[project]
+name = "payintel"
+version = "0.1.0"
+description = "Module C: payment infrastructure database of e-commerce sites (PSP x payment methods x platform)."
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+license = { text = "Proprietary" }
+dependencies = [
+    "pydantic>=2.9,<3",
+    "pydantic-settings>=2.6,<3",
+    "sqlalchemy>=2.0.36,<2.1",
+    "alembic>=1.14,<2",
+    "psycopg[binary,pool]>=3.2,<4",
+    "clickhouse-connect>=0.8,<0.9",
+    "boto3>=1.35,<2",
+    "redis>=5.2,<6",
+    "structlog>=24.4,<25",
+    "pyyaml>=6.0.2,<7",
+    "jsonschema>=4.23,<5",
+    "typer>=0.15,<0.16",
+    "cryptography>=43,<45",
+    "orjson>=3.10,<4",
+]
+
+[project.scripts]
+payintel = "payintel.cli:app"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3,<9",
+    "pytest-asyncio>=0.24,<0.25",
+    "pytest-cov>=6.0,<7",
+    "pytest-socket>=0.7,<0.8",
+    "testcontainers[postgres,clickhouse]>=4.9,<5",
+    "ruff>=0.8,<0.9",
+    "mypy>=1.13,<1.14",
+    "types-PyYAML>=6.0.12",
+    "types-jsonschema>=4.23",
+    "boto3-stubs[s3]>=1.35",
+    "pre-commit>=4.0,<5",
+    "pip-audit>=2.7,<3",
+]
+
+[build-system]
+requires = ["hatchling>=1.26"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/payintel"]
+
+# ---------------------------------------------------------------------------
+# ruff: rule set required by the coding standards (E,F,I,B,UP,S,ASYNC,RUF)
+# ---------------------------------------------------------------------------
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "S", "ASYNC", "RUF"]
+ignore = [
+    "RUF001", "RUF002", "RUF003",  # Cyrillic in comments/docstrings is intentional (AS-04: internal docs in Russian)
+    "RUF012",                      # mutable class attributes are used for SQLAlchemy declarative tables
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "S105", "S106", "S108"]   # asserts and dummy credentials in tests only
+"alembic/**" = ["E501"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["payintel"]
+
+# ---------------------------------------------------------------------------
+# mypy: --strict for the whole source tree (ТЗ requires it for core, api,
+# entitlements, detect; we apply it everywhere to keep one standard)
+# ---------------------------------------------------------------------------
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_unreachable = true
+mypy_path = "src"
+packages = ["payintel"]
+plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+module = ["clickhouse_connect.*", "testcontainers.*", "jsonschema.*"]
+ignore_missing_imports = true
+
+[tool.pydantic-mypy]
+init_forbid_extra = true
+init_typed = true
+
+# ---------------------------------------------------------------------------
+# pytest: deterministic tests, no outbound network (rule 9 of the brief)
+# ---------------------------------------------------------------------------
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers --disable-socket --allow-unix-socket --allow-hosts=127.0.0.1,::1,localhost"
+markers = [
+    "integration: needs Postgres/ClickHouse containers",
+    "e2e: full end-to-end scenario on local shop fixtures",
+]
+asyncio_mode = "strict"
+filterwarnings = ["error::DeprecationWarning:payintel.*"]
+
+[tool.coverage.run]
+source = ["payintel"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
+# Global floor (NFR-M-01: >=70% for all packages; per-package 85% floors are
+# enforced by scripts/check_coverage.py).
+fail_under = 70
+exclude_lines = ["pragma: no cover", "if TYPE_CHECKING:", "raise NotImplementedError"]

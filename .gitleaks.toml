@@ -1,0 +1,12 @@
+title = "payintel gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Documented test values and example files"
+paths = [
+  '''\.env\.example$''',
+  '''reference/test_payment_values\.yaml$''',
+  '''tests/fixtures/.*''',
+]
