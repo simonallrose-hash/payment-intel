@@ -44,11 +44,13 @@ flags_app = typer.Typer(no_args_is_help=True, help="Feature flags (FR-ADM-05)")
 audit_app = typer.Typer(no_args_is_help=True, help="Audit log (FR-AB-01, NFR-S-11)")
 discovery_app = typer.Typer(no_args_is_help=True, help="Domain discovery (FR-DS-*)")
 scheduler_app = typer.Typer(no_args_is_help=True, help="Scan planning (FR-SC-*)")
+quality_app = typer.Typer(no_args_is_help=True, help="Quality dashboard and stop review (FR-QA-*)")
 app.add_typer(gold_app, name="gold")
 app.add_typer(flags_app, name="flags")
 app.add_typer(audit_app, name="audit")
 app.add_typer(discovery_app, name="discovery")
 app.add_typer(scheduler_app, name="scheduler")
+app.add_typer(quality_app, name="quality")
 
 ROOT = Path(__file__).resolve().parents[2]
 log = get_logger("payintel.cli")
@@ -371,6 +373,102 @@ def worker_light(
             await redis.aclose()
 
     asyncio.run(loop())
+
+
+# --- stage 2: quality dashboard and stop review ----------------------------------
+
+
+@quality_app.command("dashboard")
+def quality_dashboard(
+    days: Annotated[int, typer.Option(help="Window in days")] = 7,
+    as_json: Annotated[bool, typer.Option("--json", help="Print JSON")] = False,
+) -> None:
+    """FR-QA-03: walk outcomes per platform, confidence, freshness, change events per day."""
+    from payintel.quality import dashboard as dash_mod
+
+    settings = get_settings()
+    ch = make_ch_client(settings.clickhouse)
+    with session_scope(get_engine()) as session:
+        d = dash_mod.dashboard(
+            session,
+            ch,
+            now=SYSTEM_CLOCK.now(),
+            days=days,
+            light_cycle_days=settings.scan.light_interval_days_ecommerce,
+            checkout_cycle_days=settings.scan.checkout_interval_days,
+        )
+    if as_json:
+        typer.echo(json.dumps(d.as_dict(), ensure_ascii=False, indent=2))
+    else:
+        for line in dash_mod.summary_lines(d):
+            typer.echo(line)
+
+
+@quality_app.command("stops")
+def quality_stops(
+    days: Annotated[int, typer.Option(help="Window in days")] = 7,
+    as_json: Annotated[bool, typer.Option("--json", help="Print JSON")] = False,
+) -> None:
+    """FR-QA-06: stop-reason distribution by step/platform/adapter, weekly trend, releases."""
+    from payintel.quality import stops as stops_mod
+
+    ch = make_ch_client(get_settings().clickhouse)
+    r = stops_mod.review(ch, now=SYSTEM_CLOCK.now(), days=days)
+    if as_json:
+        typer.echo(json.dumps(r.as_dict(), ensure_ascii=False, indent=2))
+    else:
+        for line in stops_mod.summary_lines(r):
+            typer.echo(line)
+
+
+@quality_app.command("stop-sample")
+def quality_stop_sample(
+    step: Annotated[str, typer.Argument(help="stop_step")],
+    reason: Annotated[str, typer.Argument(help="stop_reason")],
+    platform: Annotated[str | None, typer.Option(help="platform_id filter")] = None,
+    adapter: Annotated[str | None, typer.Option(help="adapter filter")] = None,
+    days: Annotated[int, typer.Option(help="Window in days")] = 7,
+    csv_path: Annotated[Path | None, typer.Option("--csv", help="Write CSV here")] = None,
+) -> None:
+    """FR-QA-06: up to 20 domains of a cell with screenshot and DOM keys (CSV optional)."""
+    from datetime import timedelta
+
+    from payintel.quality import stops as stops_mod
+
+    ch = make_ch_client(get_settings().clickhouse)
+    now = SYSTEM_CLOCK.now()
+    rows = stops_mod.sample(
+        ch,
+        step=step,
+        reason=reason,
+        since=now - timedelta(days=days),
+        until=now,
+        platform_id=platform,
+        adapter=adapter,
+    )
+    if csv_path is not None:
+        csv_path.write_text(stops_mod.sample_csv(rows), encoding="utf-8")
+        typer.echo(f"{len(rows)} rows written to {csv_path}")
+        return
+    for r in rows:
+        typer.echo(
+            f"{r.scan_ts:%Y-%m-%d %H:%M} {r.etld1} [{r.platform_id}/{r.adapter}] "
+            f"{r.detail[:80]} | {r.screenshot_key}"
+        )
+
+
+@quality_app.command("stop-alerts")
+def quality_stop_alerts() -> None:
+    """FR-QA-06: write alerts for +5 p.p. growth of a stop reason and for `other` above 5%."""
+    from payintel.quality import stops as stops_mod
+
+    settings = get_settings()
+    ch = make_ch_client(settings.clickhouse)
+    with session_scope(get_engine()) as session:
+        created = stops_mod.detect_alerts(session, ch, now=SYSTEM_CLOCK.now(), s=settings.quality)
+        for a in created:
+            typer.echo(f"{a.kind} {a.subject}: {a.message}")
+    typer.echo(f"{len(created)} new alert(s)")
 
 
 # --- stage 2: checkout worker ---------------------------------------------------
