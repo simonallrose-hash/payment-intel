@@ -10,6 +10,7 @@ from pathlib import Path
 
 import pytest
 import pytest_asyncio
+from playwright.async_api import Page
 
 from payintel.crawl.checkout.browser import BrowserPool, ContextOptions, WalkContext
 from payintel.crawl.checkout.dictionary import load_dictionary
@@ -114,8 +115,8 @@ async def walk_context(
 
 
 def make_guarded(
-    page, *, flags: WalkFlags | None = None, journal: ActionJournal | None = None
-) -> GuardedPage:  # type: ignore[no-untyped-def]
+    page: Page, *, flags: WalkFlags | None = None, journal: ActionJournal | None = None
+) -> GuardedPage:
     d = load_dictionary()
     ident = IdentityProvider(company_domain="payintel.example", company_phone="+44 20 7946 0000")
     return GuardedPage(

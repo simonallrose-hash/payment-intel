@@ -58,6 +58,8 @@ class WalkContext:
     context: BrowserContext
     stats: RouteStats
     har_path: Path | None
+    allow_private: bool = False
+    rewrite: Rewriter | None = None
     _closed: bool = False
 
     async def new_page(self) -> Page:
@@ -200,7 +202,13 @@ class BrowserPool:
                 self.dictionary, stats, allow_private=opts.allow_private, rewrite=opts.rewrite
             ),
         )
-        return WalkContext(context=context, stats=stats, har_path=har_path)
+        return WalkContext(
+            context=context,
+            stats=stats,
+            har_path=har_path,
+            allow_private=opts.allow_private,
+            rewrite=opts.rewrite,
+        )
 
     @staticmethod
     async def js_heap_mb(page: Page) -> float:

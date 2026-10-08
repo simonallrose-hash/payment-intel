@@ -214,6 +214,7 @@ def is_private_host(hostname: str) -> bool:
 class RouteStats:
     blocked_posts: list[str] = field(default_factory=list)
     refused_hosts: list[str] = field(default_factory=list)
+    rewrite_errors: list[str] = field(default_factory=list)
     requests: int = 0
 
 
@@ -252,7 +253,8 @@ def route_handler(
                         url=target, headers={**request.headers, "x-forwarded-host": host}
                     )
                     await route.fulfill(response=response)
-                except Exception:
+                except Exception as exc:  # any transport error is a refused fetch
+                    stats.rewrite_errors.append(f"{url[:200]}: {exc}"[:400])
                     await route.abort("connectionrefused")
                 return
         await route.continue_()

@@ -74,6 +74,8 @@ ignore = [
 "alembic/**" = ["E501"]
 "src/payintel/crawl/checkout/guardrails/injection.py" = ["E501"]   # embedded JavaScript
 "src/payintel/crawl/checkout/guardrails/page.py" = ["E501"]        # embedded JavaScript
+"src/payintel/crawl/checkout/capture.py" = ["E501"]                # embedded JavaScript
+"src/payintel/crawl/checkout/blocking.py" = ["E501"]               # long regexes
 
 [tool.ruff.lint.isort]
 known-first-party = ["payintel"]
