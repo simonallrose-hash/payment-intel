@@ -154,6 +154,43 @@ class StorePaymentMethod(Base):
     )
 
 
+class StoreCheckoutHost(Base):
+    """Third-party hosts seen on the checkout page, current state (FR-DT-11, FR-HI-02).
+
+    Internal + C2 only except `category = 'psp'` (AS-23): the C1 schemas never
+    expose this table.
+    """
+
+    __tablename__ = "store_checkout_host"
+    __table_args__ = (
+        UniqueConstraint(
+            "host_id", "third_party_etld1", name="uq_store_checkout_host_host_id_etld1"
+        ),
+        Index("ix_store_checkout_host_third_party_etld1", "third_party_etld1"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    host_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("host.id", ondelete="CASCADE"), nullable=False
+    )
+    third_party_etld1: Mapped[str] = mapped_column(String(253), nullable=False)
+    category: Mapped[str] = mapped_column(String(32), nullable=False)
+    provider_id: Mapped[str | None] = mapped_column(
+        String(64), ForeignKey("provider.id", ondelete="SET NULL"), nullable=True
+    )
+    request_count: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
+    first_seen: Mapped[date] = mapped_column(Date, nullable=False)
+    last_seen: Mapped[date] = mapped_column(Date, nullable=False)
+    confirmations: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=1, server_default=text("1")
+    )
+    misses: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
+
+
 class ChangeEvent(Base):
     __tablename__ = "change_event"
     __table_args__ = (

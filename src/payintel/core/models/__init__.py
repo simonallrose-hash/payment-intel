@@ -11,11 +11,17 @@ from payintel.core.models.base import Base
 from payintel.core.models.domains import Domain, DomainSource, Host, ImportBatch
 from payintel.core.models.exports import Canary, ExportJob
 from payintel.core.models.orgs import Contract, Entitlement, KycRecord, Organization
-from payintel.core.models.quality import GoldLabel
+from payintel.core.models.quality import GoldLabel, QualityAlert
 from payintel.core.models.reference import PaymentMethod, Platform, Provider, Vertical
 from payintel.core.models.rules import DetectionRule
 from payintel.core.models.scans import ScanPlan, ScanRun, StoreAccount
-from payintel.core.models.store import ChangeEvent, StorePaymentMethod, StoreProfile, StoreProvider
+from payintel.core.models.store import (
+    ChangeEvent,
+    StoreCheckoutHost,
+    StorePaymentMethod,
+    StoreProfile,
+    StoreProvider,
+)
 
 __all__ = [
     "AlertRule",
@@ -44,9 +50,11 @@ __all__ = [
     "PaymentMethod",
     "Platform",
     "Provider",
+    "QualityAlert",
     "ScanPlan",
     "ScanRun",
     "StoreAccount",
+    "StoreCheckoutHost",
     "StorePaymentMethod",
     "StoreProfile",
     "StoreProvider",
