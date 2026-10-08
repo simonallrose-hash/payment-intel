@@ -1,0 +1,78 @@
+# Parking / placeholder signatures (FR-DS-07). Three signal kinds:
+#   ns_suffix     — authoritative NS name ends with the suffix
+#   html_pattern  — regex over the homepage HTML (case-insensitive)
+#   cname_suffix  — CNAME of the host ends with the suffix
+# `source` is the operator's own public documentation or the service's own site.
+# Entries with needs_verification: true are kept for review and are NOT applied.
+version: 1
+signatures:
+- id: sedo_ns
+  kind: ns_suffix
+  pattern: sedoparking.com
+  source: https://sedo.com/
+- id: sedo_html
+  kind: html_pattern
+  pattern: sedoparking\.com|sedo\.com/search/details
+  source: https://sedo.com/
+- id: parkingcrew_ns
+  kind: ns_suffix
+  pattern: parkingcrew.net
+  source: https://www.parkingcrew.com/
+- id: parkingcrew_html
+  kind: html_pattern
+  pattern: parkingcrew\.net
+  source: https://www.parkingcrew.com/
+- id: bodis_ns
+  kind: ns_suffix
+  pattern: bodis.com
+  source: https://www.bodis.com/
+- id: bodis_html
+  kind: html_pattern
+  pattern: bodis\.com|bodiscdn\.com
+  source: https://www.bodis.com/
+- id: above_ns
+  kind: ns_suffix
+  pattern: above.com
+  source: https://www.above.com/
+- id: afternic_ns
+  kind: ns_suffix
+  pattern: afternic.com
+  source: https://www.afternic.com/
+- id: dan_ns
+  kind: ns_suffix
+  pattern: dan.com
+  source: https://dan.com/
+- id: dan_html
+  kind: html_pattern
+  pattern: dan\.com/buy-domain|The domain name .{1,80} is for sale
+  source: https://dan.com/
+- id: hugedomains_ns
+  kind: ns_suffix
+  pattern: hugedomains.com
+  source: https://www.hugedomains.com/
+- id: hugedomains_html
+  kind: html_pattern
+  pattern: hugedomains\.com
+  source: https://www.hugedomains.com/
+- id: parklogic_ns
+  kind: ns_suffix
+  pattern: parklogic.com
+  source: https://www.parklogic.com/
+- id: godaddy_parking_html
+  kind: html_pattern
+  pattern: parked free, courtesy of GoDaddy|Parked Domain name on GoDaddy
+  source: https://www.godaddy.com/
+- id: generic_for_sale_html
+  kind: html_pattern
+  pattern: this domain (name )?(is|may be) for sale|buy this domain|domain is parked|the domain owner is offering it for sale
+  source: generic wording, operator review 2026-10
+- id: uniregistry_ns
+  kind: ns_suffix
+  pattern: uniregistrymarket.link
+  source: https://uniregistry.com/
+  needs_verification: true
+- id: namebright_ns
+  kind: ns_suffix
+  pattern: namebrightdns.com
+  source: https://www.namebright.com/
+  needs_verification: true

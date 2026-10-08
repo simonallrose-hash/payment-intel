@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "parking_signatures.yaml",
+  "type": "object",
+  "required": ["version", "signatures"],
+  "additionalProperties": false,
+  "properties": {
+    "version": { "type": "integer", "minimum": 1 },
+    "signatures": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "kind", "pattern", "source"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-z0-9_]{2,64}$" },
+          "kind": { "enum": ["ns_suffix", "cname_suffix", "html_pattern"] },
+          "pattern": { "type": "string", "minLength": 3 },
+          "source": { "type": "string", "minLength": 3 },
+          "needs_verification": { "type": "boolean" }
+        }
+      }
+    }
+  }
+}

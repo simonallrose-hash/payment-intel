@@ -1,0 +1,89 @@
+# Signals for the e-commerce classifier (FR-DS-08). Phrases are plain words in
+# 10 languages (en, de, fr, es, it, nl, pl, pt, sv, cs); paths are URL fragments.
+version: 1
+add_to_cart_phrases:
+- add to cart
+- add to basket
+- add to bag
+- buy now
+- in den warenkorb
+- in den einkaufswagen
+- jetzt kaufen
+- ajouter au panier
+- acheter
+- añadir al carrito
+- añadir a la cesta
+- comprar
+- aggiungi al carrello
+- acquista
+- in winkelwagen
+- in winkelmand
+- toevoegen aan winkelwagen
+- do koszyka
+- dodaj do koszyka
+- kup teraz
+- adicionar ao carrinho
+- comprar agora
+- lägg i varukorgen
+- köp
+- do košíku
+- přidat do košíku
+- koupit
+cart_paths:
+- /cart
+- /basket
+- /bag
+- /warenkorb
+- /panier
+- /carrito
+- /cesta
+- /carrello
+- /winkelwagen
+- /koszyk
+- /carrinho
+- /varukorg
+- /kosik
+- /checkout/cart
+- cart.php
+- index.php?route=checkout/cart
+checkout_paths:
+- /checkout
+- /kasse
+- /bestellung
+- /commande
+- /pedido
+- /finalizar-compra
+- /cassa
+- /afrekenen
+- /zamowienie
+- /kassa
+- /pokladna
+- /onepage
+- /order
+currency_markers:
+- "€"
+- "$"
+- "£"
+- "zł"
+- "kr"
+- "Kč"
+- "CHF"
+- "EUR"
+- "USD"
+- "GBP"
+- "PLN"
+- "SEK"
+- "CZK"
+schema_org_types:
+- Product
+- Offer
+- AggregateOffer
+- ProductGroup
+- ItemList
+weights:
+  platform: 0.45
+  schema_org: 0.25
+  add_to_cart: 0.25
+  cart_path: 0.15
+  checkout_path: 0.15
+  currency: 0.05

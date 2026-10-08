@@ -110,6 +110,26 @@ class ScanSettings(BaseModel):
     )
 
 
+class DiscoverySettings(BaseModel):
+    """Discovery and DNS (4.1)."""
+
+    dns_nameservers: tuple[str, ...] = Field(
+        default=("127.0.0.1",), description="FR-DS-06 own recursive resolver (Unbound)"
+    )
+    dns_port: int = Field(default=5335, ge=1, le=65535, description="Unbound port in compose")
+    dns_timeout_seconds: float = Field(default=5.0, gt=0)
+    dns_concurrency: int = Field(default=50, ge=1)
+    ecommerce_threshold: float = Field(
+        default=0.5, ge=0, le=1, description="FR-DS-08 score at/above → ecommerce"
+    )
+    not_ecommerce_threshold: float = Field(
+        default=0.15, ge=0, le=1, description="FR-DS-08 score below → not_ecommerce"
+    )
+    parking_max_page_bytes: int = Field(
+        default=1_500, ge=0, description="FR-DS-07 tiny homepage without links counts as stub"
+    )
+
+
 class LightScanSettings(BaseModel):
     connect_timeout_seconds: float = Field(default=10.0, description="FR-LS-07")
     read_timeout_seconds: float = Field(default=20.0, description="FR-LS-07")
@@ -205,6 +225,7 @@ class Settings(BaseSettings):
     secrets: SecretsSettings = SecretsSettings()
     identity: IdentitySettings = IdentitySettings()
     scan: ScanSettings = ScanSettings()
+    discovery: DiscoverySettings = DiscoverySettings()
     light: LightScanSettings = LightScanSettings()
     checkout: CheckoutSettings = CheckoutSettings()
     retention: RetentionSettings = RetentionSettings()

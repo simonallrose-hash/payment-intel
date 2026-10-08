@@ -12,6 +12,7 @@ from __future__ import annotations
 import hashlib
 from collections.abc import Iterable
 from dataclasses import dataclass, field
+from datetime import datetime
 
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -133,7 +134,7 @@ def _upsert_chunk(
     extra_hosts: dict[str, str],
     source: DomainSourceKind,
     batch_id: str,
-    now: object,
+    now: datetime,
     result: IngestResult,
 ) -> None:
     rows = [

@@ -1,0 +1,7 @@
+User-agent: *
+Disallow: /mein-konto/
+Disallow: /wp-admin/
+
+User-agent: PayIntelBot
+Disallow: /kasse/
+Crawl-delay: 1
