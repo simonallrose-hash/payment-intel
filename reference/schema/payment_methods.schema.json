@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "payment_methods.yaml",
+  "type": "object",
+  "required": ["version", "payment_methods"],
+  "additionalProperties": false,
+  "properties": {
+    "version": { "type": "integer", "minimum": 1 },
+    "payment_methods": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "type", "regions"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-z0-9_]{2,64}$" },
+          "name": { "type": "string", "minLength": 1, "maxLength": 128 },
+          "type": {
+            "enum": ["card", "wallet", "bnpl", "bank_redirect", "bank_transfer", "direct_debit", "cash_voucher", "real_time_payment", "crypto", "cod", "other"]
+          },
+          "scheme_or_brand": { "type": ["string", "null"], "maxLength": 128 },
+          "regions": { "type": "array", "items": { "type": "string", "pattern": "^([A-Z]{2}|global|EU)$" } },
+          "default_provider_id": { "type": ["string", "null"], "pattern": "^[a-z0-9_]{2,64}$" },
+          "status": { "enum": ["active", "deprecated"] }
+        }
+      }
+    }
+  }
+}

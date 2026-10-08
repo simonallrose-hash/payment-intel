@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "verticals.yaml",
+  "type": "object",
+  "required": ["version", "verticals"],
+  "additionalProperties": false,
+  "properties": {
+    "version": { "type": "integer", "minimum": 1 },
+    "verticals": {
+      "type": "array",
+      "minItems": 20,
+      "maxItems": 20,
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "keywords"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-z0-9_]{2,64}$" },
+          "name": { "type": "string", "minLength": 1, "maxLength": 128 },
+          "parent_id": { "type": ["string", "null"], "pattern": "^[a-z0-9_]{2,64}$" },
+          "keywords": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+          "status": { "enum": ["active", "deprecated"] }
+        }
+      }
+    }
+  }
+}

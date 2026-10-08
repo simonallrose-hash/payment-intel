@@ -1,0 +1,65 @@
+# Payment-method taxonomy (FR-NR-02, 5.3). `type` is one of the closed set in
+# 5.3; `regions` are ISO 3166-1 alpha-2 codes or `global`.
+version: 1
+payment_methods:
+  # card
+  - { id: visa, name: Visa, type: card, scheme_or_brand: Visa, regions: [global] }
+  - { id: mastercard, name: Mastercard, type: card, scheme_or_brand: Mastercard, regions: [global] }
+  - { id: amex, name: American Express, type: card, scheme_or_brand: American Express, regions: [global] }
+  - { id: discover, name: Discover, type: card, scheme_or_brand: Discover, regions: [US] }
+  - { id: jcb, name: JCB, type: card, scheme_or_brand: JCB, regions: [JP, global] }
+  - { id: unionpay, name: UnionPay, type: card, scheme_or_brand: UnionPay, regions: [CN, global] }
+  - { id: cartes_bancaires, name: Cartes Bancaires, type: card, scheme_or_brand: CB, regions: [FR] }
+  - { id: bancontact_card, name: Bancontact (card), type: card, scheme_or_brand: Bancontact, regions: [BE] }
+  - { id: maestro, name: Maestro, type: card, scheme_or_brand: Maestro, regions: [global] }
+  # wallet
+  - { id: apple_pay, name: Apple Pay, type: wallet, scheme_or_brand: Apple Pay, regions: [global], default_provider_id: apple_pay }
+  - { id: google_pay, name: Google Pay, type: wallet, scheme_or_brand: Google Pay, regions: [global], default_provider_id: google_pay }
+  - { id: paypal, name: PayPal, type: wallet, scheme_or_brand: PayPal, regions: [global], default_provider_id: paypal }
+  - { id: amazon_pay, name: Amazon Pay, type: wallet, scheme_or_brand: Amazon Pay, regions: [US, GB, DE, FR, IT, ES, JP], default_provider_id: amazon_pay }
+  - { id: shop_pay, name: Shop Pay, type: wallet, scheme_or_brand: Shop Pay, regions: [global], default_provider_id: shopify_payments }
+  - { id: samsung_pay, name: Samsung Pay, type: wallet, scheme_or_brand: Samsung Pay, regions: [global] }
+  - { id: alipay, name: Alipay, type: wallet, scheme_or_brand: Alipay, regions: [CN, global] }
+  - { id: wechat_pay, name: WeChat Pay, type: wallet, scheme_or_brand: WeChat Pay, regions: [CN, global] }
+  # bnpl
+  - { id: klarna, name: Klarna, type: bnpl, scheme_or_brand: Klarna, regions: [SE, DE, GB, US, NL, AT], default_provider_id: klarna }
+  - { id: afterpay_clearpay, name: Afterpay / Clearpay, type: bnpl, scheme_or_brand: Afterpay, regions: [AU, NZ, US, GB], default_provider_id: afterpay }
+  - { id: affirm, name: Affirm, type: bnpl, scheme_or_brand: Affirm, regions: [US, CA], default_provider_id: affirm }
+  - { id: zip, name: Zip, type: bnpl, scheme_or_brand: Zip, regions: [AU, US] }
+  - { id: paypal_pay_later, name: PayPal Pay Later, type: bnpl, scheme_or_brand: PayPal, regions: [US, GB, DE, FR], default_provider_id: paypal }
+  - { id: scalapay, name: Scalapay, type: bnpl, scheme_or_brand: Scalapay, regions: [IT, FR, ES] }
+  - { id: alma, name: Alma, type: bnpl, scheme_or_brand: Alma, regions: [FR] }
+  - { id: riverty, name: Riverty, type: bnpl, scheme_or_brand: Riverty, regions: [DE, NL, AT] }
+  # bank_redirect
+  - { id: ideal, name: iDEAL, type: bank_redirect, scheme_or_brand: iDEAL, regions: [NL] }
+  - { id: bancontact, name: Bancontact, type: bank_redirect, scheme_or_brand: Bancontact, regions: [BE] }
+  - { id: blik, name: BLIK, type: bank_redirect, scheme_or_brand: BLIK, regions: [PL] }
+  - { id: przelewy24, name: Przelewy24, type: bank_redirect, scheme_or_brand: Przelewy24, regions: [PL], default_provider_id: przelewy24 }
+  - { id: eps, name: EPS, type: bank_redirect, scheme_or_brand: EPS, regions: [AT] }
+  - { id: trustly, name: Trustly, type: bank_redirect, scheme_or_brand: Trustly, regions: [SE, FI, DK, "NO", DE, NL] }
+  - { id: sofort_klarna, name: Sofort (Klarna), type: bank_redirect, scheme_or_brand: Sofort, regions: [DE, AT, CH, BE, NL], default_provider_id: klarna }
+  - { id: mybank, name: MyBank, type: bank_redirect, scheme_or_brand: MyBank, regions: [IT] }
+  - { id: twint, name: TWINT, type: bank_redirect, scheme_or_brand: TWINT, regions: [CH] }
+  - { id: mobilepay, name: MobilePay, type: bank_redirect, scheme_or_brand: MobilePay, regions: [DK, FI] }
+  - { id: vipps, name: Vipps, type: bank_redirect, scheme_or_brand: Vipps, regions: ["NO"] }
+  - { id: swish, name: Swish, type: bank_redirect, scheme_or_brand: Swish, regions: [SE] }
+  # bank_transfer
+  - { id: sepa_credit_transfer, name: SEPA Credit Transfer, type: bank_transfer, scheme_or_brand: SEPA, regions: [EU] }
+  - { id: open_banking, name: Open Banking payment, type: bank_transfer, scheme_or_brand: Open Banking, regions: [GB, EU] }
+  # direct_debit
+  - { id: sepa_direct_debit, name: SEPA Direct Debit, type: direct_debit, scheme_or_brand: SEPA, regions: [EU] }
+  - { id: bacs_direct_debit, name: Bacs Direct Debit, type: direct_debit, scheme_or_brand: Bacs, regions: [GB] }
+  # cash_voucher
+  - { id: boleto, name: Boleto Bancário, type: cash_voucher, scheme_or_brand: Boleto, regions: [BR] }
+  - { id: oxxo, name: OXXO, type: cash_voucher, scheme_or_brand: OXXO, regions: [MX] }
+  - { id: multibanco, name: Multibanco, type: cash_voucher, scheme_or_brand: Multibanco, regions: [PT] }
+  # real_time_payment
+  - { id: pix, name: Pix, type: real_time_payment, scheme_or_brand: Pix, regions: [BR] }
+  - { id: upi, name: UPI, type: real_time_payment, scheme_or_brand: UPI, regions: [IN] }
+  # crypto
+  - { id: crypto_generic, name: Cryptocurrency, type: crypto, scheme_or_brand: null, regions: [global] }
+  # cod
+  - { id: cash_on_delivery, name: Cash on delivery, type: cod, scheme_or_brand: null, regions: [global] }
+  # other
+  - { id: invoice, name: Invoice / pay later by invoice, type: other, scheme_or_brand: null, regions: [global] }
+  - { id: gift_card, name: Gift card, type: other, scheme_or_brand: null, regions: [global] }

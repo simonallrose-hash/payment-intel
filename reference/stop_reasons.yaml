@@ -1,0 +1,55 @@
+# Stop-reason taxonomy for checkout walks (FR-CW-13, 5.3). A stop record's
+# `stop_reason` must be one of these codes under its `stop_step`; `other`
+# is allowed on any step and requires a non-empty `stop_detail`.
+# Guardrail triggers (FR-CW-04) are stops too: `guardrail_*` codes.
+version: 1
+steps:
+  navigation:
+    - robots_disallowed
+    - http_error
+    - navigation_error
+    - timeout
+    - browser_crash
+    - memory_limit
+  protection:
+    - antibot_challenge
+    - captcha
+    - http_403_429
+    - geo_blocked
+    - age_gate
+  product:
+    - no_product_found
+    - out_of_stock
+    - variant_selection_failed
+    - price_on_request
+  cart:
+    - add_to_cart_failed
+    - cart_empty_after_add
+    - min_order_value
+  checkout:
+    - checkout_not_found
+    - guest_unavailable_registration_disabled
+    - login_failed
+  registration:
+    - registration_form_unknown
+    - registration_captcha
+    - registration_sms_required
+    - registration_documents_required
+    - registration_payment_required
+    - email_verification_pending
+  address:
+    - required_field_unmapped
+    - address_validation_failed
+    - phone_validation_failed
+    - country_not_supported
+  shipping:
+    - no_shipping_option
+    - shipping_selection_failed
+  payment:
+    - payment_step_not_detected
+    - guardrail_ambiguous_button
+    - guardrail_final_action_only
+any_step:
+  - other
+requires_detail:
+  - other

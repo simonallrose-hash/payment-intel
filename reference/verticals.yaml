@@ -1,0 +1,25 @@
+# Simplified 20-vertical taxonomy (FR-NR-03, FR-DT-10). `keywords` are matched
+# against menu categories and schema.org data; multilingual keywords are added
+# in stage 2 together with the classifier.
+version: 1
+verticals:
+  - { id: fashion, name: Fashion & apparel, keywords: [fashion, clothing, apparel, shoes, mode, kleidung, vêtements] }
+  - { id: beauty, name: Beauty & cosmetics, keywords: [beauty, cosmetics, skincare, makeup, parfum, perfume] }
+  - { id: electronics, name: Consumer electronics, keywords: [electronics, laptop, smartphone, elektronik, audio, camera] }
+  - { id: home_garden, name: Home & garden, keywords: [furniture, home, garden, möbel, decor, kitchen] }
+  - { id: food_beverage, name: Food & beverage, keywords: [food, grocery, wine, coffee, tea, lebensmittel, beer] }
+  - { id: health, name: Health & pharmacy, keywords: [pharmacy, health, vitamins, supplements, apotheke, medical] }
+  - { id: sports_outdoor, name: Sports & outdoor, keywords: [sport, fitness, outdoor, bike, cycling, running] }
+  - { id: toys_kids, name: "Toys, kids & baby", keywords: [toys, kids, baby, spielzeug, children] }
+  - { id: pets, name: Pet supplies, keywords: [pet, dog, cat, tierbedarf, animal] }
+  - { id: jewelry_watches, name: Jewelry & watches, keywords: [jewelry, jewellery, watches, schmuck, uhren, rings] }
+  - { id: books_media, name: "Books, music & media", keywords: [books, music, dvd, bücher, vinyl, games] }
+  - { id: auto_parts, name: Automotive & parts, keywords: [auto, car parts, tyres, tires, motorcycle, autoteile] }
+  - { id: diy_tools, name: "DIY, tools & hardware", keywords: [tools, hardware, werkzeug, diy, bricolage] }
+  - { id: office_supplies, name: Office & stationery, keywords: [office, stationery, paper, bürobedarf, printer] }
+  - { id: art_crafts, name: "Arts, crafts & hobbies", keywords: [craft, hobby, art supplies, yarn, basteln, sewing] }
+  - { id: adult, name: Adult, keywords: [adult, erotic, sex toys, lingerie] }
+  - { id: tobacco_vape, name: Tobacco & vaping, keywords: [vape, e-liquid, tobacco, cigars, e-zigarette] }
+  - { id: digital_goods, name: Digital goods & software, keywords: [software, license, download, ebook, subscription] }
+  - { id: b2b_industrial, name: B2B & industrial supplies, keywords: [industrial, wholesale, b2b, großhandel, machinery] }
+  - { id: other, name: Other / general merchandise, keywords: [] }

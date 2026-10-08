@@ -1,0 +1,370 @@
+# Provider reference (FR-NR-01, 5.3). Canonical ids are stable slugs that
+# detection rules reference (FR-NR-05). Ownership and presence fields are
+# informational and curated by staff_analyst via the admin (FR-ADM-02);
+# `countries` lists headquarters and key markets, not an exhaustive footprint.
+# Deletion is never done: use status `deprecated` (FR-NR-04).
+version: 1
+providers:
+  - id: stripe
+    name: Stripe
+    aliases: [Stripe Payments, Stripe Elements, Stripe Checkout]
+    role: gateway
+    owner_company: Stripe, Inc.
+    countries: [US, IE, GB, DE, FR, NL]
+    website: https://stripe.com
+    status: active
+  - id: adyen
+    name: Adyen
+    aliases: [Adyen Checkout, Adyen Drop-in]
+    role: gateway
+    owner_company: Adyen N.V.
+    countries: [NL, GB, DE, FR, US]
+    website: https://www.adyen.com
+    status: active
+  - id: paypal
+    name: PayPal
+    aliases: [PayPal Checkout, PayPal Express Checkout, PayPal Commerce Platform]
+    role: wallet
+    owner_company: PayPal Holdings, Inc.
+    countries: [US, GB, DE, FR, IT, ES, NL]
+    website: https://www.paypal.com
+    status: active
+  - id: braintree
+    name: Braintree
+    aliases: [Braintree Payments]
+    role: gateway
+    owner_company: PayPal Holdings, Inc.
+    parent_provider_id: paypal
+    countries: [US, GB, DE, FR, AU]
+    website: https://www.braintreepayments.com
+    status: active
+  - id: checkout_com
+    name: Checkout.com
+    aliases: [Checkout.com Frames, CKO]
+    role: gateway
+    owner_company: Checkout Ltd
+    countries: [GB, FR, DE, US]
+    website: https://www.checkout.com
+    status: active
+  - id: worldpay
+    name: Worldpay
+    aliases: [Access Worldpay, Worldpay from FIS]
+    role: gateway
+    owner_company: Worldpay
+    countries: [GB, US]
+    website: https://www.worldpay.com
+    status: active
+  - id: mollie
+    name: Mollie
+    aliases: [Mollie Payments]
+    role: gateway
+    owner_company: Mollie B.V.
+    countries: [NL, BE, DE, GB, FR]
+    website: https://www.mollie.com
+    status: active
+  - id: klarna
+    name: Klarna
+    aliases: [Klarna Payments, Klarna Checkout, Klarna Pay Later, Sofort]
+    role: bnpl
+    owner_company: Klarna Bank AB
+    countries: [SE, DE, GB, US, NL, AT]
+    website: https://www.klarna.com
+    status: active
+  - id: square
+    name: Square
+    aliases: [Square Payments, Square Web Payments SDK]
+    role: gateway
+    owner_company: Block, Inc.
+    countries: [US, CA, GB, AU, IE, FR, ES]
+    website: https://squareup.com
+    status: active
+  - id: authorize_net
+    name: Authorize.net
+    aliases: [Authorize.Net, Accept.js]
+    role: gateway
+    owner_company: Visa Inc.
+    countries: [US, CA, GB, AU]
+    website: https://www.authorize.net
+    status: active
+  - id: global_payments
+    name: Global Payments
+    aliases: [GlobalPayments, Global Payments Integrated, Realex]
+    role: gateway
+    owner_company: Global Payments Inc.
+    countries: [US, GB, IE]
+    website: https://www.globalpayments.com
+    status: active
+  - id: nexi
+    name: Nexi
+    aliases: [Nexi XPay, XPay, Nets]
+    role: gateway
+    owner_company: Nexi S.p.A.
+    countries: [IT, DK, "NO", SE, FI, DE]
+    website: https://www.nexigroup.com
+    status: active
+  - id: worldline
+    name: Worldline
+    aliases: [Worldline Ingenico, Ingenico ePayments, Ogone, Saferpay]
+    role: gateway
+    owner_company: Worldline SA
+    countries: [FR, BE, NL, DE, CH]
+    website: https://worldline.com
+    status: active
+  - id: unzer
+    name: Unzer
+    aliases: [Heidelpay]
+    role: gateway
+    owner_company: Unzer GmbH
+    countries: [DE, AT, CH]
+    website: https://www.unzer.com
+    status: active
+  - id: computop
+    name: Computop
+    aliases: [Computop Paygate]
+    role: gateway
+    owner_company: Computop GmbH
+    countries: [DE, AT, CH]
+    website: https://www.computop.com
+    status: active
+  - id: payone
+    name: PAYONE
+    aliases: [Payone, BS PAYONE]
+    role: gateway
+    owner_company: PAYONE GmbH
+    countries: [DE, AT, CH]
+    website: https://www.payone.com
+    status: active
+  - id: paysafe
+    name: Paysafe
+    aliases: [Paysafe Payments, Paysafecard]
+    role: gateway
+    owner_company: Paysafe Limited
+    countries: [GB, US, CA, AT]
+    website: https://www.paysafe.com
+    status: active
+  - id: shopify_payments
+    name: Shopify Payments
+    aliases: [Shop Pay]
+    role: gateway
+    owner_company: Shopify Inc.
+    countries: [CA, US, GB, DE, FR, NL, ES, IT]
+    website: https://www.shopify.com/payments
+    status: active
+  - id: amazon_pay
+    name: Amazon Pay
+    aliases: [Pay with Amazon]
+    role: wallet
+    owner_company: Amazon.com, Inc.
+    countries: [US, GB, DE, FR, IT, ES, JP]
+    website: https://pay.amazon.com
+    status: active
+  - id: elavon
+    name: Elavon
+    aliases: [Converge, Opayo, Sage Pay]
+    role: gateway
+    owner_company: U.S. Bancorp
+    countries: [US, GB, IE, CA]
+    website: https://www.elavon.com
+    status: active
+  - id: fiserv
+    name: Fiserv / First Data
+    aliases: [First Data, Fiserv, Clover, IPG]
+    role: gateway
+    owner_company: Fiserv, Inc.
+    countries: [US, GB, DE]
+    website: https://www.fiserv.com
+    status: active
+  - id: cybersource
+    name: Cybersource
+    aliases: [CyberSource, Secure Acceptance, Flex Microform]
+    role: gateway
+    owner_company: Visa Inc.
+    countries: [US, GB]
+    website: https://www.cybersource.com
+    status: active
+  - id: rapyd
+    name: Rapyd
+    aliases: [Rapyd Checkout]
+    role: gateway
+    owner_company: Rapyd Financial Network
+    countries: [GB, IL, IS]
+    website: https://www.rapyd.net
+    status: active
+  - id: payu
+    name: PayU
+    aliases: [PayU GPO, PayU India]
+    role: gateway
+    owner_company: Prosus N.V.
+    countries: [PL, IN, NL, CZ, RO]
+    website: https://corporate.payu.com
+    status: active
+  - id: przelewy24
+    name: Przelewy24
+    aliases: [P24]
+    role: local_method_provider
+    owner_company: PayPro S.A.
+    countries: [PL]
+    website: https://www.przelewy24.pl
+    status: active
+  - id: viva_wallet
+    name: Viva Wallet
+    aliases: [Viva.com, Viva Payments]
+    role: gateway
+    owner_company: Viva Wallet Holdings
+    countries: [GR, GB, DE, FR, ES, IT, NL]
+    website: https://www.vivawallet.com
+    status: active
+  - id: sumup
+    name: SumUp
+    aliases: [SumUp Payments]
+    role: gateway
+    owner_company: SumUp Limited
+    countries: [GB, DE, IT, FR, ES, BR]
+    website: https://www.sumup.com
+    status: active
+  - id: buckaroo
+    name: Buckaroo
+    aliases: []
+    role: gateway
+    owner_company: Buckaroo B.V.
+    countries: [NL, BE]
+    website: https://www.buckaroo.nl
+    status: active
+  - id: multisafepay
+    name: MultiSafepay
+    aliases: [MultiSafePay]
+    role: gateway
+    owner_company: MultiSafepay B.V.
+    countries: [NL, BE, DE, ES, IT]
+    website: https://www.multisafepay.com
+    status: active
+  - id: pay_nl
+    name: Pay.nl
+    aliases: [PAY., PAY.nl]
+    role: gateway
+    owner_company: Pay.nl B.V.
+    countries: [NL, BE]
+    website: https://www.pay.nl
+    status: active
+  - id: redsys
+    name: Redsys
+    aliases: [Redsys TPV, Sermepa]
+    role: gateway
+    owner_company: Redsys Servicios de Procesamiento S.L.
+    countries: [ES]
+    website: https://www.redsys.es
+    status: active
+  - id: stancer
+    name: Stancer
+    aliases: []
+    role: gateway
+    owner_company: Stancer SAS
+    countries: [FR]
+    website: https://www.stancer.com
+    status: active
+  - id: monext
+    name: Monext
+    aliases: [Payline, Monext Payline]
+    role: gateway
+    owner_company: Monext SAS
+    countries: [FR, BE]
+    website: https://www.monext.fr
+    status: active
+  - id: novalnet
+    name: Novalnet
+    aliases: []
+    role: gateway
+    owner_company: Novalnet AG
+    countries: [DE, AT, CH]
+    website: https://www.novalnet.com
+    status: active
+  - id: razorpay
+    name: Razorpay
+    aliases: []
+    role: gateway
+    owner_company: Razorpay Software Private Limited
+    countries: [IN, MY]
+    website: https://razorpay.com
+    status: active
+  - id: mercado_pago
+    name: Mercado Pago
+    aliases: [MercadoPago]
+    role: gateway
+    owner_company: Mercado Libre, Inc.
+    countries: [AR, BR, MX, CL, CO, UY, PE]
+    website: https://www.mercadopago.com
+    status: active
+  # --- Orchestrators (FR-DT-06: acquirer_hidden = true) ---
+  - id: spreedly
+    name: Spreedly
+    aliases: []
+    role: orchestrator
+    owner_company: Spreedly, Inc.
+    countries: [US]
+    website: https://www.spreedly.com
+    status: active
+  - id: primer
+    name: Primer
+    aliases: [Primer.io]
+    role: orchestrator
+    owner_company: Primer API Ltd
+    countries: [GB]
+    website: https://primer.io
+    status: active
+  - id: gr4vy
+    name: Gr4vy
+    aliases: []
+    role: orchestrator
+    owner_company: Gr4vy, Inc.
+    countries: [US]
+    website: https://gr4vy.com
+    status: active
+  - id: cellpoint_digital
+    name: CellPoint Digital
+    aliases: [CellPoint]
+    role: orchestrator
+    owner_company: CellPoint Digital Ltd
+    countries: [GB]
+    website: https://www.cellpointdigital.com
+    status: active
+  - id: apexx
+    name: APEXX Global
+    aliases: [APEXX]
+    role: orchestrator
+    owner_company: APEXX Fintech Ltd
+    countries: [GB]
+    website: https://apexx.global
+    status: active
+  # --- Wallet / BNPL brands that are detected as providers too ---
+  - id: apple_pay
+    name: Apple Pay
+    aliases: []
+    role: wallet
+    owner_company: Apple Inc.
+    countries: [US, GB, DE, FR]
+    website: https://www.apple.com/apple-pay/
+    status: active
+  - id: google_pay
+    name: Google Pay
+    aliases: [GPay]
+    role: wallet
+    owner_company: Google LLC
+    countries: [US, GB, DE, FR]
+    website: https://pay.google.com
+    status: active
+  - id: afterpay
+    name: Afterpay / Clearpay
+    aliases: [Afterpay, Clearpay]
+    role: bnpl
+    owner_company: Block, Inc.
+    countries: [AU, NZ, US, GB]
+    website: https://www.afterpay.com
+    status: active
+  - id: affirm
+    name: Affirm
+    aliases: []
+    role: bnpl
+    owner_company: Affirm Holdings, Inc.
+    countries: [US, CA]
+    website: https://www.affirm.com
+    status: active

@@ -1,0 +1,24 @@
+# E-commerce platform reference (FR-NR-03). Adapter targets of FR-CW-03 first.
+version: 1
+platforms:
+  - { id: woocommerce, name: WooCommerce, parent_id: wordpress }
+  - { id: wordpress, name: WordPress }
+  - { id: magento2, name: Magento 2 / Adobe Commerce }
+  - { id: magento1, name: Magento 1 }
+  - { id: shopify, name: Shopify }
+  - { id: prestashop, name: PrestaShop }
+  - { id: shopware6, name: Shopware 6 }
+  - { id: shopware5, name: Shopware 5 }
+  - { id: opencart, name: OpenCart }
+  - { id: bigcommerce, name: BigCommerce }
+  - { id: salesforce_commerce_cloud, name: Salesforce Commerce Cloud }
+  - { id: sap_commerce, name: SAP Commerce Cloud (Hybris) }
+  - { id: wix, name: Wix Stores }
+  - { id: squarespace, name: Squarespace Commerce }
+  - { id: shoptet, name: Shoptet }
+  - { id: lightspeed, name: Lightspeed eCom }
+  - { id: ecwid, name: Ecwid }
+  - { id: oxid, name: OXID eShop }
+  - { id: jtl, name: JTL-Shop }
+  - { id: plentymarkets, name: plentymarkets }
+  - { id: custom, name: Custom / unknown }
