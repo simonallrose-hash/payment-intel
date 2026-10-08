@@ -69,13 +69,14 @@ make bench-light                                             # NFR-P-01 на л�
 | `make test` / `make test-unit` | pytest с покрытием и пороговой проверкой по пакетам (NFR-M-01) |
 | `make migrate` / `make seed` | миграции Postgres + ClickHouse / загрузка справочников и правил |
 | `make eval` | метрики качества, ненулевой код при precision PSP < 0.95 (FR-QA-02) |
-| `make worker-light` | цикл лёгкого сканера против dev-окружения |
+| `make worker-light` / `make worker-checkout` | цикл лёгкого сканера / сканера чекаута против dev-окружения |
+| `make test-e2e` | e2e-проходы Chromium по симулятору магазинов (`PAYINTEL_TEST_TRAP_RUNS=1000` для AC-04) |
 | `make bench-light` | нагрузочный прогон NFR-P-01 (`BENCH_DOMAINS`, `BENCH_CONCURRENCY`), не в CI |
 
 ## Структура
 
 ```text
-alembic/            миграции Postgres (0001 схема, 0002 discovery/DNS/JS-ассеты)
+alembic/            миграции Postgres (0001 схема, 0002 discovery/DNS/JS-ассеты, 0003 хосты чекаута/алерты качества)
 clickhouse/         нумерованные идемпотентные SQL-миграции ClickHouse (раздел 5.2 ТЗ)
 docker/             Dockerfile приложения, конфиги Unbound и Caddy
 docs/               runbook, methodology, api, capacity, adr/, legal/
@@ -87,12 +88,15 @@ src/payintel/
   discovery/        нормализация, PSL, источники, ingest с lineage, DNS, parking, классификатор
   scheduler/        приоритет, планы, очередь SKIP LOCKED, backoff, politeness (FR-SC-*)
   crawl/            egress-фильтр, PII-санитайзер; light/: robots, fetcher, HTML, артефакты, воркер
-  history/          буфер наблюдений ClickHouse и материализация store_* (FR-HS-*)
-  quality/          gold set, импорт находок, eval (FR-QA-01/02)
+                    checkout/: browser (Playwright), guardrails/ (политика кликов, GuardedPage, инжекция),
+                    адаптеры, walker, capture, blocking, stops, accounts, payment_fill, worker (FR-CW-*)
+  history/          буфер наблюдений ClickHouse, материализация store_*, differ «два подряд», read (FR-HI-*)
+  quality/          gold set, импорт находок, eval, дашборд (FR-QA-03), разбор стопов (FR-QA-06)
   c2/               пустой пакет фазы 2, импорт только при feature_c2_enabled
   api/ entitlements/ exports/ alerts/ reports/ compliance/   пакеты этапов 2–3 (пока без кода)
 scripts/            check_coverage.py, bench_light.py (NFR-P-01)
-tests/              unit/ (без контейнеров) и integration/ (testcontainers)
+tests/              unit/ (без контейнеров), integration/ (testcontainers), e2e/ (Chromium + симулятор магазинов)
+tests/fixtures/shops/   37 конфигураций симулятора: адаптеры, ловушка, блокировки, каждый stop_step
 ```
 
 ## Конфигурация
@@ -116,6 +120,11 @@ tests/              unit/ (без контейнеров) и integration/ (testc
   магазинами (`tests/fixtures/shops/`), транспорт httpx перенаправляется на
   127.0.0.1; politeness-лимитер идёт по виртуальным часам, так что 1 rps
   проверяется без ожиданий.
+- `tests/e2e` — настоящий Chromium (Playwright, `uv run playwright install --with-deps chromium`)
+  против симулятора магазинов `tests/e2e/shopsim.py` (локальный HTTP-сервер; браузер попадает
+  на него через перехват `context.route`, DNS не нужен). Конфигурации в
+  `tests/fixtures/shops/*/shop.json`. Магазин-ловушка: `PAYINTEL_TEST_TRAP_RUNS` (100 по
+  умолчанию, 1000 для AC-04), `PAYINTEL_TEST_TRAP_CONCURRENCY` (8).
 - Время — через `core/clock.py` (`FixedClock` в тестах), случайность не используется.
 
 ## Правила безопасности (неизменяемые)
@@ -123,7 +132,9 @@ tests/              unit/ (без контейнеров) и integration/ (testc
 Сканер никогда не нажимает кнопки оплаты и заказа, не вводит реальные карточные
 данные, не решает CAPTCHA, не маскируется под браузер человека, не меняет IP и
 соблюдает `robots.txt`. Поля оплаты заполняются только значениями из
-`reference/test_payment_values.yaml` (этап 2, ADR-0003). Поля C1 (AS-23) не
+`reference/test_payment_values.yaml` (ADR-0003) и только когда шаг оплаты не
+раскрыл способы сам; каждое действие прохода идёт через `GuardedPage`
+(ADR-0013), проверено на магазине-ловушке ×1 000 (AC-04). Поля C1 (AS-23) не
 попадают в клиентские ответы и выгрузки. Подробно: `docs/methodology.md`,
 `docs/adr/`.
 

@@ -28,3 +28,13 @@ USER payintel
 ENV PATH="/opt/venv/bin:${PATH}"
 ENTRYPOINT []
 CMD ["payintel", "--help"]
+
+# Checkout worker image: the app plus Chromium for Playwright (FR-CW-01). Browsers
+# are installed system-wide so the non-root user can run them; no stealth patches.
+FROM base AS checkout
+USER root
+ENV PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers
+RUN /opt/venv/bin/playwright install --with-deps chromium \
+    && chown -R payintel:payintel /opt/pw-browsers
+USER payintel
+CMD ["payintel", "worker-checkout"]

@@ -145,3 +145,67 @@ payintel TO S3(...)` еженедельно. MinIO: версионировани
 - Нагрузочный прогон NFR-P-01: `make bench-light` (локальный фикстурный
   сервер, реальные ожидания politeness). Цель ≥20 доменов/с на сервер
   достигается несколькими процессами; один процесс на 4 vCPU даёт ≈15/с.
+
+## 12. Сканер чекаута (4.4, FR-CW-01..14)
+
+- Запуск: `payintel worker-checkout [--once] [--limit N] [--concurrency N] [--worker-id ID]`.
+  В compose — сервис `worker-checkout` профиля `crawl-1` (образ с Chromium,
+  цель `checkout` в `docker/app.Dockerfile`). Нужны Postgres, Redis,
+  ClickHouse, S3 и `PAYINTEL_SECRETS__ENCRYPTION_KEY` (без ключа регистрация
+  аккаунтов отключена — FR-CW-12). Один браузер на процесс, перезапуск
+  каждые `checkout.browser_restart_every_walks` (50) проходов, по умолчанию
+  `checkout.concurrency_per_worker` (8) контекстов параллельно, не более
+  одного прохода на eTLD+1 одновременно (FR-SC-06).
+- Порядок на хост: `robots.txt` (до 512 КБ; запрет главной — стоп
+  `navigation/robots_disallowed` без запуска браузера) → главная (выбор
+  адаптера по профилю или правилам платформ) → товар (≤3 кандидата) →
+  корзина → чекаут → стена входа (гость → аккаунт → регистрация по флагу) →
+  адрес/доставка (≤6 шагов) → шаг оплаты. Дедлайн 90 с, память 1 ГБ JS-heap,
+  ≤40 кликов. Кнопка оплаты/заказа не нажимается никогда (ADR-0013).
+- Флаги читаются при лизинге задачи: `allow_shipping_step_fill`,
+  `allow_account_registration`, `allow_payment_field_fill`
+  (`payintel flags set …`, FR-ADM-05).
+- Артефакты: `s3://<bucket>/checkout/<etld1>/<scan_run_id>/manifest.json`
+  (журнал действий, шаги, запросы, находки, стоп), `payment_step.html.gz`,
+  `payment_block.html.gz`, `screenshot.jpg` (≤300 КБ), `har.json.gz` (без
+  cookie, authorization и тел), при стопе `stop.jpg` + `stop.html.gz`.
+  Lifecycle 90 дней на бакете (LR-08).
+- Наблюдения: `obs_scan` (`scan_type=checkout`), `obs_scan_stop`,
+  `obs_provider` (с `active_on_checkout`), `obs_payment_method`, `obs_tech`,
+  `obs_checkout_host`; состояние: `scan_run`, `store_profile`
+  (`checkout_status`, `coverage`, `checkout_country`, `acquirer_hidden`,
+  `last_checkout_scan_at`), `store_provider`/`store_payment_method`/
+  `store_checkout_host` по правилу «два подряд», `change_event` (ADR-0015),
+  `store_account` (пароль AES-GCM).
+- Расписание: успех → через `scan.checkout_interval_days` (30; в watchlist 7);
+  `blocked` → cool-down `scan.blocked_cooldown_days` (30) с `last_error`;
+  `timeout`/`error` → backoff FR-SC-05.
+- Диагностика: `scan_run.stop_step`/`stop_reason`, `plan.last_error`, логи
+  JSON с `scan_run_id`; выборка стопов со скриншотами —
+  `payintel quality stop-sample <step> <reason> [--platform …] [--csv file]`.
+- Проверка guardrails (AC-04): `PAYINTEL_TEST_TRAP_RUNS=1000 uv run pytest
+  tests/e2e/test_checkout_walk.py -k trap_shop` (≈15 мин на 4 vCPU;
+  в CI — еженедельный job `trap-1000`, в `make test` — 100 прогонов).
+
+## 13. Еженедельный разбор остановок (FR-QA-06)
+
+1. `payintel quality stops --days 7` — распределение по причинам, шагам,
+   платформам, сравнение релизов сканера; `payintel quality stop-alerts`
+   пишет алерты (+5 п. п. за неделю или после релиза; `other` > 5 %) в
+   `quality_alert` для `staff_analyst`. `payintel quality dashboard` —
+   доля проходов до чекаута/оплаты по платформам, `blocked`, уверенность,
+   свежесть, события в сутки с всплесками (FR-QA-03).
+2. Для каждой из топ-5 причин: `payintel quality stop-sample <step> <reason>
+   --platform <id> --csv stops.csv` → до 20 доменов со скриншотом
+   (`screenshot_key`) и DOM (`dom_key`) в S3.
+3. По каждой причине заводится задача: адаптер (селекторы), эвристика или
+   словарь (`reference/checkout_dictionary.yaml`: `step_actions`,
+   `guest_words` …). Никогда — ослабление политики кликов (ADR-0013).
+4. Если `other` > 5 % — таксономия `reference/stop_reasons.yaml` расширяется
+   новым кодом с миграцией словаря; старые строки остаются `other` с
+   пояснением в `stop_detail`.
+5. DOM-снимок реального стопа превращается в фикстуру
+   `tests/fixtures/shops/<имя>/` (конфиг `shop.json` симулятора или
+   статический HTML) и регрессионный тест в `tests/e2e/test_checkout_walk.py`.
+6. После релиза сканера (`scanner_version`) или правил сравнение «до/после»
+   смотрится в `payintel quality stops` (блок `release …`) через 2–3 дня.

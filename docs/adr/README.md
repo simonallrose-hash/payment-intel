@@ -14,3 +14,6 @@
 - [ADR-0010](0010-light-worker-egress-and-persistence.md) — Лёгкий сканер: egress «resolve → connect» и персистентность в потоках
 - [ADR-0011](0011-light-scan-scope-and-third-party-scripts.md) — Объём лёгкого скана, сторонние скрипты и обратная связь ссылок
 - [ADR-0012](0012-provider-expansion-and-signature-tiers.md) — Расширение справочника PSP и ярусы достоверности сигнатур
+- [ADR-0013](0013-checkout-guardrails-architecture.md) — Архитектура guardrails чекаута (FR-CW-04, AC-04)
+- [ADR-0014](0014-checkout-walk-decisions.md) — Решения по проходу до чекаута (FR-CW-02…14)
+- [ADR-0015](0015-checkout-state-and-change-detection.md) — Текущее состояние по чекауту и детекция изменений (FR-DT-05/06/11, FR-HI-02…04)

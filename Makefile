@@ -52,5 +52,11 @@ bench-light: ## NFR-P-01 load run of the light scanner against a local fixture s
 worker-light: ## Run one light-scan worker loop against the dev environment
 	$(UV) run payintel worker-light
 
+worker-checkout: ## Run one checkout worker loop (Chromium) against the dev environment
+	$(UV) run payintel worker-checkout
+
+test-e2e: ## Checkout e2e walks on the shop simulator (set PAYINTEL_TEST_TRAP_RUNS=1000 for AC-04)
+	$(UV) run pytest tests/e2e
+
 clean: ## Remove caches and build artifacts
 	rm -rf .pytest_cache .mypy_cache .ruff_cache coverage.json .coverage htmlcov dist build

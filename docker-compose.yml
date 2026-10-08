@@ -101,6 +101,25 @@ services:
       resources:
         limits: { memory: 2g }
 
+  worker-checkout:
+    <<: *app
+    profiles: [crawl-1]
+    build:
+      context: .
+      dockerfile: docker/app.Dockerfile
+      target: checkout
+    image: payintel-checkout:latest
+    command: ["payintel", "worker-checkout", "--worker-id", "crawl-1-checkout"]
+    environment:
+      PAYINTEL_DISCOVERY__DNS_NAMESERVERS: '["unbound"]'
+      PAYINTEL_DISCOVERY__DNS_PORT: "53"
+      PLAYWRIGHT_BROWSERS_PATH: /opt/pw-browsers
+    shm_size: 1g            # Chromium renderers share memory via /dev/shm
+    depends_on: [unbound]
+    deploy:
+      resources:
+        limits: { memory: 6g }   # 8 contexts × ≤1 GB JS-heap guard + browser
+
 volumes:
   pg-data:
   ch-data:

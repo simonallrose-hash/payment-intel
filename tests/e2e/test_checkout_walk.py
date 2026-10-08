@@ -26,7 +26,7 @@ PLATFORM_OF = {
     "prestashop": "prestashop",
     "generic": None,
 }
-TRAP_RUNS = int(os.environ.get("PAYINTEL_TEST_TRAP_RUNS", "1000"))
+TRAP_RUNS = int(os.environ.get("PAYINTEL_TEST_TRAP_RUNS", "100"))  # AC-04 run: 1000
 TRAP_CONCURRENCY = int(os.environ.get("PAYINTEL_TEST_TRAP_CONCURRENCY", "8"))
 
 

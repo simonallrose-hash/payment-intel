@@ -4,6 +4,9 @@ on:
   push:
     branches: [main]
   pull_request:
+  schedule:
+    - cron: "0 3 * * 1"   # weekly AC-04 run of the trap shop ×1000
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -53,6 +56,8 @@ jobs:
         with:
           python-version: "3.12"
       - run: uv sync --all-groups
+      - name: Chromium for the checkout e2e tests (FR-CW-01)
+        run: uv run playwright install --with-deps chromium
       - name: Tests with coverage (NFR-M-01)
         run: make test
       - uses: actions/upload-artifact@v4
@@ -106,6 +111,24 @@ jobs:
         with:
           name: eval-report
           path: eval-report.json
+
+  trap-1000:
+    # AC-04: 1 000 walks of the trap shop, zero forbidden actions. Weekly and on demand.
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+      - run: uv sync --all-groups
+      - run: uv run playwright install --with-deps chromium
+      - name: Trap shop ×1000
+        env:
+          PAYINTEL_TEST_TRAP_RUNS: "1000"
+          PAYINTEL_TEST_TRAP_CONCURRENCY: "8"
+        run: uv run pytest tests/e2e/test_checkout_walk.py -k trap_shop -q
 
   build:
     runs-on: ubuntu-24.04
