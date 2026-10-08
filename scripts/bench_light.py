@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import hashlib
 import ipaddress
 import threading
 import time
@@ -31,7 +32,7 @@ from payintel.core.models.base import DomainSourceKind, ScanType
 from payintel.core.s3 import ObjectStore, make_s3_client
 from payintel.core.settings import get_settings
 from payintel.crawl.light.runtime import build_context
-from payintel.crawl.light.worker import LightScanner, run_batch
+from payintel.crawl.light.worker import LightScanner, run_pipeline
 from payintel.discovery.ingest import ingest
 from payintel.discovery.sources import SourceRecord
 from payintel.scheduler import planner
@@ -70,7 +71,7 @@ class Handler(BaseHTTPRequestHandler):
 
 class LoopbackTransport(httpx.AsyncHTTPTransport):
     def __init__(self, port: int) -> None:
-        super().__init__()
+        super().__init__(limits=httpx.Limits(max_connections=64, max_keepalive_connections=0))
         self._port = port
 
     async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
@@ -86,7 +87,7 @@ class LoopbackTransport(httpx.AsyncHTTPTransport):
 
 def fake_public_ip(hostname: str) -> list[str]:
     """One distinct public address per host, so the per-IP bucket behaves as in production."""
-    n = int(hostname.split("-")[1].split(".")[0])
+    n = int(hashlib.sha256(hostname.encode()).hexdigest()[:4], 16)
     return [str(ipaddress.IPv4Address(int(ipaddress.IPv4Address("93.184.0.0")) + n))]
 
 
@@ -131,26 +132,23 @@ def main() -> int:
         store=store,
         resolve=resolve,
         allow_private=False,
-        transport=LoopbackTransport(port),
+        transport=lambda: LoopbackTransport(port),  # one pool per shard, as in production
         base_scheme="http",
     )
     scanner = LightScanner(ctx)
 
+    durations: list[int] = []
+
     async def run() -> tuple[int, float]:
-        total, t0 = 0, time.monotonic()
+        t0 = time.monotonic()
         try:
-            while True:
-                outcomes = await run_batch(
-                    factory, scanner, limit=args.concurrency, concurrency=args.concurrency
-                )
-                if not outcomes:
-                    break
-                total += len(outcomes)
-                bad = [o for o in outcomes if o.status.value != "ok"]
-                print(
-                    f"  batch {len(outcomes)} ok={len(outcomes) - len(bad)} "
-                    f"elapsed={time.monotonic() - t0:.1f}s"
-                )
+            total = await run_pipeline(
+                factory,
+                scanner,
+                concurrency=args.concurrency,
+                stop_when_empty=True,
+                on_outcome=lambda o: durations.append(o.duration_ms),
+            )
         finally:
             await ctx.fetcher.aclose()
         return total, time.monotonic() - t0
@@ -158,6 +156,12 @@ def main() -> int:
     total, elapsed = asyncio.run(run())
     rate = total / elapsed if elapsed else 0.0
     verdict = "PASS" if rate >= 20 else "FAIL"
+    if durations:
+        d = sorted(durations)
+        print(
+            f"scan duration ms: p50 {d[len(d) // 2]}, p95 {d[int(len(d) * 0.95)]}, max {d[-1]} "
+            f"(floor ≈ 6000 with 1 rps per host and 7 requests per site)"
+        )
     print(f"NFR-P-01: {total} domains in {elapsed:.1f}s = {rate:.1f} domains/s -> {verdict}")
     httpd.shutdown()
     return 0 if verdict == "PASS" else 1

@@ -62,7 +62,7 @@ def build_context(
     limiter: RateLimiter | None = None,
     resolve: Resolve | None = None,
     allow_private: bool = False,
-    transport: Any = None,
+    transport: Any = None,  # instance or zero-arg factory (see Fetcher)
     sleep: Any = None,
     base_scheme: str = "https",
     reference: ReferenceData | None = None,

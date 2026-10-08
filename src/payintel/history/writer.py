@@ -7,6 +7,7 @@ end of every worker batch and on shutdown, so nothing is lost on a clean exit.
 
 from __future__ import annotations
 
+import threading
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -99,16 +100,23 @@ class ObservationBuffer:
     _rows: dict[str, list[list[Any]]] = field(default_factory=dict)
     _since: float | None = None
     flushed_rows: int = 0
+    _lock: threading.Lock = field(default_factory=threading.Lock)
 
     def add(self, table: str, row: dict[str, Any]) -> None:
+        """Thread-safe: persistence of concurrent scans runs in worker threads."""
         cols = OBS_COLUMNS[table]
         missing = [c for c in cols if c not in row]
         if missing:
             raise KeyError(f"{table}: missing columns {missing}")
-        self._rows.setdefault(table, []).append([row[c] for c in cols])
-        if self._since is None:
-            self._since = self.monotonic()
-        if self.pending >= self.batch_rows or self.monotonic() - self._since >= self.batch_seconds:
+        with self._lock:
+            self._rows.setdefault(table, []).append([row[c] for c in cols])
+            if self._since is None:
+                self._since = self.monotonic()
+            due = (
+                self.pending >= self.batch_rows
+                or self.monotonic() - self._since >= self.batch_seconds
+            )
+        if due:
             self.flush()
 
     @property
@@ -116,15 +124,17 @@ class ObservationBuffer:
         return sum(len(v) for v in self._rows.values())
 
     def flush(self) -> int:
+        with self._lock:
+            rows_by_table = self._rows
+            self._rows = {}
+            self._since = None
         n = 0
         if self.client is not None:
-            for table, rows in self._rows.items():
+            for table, rows in rows_by_table.items():
                 if rows:
                     self.client.insert(table, rows, column_names=OBS_COLUMNS[table])
                     n += len(rows)
         else:
-            n = self.pending
-        self._rows.clear()
-        self._since = None
+            n = sum(len(v) for v in rows_by_table.values())
         self.flushed_rows += n
         return n

@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 from urllib.parse import urljoin
@@ -19,6 +20,7 @@ from payintel.crawl.egress import EgressBlocked, EgressGuard
 from payintel.scheduler.politeness import RateLimiter, host_key, ip_key
 
 MAX_HOPS = 5
+TransportFactory = Callable[[], httpx.AsyncBaseTransport]
 
 
 @dataclass(frozen=True)
@@ -106,11 +108,47 @@ class Fetcher:
         ip_rps: float,
         sleep: Any = None,
         verify_tls: bool = True,
-        transport: httpx.AsyncBaseTransport | None = None,
+        transport: TransportFactory | httpx.AsyncBaseTransport | None = None,
+        max_connections: int = 400,
+        keepalive: int = 0,
+        shards: int = 16,
     ) -> None:
         import asyncio
 
-        self._client = httpx.AsyncClient(
+        # httpcore re-scans every queued request against every pooled connection on each
+        # event (quadratic at 200 in-flight requests), so the pool is sharded by hostname.
+        # A transport *factory* gives every shard its own pool; a transport instance is
+        # shared (tests with little concurrency).
+        self._clients = [
+            self._make_client(
+                transport() if callable(transport) else transport,
+                connect_timeout,
+                read_timeout,
+                user_agent,
+                verify_tls,
+                max(1, max_connections // shards),
+                keepalive,
+            )
+            for _ in range(max(1, shards))
+        ]
+        self._guard = guard
+        self._limiter = limiter
+        self._max_bytes = max_bytes
+        self._host_rps = host_rps
+        self._ip_rps = ip_rps
+        self._sleep = sleep or asyncio.sleep
+
+    @staticmethod
+    def _make_client(
+        transport: httpx.AsyncBaseTransport | None,
+        connect_timeout: float,
+        read_timeout: float,
+        user_agent: str,
+        verify_tls: bool,
+        max_connections: int,
+        keepalive: int,
+    ) -> httpx.AsyncClient:
+        return httpx.AsyncClient(
             transport=transport,
             timeout=httpx.Timeout(
                 connect=connect_timeout, read=read_timeout, write=read_timeout, pool=connect_timeout
@@ -121,17 +159,21 @@ class Fetcher:
                 "Accept": "text/html,application/xhtml+xml,*/*;q=0.8",
             },
             verify=verify_tls,
-            limits=httpx.Limits(max_connections=400, max_keepalive_connections=50),
+            # Few keep-alive connections: with 1 rps per host (FR-SC-06) reuse is rare,
+            # and httpcore scans the whole pool per request (O(connections) each).
+            limits=httpx.Limits(
+                max_connections=max_connections,
+                max_keepalive_connections=keepalive,
+                keepalive_expiry=2.0,
+            ),
         )
-        self._guard = guard
-        self._limiter = limiter
-        self._max_bytes = max_bytes
-        self._host_rps = host_rps
-        self._ip_rps = ip_rps
-        self._sleep = sleep or asyncio.sleep
+
+    def _client_for(self, hostname: str) -> httpx.AsyncClient:
+        return self._clients[hash(hostname) % len(self._clients)]
 
     async def aclose(self) -> None:
-        await self._client.aclose()
+        for client in self._clients:
+            await client.aclose()
 
     async def _polite_wait(self, hostname: str, addresses: tuple[str, ...]) -> None:
         wait = await self._limiter.acquire(host_key(hostname), self._host_rps)
@@ -152,8 +194,9 @@ class Fetcher:
                 decision = await self._guard.check(current)
                 result.addresses = decision.addresses
                 await self._polite_wait(decision.hostname, decision.addresses)
-                req = self._client.build_request("GET", current)
-                response = await self._client.send(req, stream=True)
+                client = self._client_for(decision.hostname)
+                req = client.build_request("GET", current)
+                response = await client.send(req, stream=True)
                 try:
                     result.hops = hop
                     result.final_url = str(response.url)

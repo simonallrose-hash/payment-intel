@@ -12,12 +12,13 @@ from __future__ import annotations
 import asyncio
 import re
 import uuid
+from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 from urllib.parse import urljoin, urlsplit
 
-from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
 from payintel.core.clock import SYSTEM_CLOCK, Clock
@@ -35,7 +36,7 @@ from payintel.core.models.base import (
 from payintel.core.models.domains import Domain, Host
 from payintel.core.models.scans import ScanPlan, ScanRun
 from payintel.core.settings import Settings
-from payintel.crawl.light.artifacts import ArtifactWriter, record_script, sha256_hex
+from payintel.crawl.light.artifacts import ArtifactWriter, ScriptMeta, record_script, sha256_hex
 from payintel.crawl.light.fetcher import Fetcher, FetchResult
 from payintel.crawl.light.html import HtmlFeatures, extract
 from payintel.crawl.light.robots import RobotsRules, agent_token, parse_robots
@@ -111,6 +112,7 @@ class LightScanOutcome:
     duration_ms: int
     domain_status: DomainStatus | None = None
     new_link_candidates: int = 0
+    script_meta: list[ScriptMeta] = field(default_factory=list)
 
     @property
     def providers(self) -> list[TargetScore]:
@@ -173,9 +175,16 @@ def _version_from_generator(meta: dict[str, str], platform_id: str | None) -> st
     return None
 
 
+MAX_SCRIPT_BYTES = 2 * 1024 * 1024
+UPLOADED_CACHE = 20_000
+
+
 class LightScanner:
+    """One instance per worker process; `scan` and `scan_plan` are safe to run concurrently."""
+
     def __init__(self, ctx: ScanContext) -> None:
         self.ctx = ctx
+        self._uploaded: set[str] = set()  # script hashes already put to S3 by this process
 
     # --- fetching helpers -------------------------------------------------------
     async def _robots(self, base: str) -> RobotsRules:
@@ -230,35 +239,48 @@ class LightScanner:
             return url if robots.allows(url) else None
         return None
 
-    async def _download_scripts(
-        self, session: Session, host: Host, pages: list[PageCapture], now: datetime
-    ) -> dict[str, str]:
+    async def _download_scripts(self, pages: list[PageCapture], etld1: str) -> list[ScriptMeta]:
+        """First-party scripts only (same eTLD+1): third-party CDN hosts such as
+        js.stripe.com are shared by thousands of shops, and the 1 rps per host rule
+        (FR-SC-06) would otherwise serialise the whole fleet on them. Their URLs are
+        still signals for the rule engine (`script_src`), only the bodies are skipped."""
         seen: list[str] = []
         for cap in pages:
             if cap.features is None:
                 continue
             for src in cap.features.scripts_src:
-                if src not in seen and urlsplit(src).scheme in {"http", "https"}:
+                h = (urlsplit(src).hostname or "").lower()
+                if src in seen or urlsplit(src).scheme not in {"http", "https"}:
+                    continue
+                if h == etld1 or h.endswith("." + etld1):
                     seen.append(src)
-        result: dict[str, str] = {}
+        out: list[ScriptMeta] = []
         for src in seen[:MAX_SCRIPTS]:
-            r = await self.ctx.fetcher.fetch(src, max_bytes=self.ctx.settings.light.max_page_bytes)
+            r = await self.ctx.fetcher.fetch(src, max_bytes=MAX_SCRIPT_BYTES)
             if r.error or r.status != 200 or not r.body or r.truncated:
                 continue
-            digest, _new = record_script(
-                session,
-                self.ctx.writer,
-                host_id=host.id,
-                src_url=src,
-                body=r.body,
-                content_type=r.headers.get("content-type"),
-                now=now,
+            digest = sha256_hex(r.body)
+            key = self.ctx.writer.script_key(digest)
+            if digest not in self._uploaded:
+                # S3 put is blocking I/O: off the event loop. Same key, same bytes → idempotent.
+                await asyncio.to_thread(self.ctx.writer.put_script, digest, r.body)
+                if len(self._uploaded) >= UPLOADED_CACHE:
+                    self._uploaded.clear()
+                self._uploaded.add(digest)
+            out.append(
+                ScriptMeta(
+                    src_url=src,
+                    sha256=digest,
+                    size_bytes=len(r.body),
+                    content_type=r.headers.get("content-type"),
+                    s3_key=key,
+                )
             )
-            result[src] = digest
-        return result
+        return out
 
     # --- main ---------------------------------------------------------------------
     async def scan(self, session: Session, plan: ScanPlan) -> LightScanOutcome:
+        """Scan a leased plan inside one caller-owned session (tests, single-task use)."""
         host = session.get(Host, plan.host_id)
         if host is None:
             raise LookupError(f"plan {plan.id} without host")
@@ -267,16 +289,56 @@ class LightScanner:
             raise LookupError(f"host {host.id} without domain")
         run_id = queue.run_id_for(plan)
         started = self.ctx.clock.now()
-        t0 = asyncio.get_running_loop().time()
-        prefix = f"light/{domain.etld1}/{run_id}/"
         with log_context(scan_run_id=str(run_id)):
-            outcome = await self._scan_pages(session, host, domain, run_id, prefix)
-            outcome.duration_ms = int((asyncio.get_running_loop().time() - t0) * 1000)
+            outcome = await self._network_phase(host, domain, run_id)
             self._persist(session, host, domain, plan, outcome, started)
         return outcome
 
+    async def scan_plan(self, factory: sessionmaker[Session], plan_id: int) -> LightScanOutcome:
+        """Scan without holding a database connection across the network phase.
+
+        A worker runs hundreds of scans concurrently (6.1) while the Postgres pool
+        has a few dozen connections: the session is opened only to load the task
+        and again, in a worker thread, to persist the result.
+        """
+        with factory() as session:
+            plan = session.get(ScanPlan, plan_id)
+            if plan is None:
+                raise LookupError(f"plan {plan_id} vanished")
+            host = session.get(Host, plan.host_id)
+            domain = session.get(Domain, host.domain_id) if host is not None else None
+            if host is None or domain is None:
+                raise LookupError(f"plan {plan_id} without host/domain")
+            run_id = queue.run_id_for(plan)
+            session.expunge_all()
+        started = self.ctx.clock.now()
+        with log_context(scan_run_id=str(run_id)):
+            outcome = await self._network_phase(host, domain, run_id)
+
+            def persist() -> None:
+                with factory() as s2:
+                    plan2 = s2.get(ScanPlan, plan_id)
+                    host2 = s2.get(Host, host.id)
+                    domain2 = s2.get(Domain, domain.id)
+                    if plan2 is None or host2 is None or domain2 is None:
+                        raise LookupError(f"plan {plan_id} vanished during the scan")
+                    self._persist(s2, host2, domain2, plan2, outcome, started)
+                    s2.commit()
+
+            await asyncio.to_thread(persist)
+        return outcome
+
+    async def _network_phase(
+        self, host: Host, domain: Domain, run_id: uuid.UUID
+    ) -> LightScanOutcome:
+        t0 = asyncio.get_running_loop().time()
+        prefix = f"light/{domain.etld1}/{run_id}/"
+        outcome = await self._scan_pages(host, domain, run_id, prefix)
+        outcome.duration_ms = int((asyncio.get_running_loop().time() - t0) * 1000)
+        return outcome
+
     async def _scan_pages(
-        self, session: Session, host: Host, domain: Domain, run_id: uuid.UUID, prefix: str
+        self, host: Host, domain: Domain, run_id: uuid.UUID, prefix: str
     ) -> LightScanOutcome:
         s = self.ctx.settings
         base = f"{self.ctx.base_scheme}://{host.hostname}/"
@@ -338,8 +400,7 @@ class LightScanner:
         scores = aggregate(findings)
         platform = best_platform(scores)
         platform_id = platform.target_id if platform else None
-        now = self.ctx.clock.now()
-        scripts = await self._download_scripts(session, host, pages, now)
+        script_meta = await self._download_scripts(pages, domain.etld1)
         country = self.ctx.country.detect(
             home.features,
             etld1=domain.etld1,
@@ -372,9 +433,10 @@ class LightScanner:
             country=country,
             classification=classification,
             parked_by=parked.signature_id if parked.parked else None,
-            scripts=scripts,
+            scripts={m.src_url: m.sha256 for m in script_meta},
             artifact_prefix=prefix,
             duration_ms=0,
+            script_meta=script_meta,
         )
 
     # --- persistence --------------------------------------------------------------
@@ -407,6 +469,8 @@ class LightScanner:
                 )
             )
             session.flush()
+        for meta in o.script_meta:
+            record_script(session, host_id=host.id, meta=meta, now=now)
         self._write_artifacts(o)
         self._write_observations(host, domain, o, now)
         if o.status == ScanStatus.OK:
@@ -640,8 +704,6 @@ class LightScanner:
         if o.status == ScanStatus.OK:
             queue.complete(session, plan, next_scan_at=now + cycle, clock=self.ctx.clock)
         elif o.status == ScanStatus.BLOCKED:
-            from datetime import timedelta
-
             queue.complete(
                 session,
                 plan,
@@ -667,7 +729,12 @@ async def run_batch(
     limit: int,
     concurrency: int,
 ) -> list[LightScanOutcome]:
-    """Lease up to `limit` light tasks and scan them concurrently (one session per task)."""
+    """Lease up to `limit` light tasks and scan them concurrently.
+
+    No database connection is held while a scan waits on the network (see
+    `LightScanner.scan_plan`); a crashed scan is failed with backoff so the lease
+    is not simply left to expire.
+    """
     ctx = scanner.ctx
     with factory() as session:
         plans = queue.lease(
@@ -683,34 +750,118 @@ async def run_batch(
     sem = asyncio.Semaphore(concurrency)
     outcomes: list[LightScanOutcome] = []
 
+    def fail_plan(plan_id: int, exc: BaseException) -> None:
+        with factory() as s2:
+            p2 = s2.get(ScanPlan, plan_id)
+            if p2 is not None:
+                queue.fail(
+                    s2,
+                    p2,
+                    error=repr(exc)[:500],
+                    cycle=timedelta(days=ctx.settings.scan.light_interval_days_candidate),
+                    s=ctx.settings.scan,
+                    clock=ctx.clock,
+                )
+                s2.commit()
+
     async def one(plan_id: int) -> None:
         async with sem:
-            with factory() as session:
-                plan = session.execute(select(ScanPlan).where(ScanPlan.id == plan_id)).scalar_one()
-                try:
-                    outcome = await scanner.scan(session, plan)
-                    session.commit()
-                    outcomes.append(outcome)
-                except Exception as exc:
-                    session.rollback()
-                    log.error("light scan crashed", plan_id=plan_id, error=repr(exc))
-                    with factory() as s2:
-                        p2 = s2.get(ScanPlan, plan_id)
-                        if p2 is not None:
-                            from datetime import timedelta
-
-                            queue.fail(
-                                s2,
-                                p2,
-                                error=repr(exc)[:500],
-                                cycle=timedelta(
-                                    days=ctx.settings.scan.light_interval_days_candidate
-                                ),
-                                s=ctx.settings.scan,
-                                clock=ctx.clock,
-                            )
-                            s2.commit()
+            try:
+                outcomes.append(await scanner.scan_plan(factory, plan_id))
+            except Exception as exc:
+                log.error("light scan crashed", plan_id=plan_id, error=repr(exc))
+                await asyncio.to_thread(fail_plan, plan_id, exc)
 
     await asyncio.gather(*(one(pid) for pid in plan_ids))
     ctx.buffer.flush()
     return outcomes
+
+
+async def run_pipeline(
+    factory: sessionmaker[Session],
+    scanner: LightScanner,
+    *,
+    concurrency: int,
+    poll_seconds: float = 5.0,
+    stop_when_empty: bool = False,
+    on_outcome: Callable[[LightScanOutcome], None] | None = None,
+) -> int:
+    """Keep `concurrency` scans in flight; lease more as slots free up (no batch barrier).
+
+    Throughput is then concurrency / mean scan time instead of concurrency / slowest
+    scan in the batch. Returns the number of completed scans (when it stops).
+    """
+    ctx = scanner.ctx
+    inflight: set[asyncio.Task[None]] = set()
+    done_count = 0
+    lease_floor = max(1, concurrency // 10)
+    # Persistence runs in threads; the default executor (cpu+4 workers) would queue it
+    # behind itself at 200 in-flight scans.
+    asyncio.get_running_loop().set_default_executor(
+        ThreadPoolExecutor(
+            max_workers=max(8, min(64, concurrency // 4)), thread_name_prefix="persist"
+        )
+    )
+
+    def fail_plan(plan_id: int, exc: BaseException) -> None:
+        with factory() as s2:
+            p2 = s2.get(ScanPlan, plan_id)
+            if p2 is not None:
+                queue.fail(
+                    s2,
+                    p2,
+                    error=repr(exc)[:500],
+                    cycle=timedelta(days=ctx.settings.scan.light_interval_days_candidate),
+                    s=ctx.settings.scan,
+                    clock=ctx.clock,
+                )
+                s2.commit()
+
+    async def one(plan_id: int) -> None:
+        nonlocal done_count
+        try:
+            outcome = await scanner.scan_plan(factory, plan_id)
+            done_count += 1
+            if on_outcome is not None:
+                on_outcome(outcome)
+        except Exception as exc:
+            log.error("light scan crashed", plan_id=plan_id, error=repr(exc))
+            await asyncio.to_thread(fail_plan, plan_id, exc)
+
+    def lease(n: int) -> list[int]:
+        with factory() as session:
+            plans = queue.lease(
+                session,
+                ScanType.LIGHT,
+                ctx.worker_id,
+                limit=n,
+                lease_seconds=ctx.settings.scan.lease_seconds,
+                clock=ctx.clock,
+            )
+            ids = [p.id for p in plans]
+            session.commit()
+        return ids
+
+    try:
+        while True:
+            free = concurrency - len(inflight)
+            if free >= lease_floor:
+                ids = await asyncio.to_thread(lease, free)
+                for pid in ids:
+                    task = asyncio.create_task(one(pid))
+                    inflight.add(task)
+                    task.add_done_callback(inflight.discard)
+                if not ids and not inflight:
+                    if stop_when_empty:
+                        break
+                    await asyncio.sleep(poll_seconds)
+                    continue
+            if inflight:
+                await asyncio.wait(inflight, return_when=asyncio.FIRST_COMPLETED, timeout=1.0)
+            else:
+                await asyncio.sleep(poll_seconds)
+    finally:
+        if inflight:
+            await asyncio.gather(*inflight, return_exceptions=True)
+        ctx.buffer.flush()
+    return done_count

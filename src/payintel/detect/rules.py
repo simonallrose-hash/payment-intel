@@ -16,6 +16,7 @@ import json
 import re
 from collections.abc import Iterable
 from dataclasses import dataclass
+from functools import cached_property
 from pathlib import Path
 from typing import Any
 
@@ -90,9 +91,12 @@ class Rule:
 class RuleSet:
     rules: tuple[Rule, ...]
 
-    @property
+    @cached_property
     def version(self) -> str:
-        """Content hash of all rules; recorded as `ruleset_version` on scans (FR-DT-07)."""
+        """Content hash of all rules; recorded as `ruleset_version` on scans (FR-DT-07).
+
+        Cached: the worker stamps it on every scan row and artefact.
+        """
         h = hashlib.sha256()
         for r in sorted(self.rules, key=lambda r: (r.rule_id, r.version)):
             h.update(f"{r.rule_id}:{r.version}:{r.fingerprint}:{int(r.enabled)}".encode())

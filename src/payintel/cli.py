@@ -26,7 +26,7 @@ from payintel.core.reference_loader import load_reference, sync_reference
 from payintel.core.s3 import ObjectStore, make_s3_client
 from payintel.core.settings import get_settings
 from payintel.crawl.light.runtime import build_context
-from payintel.crawl.light.worker import LightScanner, run_batch
+from payintel.crawl.light.worker import LightScanner, run_batch, run_pipeline
 from payintel.detect.rules import load_rules, sync_rules
 from payintel.discovery import dns as dns_mod
 from payintel.discovery.ingest import ingest
@@ -354,7 +354,7 @@ def worker_light(
 
     async def loop() -> None:
         try:
-            while True:
+            if once:
                 started = time.monotonic()
                 outcomes = await run_batch(factory, scanner, limit=limit, concurrency=conc)
                 elapsed = time.monotonic() - started
@@ -363,10 +363,8 @@ def worker_light(
                     f"({len(outcomes) / elapsed if elapsed else 0:.1f}/s); "
                     f"ok {sum(o.status.value == 'ok' for o in outcomes)}"
                 )
-                if once:
-                    return
-                if not outcomes:
-                    await asyncio.sleep(poll_seconds)
+                return
+            await run_pipeline(factory, scanner, concurrency=conc, poll_seconds=poll_seconds)
         finally:
             ctx.buffer.flush()
             await ctx.fetcher.aclose()

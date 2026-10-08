@@ -43,8 +43,12 @@ class ArtifactWriter:
             self.store.put_bytes(self.bucket, key, data, content_type="application/gzip")
         return len(data)
 
+    @staticmethod
+    def script_key(sha256: str) -> str:
+        return f"js/{sha256[:2]}/{sha256}.js.gz"
+
     def put_script(self, sha256: str, body: bytes) -> str:
-        key = f"js/{sha256[:2]}/{sha256}.js.gz"
+        key = self.script_key(sha256)
         if self.store is not None:
             self.store.put_bytes(
                 self.bucket,
@@ -59,28 +63,28 @@ def sha256_hex(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
-def record_script(
-    session: Session,
-    writer: ArtifactWriter,
-    *,
-    host_id: int,
-    src_url: str,
-    body: bytes,
-    content_type: str | None,
-    now: datetime,
-) -> tuple[str, bool]:
-    """Dedup by SHA-256 (FR-LS-03). Returns (sha256, newly_stored)."""
-    digest = sha256_hex(body)
-    asset = session.get(JsAsset, digest)
+@dataclass(frozen=True)
+class ScriptMeta:
+    """What the network phase keeps about a downloaded script: never the body."""
+
+    src_url: str
+    sha256: str
+    size_bytes: int
+    content_type: str | None
+    s3_key: str
+
+
+def record_script(session: Session, *, host_id: int, meta: ScriptMeta, now: datetime) -> bool:
+    """Dedup by SHA-256 (FR-LS-03); the object is already in S3. Returns True when new."""
+    asset = session.get(JsAsset, meta.sha256)
     new = asset is None
     if asset is None:
-        key = writer.put_script(digest, body)
         session.add(
             JsAsset(
-                sha256=digest,
-                size_bytes=len(body),
-                content_type=(content_type or "")[:128] or None,
-                s3_key=key,
+                sha256=meta.sha256,
+                size_bytes=meta.size_bytes,
+                content_type=(meta.content_type or "")[:128] or None,
+                s3_key=meta.s3_key,
                 first_seen=now,
                 last_seen=now,
             )
@@ -88,20 +92,20 @@ def record_script(
     else:
         asset.last_seen = now
     link = session.execute(
-        select(HostJsAsset).where(HostJsAsset.host_id == host_id, HostJsAsset.sha256 == digest)
+        select(HostJsAsset).where(HostJsAsset.host_id == host_id, HostJsAsset.sha256 == meta.sha256)
     ).scalar_one_or_none()
     if link is None:
         session.add(
             HostJsAsset(
                 host_id=host_id,
-                sha256=digest,
-                src_url=src_url[:2048],
+                sha256=meta.sha256,
+                src_url=meta.src_url[:2048],
                 first_seen=now,
                 last_seen=now,
             )
         )
     else:
         link.last_seen = now
-        link.src_url = src_url[:2048]
+        link.src_url = meta.src_url[:2048]
     session.flush()
-    return digest, new
+    return new
