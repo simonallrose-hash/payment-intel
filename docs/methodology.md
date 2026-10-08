@@ -80,8 +80,9 @@ HTML-паттерны, favicon (sha256), JSON-LD типы. Правило при
 
 Сторонние хосты страницы оплаты (`obs_checkout_host`, `store_checkout_host`)
 категоризируются по `reference/host_categories.yaml` и правилам
-`network_host`/`script_src`: `psp` (с `provider_id`), `analytics`, `cdn`,
-`fraud`, `tag_manager`, `other`. Для клиентов видны только `psp` (AS-23).
+`network_host`/`script_src`: `psp` (с `provider_id`), `analytics`, `ads`, `cdn`,
+`tag_manager`, `session_replay`, `chat`, `unknown`. Для клиентов видны только
+`psp` (AS-23).
 
 ## Изменения (FR-HI-03, FR-HI-04)
 
