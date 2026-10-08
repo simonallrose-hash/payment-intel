@@ -1,0 +1,5 @@
+#id	host
+0	com.example.shop
+1	de.brand
+2	uk.co.example.shop
+3	io.github.someuser

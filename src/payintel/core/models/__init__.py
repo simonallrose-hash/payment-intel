@@ -5,9 +5,10 @@ Importing this package registers all tables on `Base.metadata` (used by Alembic)
 
 from payintel.core.models.access import ApiKey, Membership, User
 from payintel.core.models.alerts import AlertRule, Delivery, Watchlist, WatchlistItem, Webhook
+from payintel.core.models.assets import HostJsAsset, JsAsset
 from payintel.core.models.audit import AuditLog, FeatureFlag, OptoutRequest, UsageLog
 from payintel.core.models.base import Base
-from payintel.core.models.domains import Domain, DomainSource, Host
+from payintel.core.models.domains import Domain, DomainSource, Host, ImportBatch
 from payintel.core.models.exports import Canary, ExportJob
 from payintel.core.models.orgs import Contract, Entitlement, KycRecord, Organization
 from payintel.core.models.quality import GoldLabel
@@ -33,6 +34,9 @@ __all__ = [
     "FeatureFlag",
     "GoldLabel",
     "Host",
+    "HostJsAsset",
+    "ImportBatch",
+    "JsAsset",
     "KycRecord",
     "Membership",
     "OptoutRequest",

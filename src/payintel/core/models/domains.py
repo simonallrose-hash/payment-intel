@@ -8,9 +8,12 @@ from sqlalchemy import (
     BigInteger,
     Boolean,
     DateTime,
+    Float,
     ForeignKey,
     Index,
+    Integer,
     String,
+    Text,
     UniqueConstraint,
     text,
 )
@@ -39,6 +42,18 @@ class Domain(Base):
     optout: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default=text("false")
     )
+    status_reason: Mapped[str | None] = mapped_column(
+        String(64), nullable=True, comment="e.g. parking signature id or classifier verdict"
+    )
+    status_changed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    traffic_rank: Mapped[int | None] = mapped_column(
+        Integer, nullable=True, index=True, comment="Tranco rank, feeds FR-SC-02"
+    )
+    ecommerce_confidence: Mapped[float | None] = mapped_column(
+        Float, nullable=True, comment="FR-DS-08 classifier score 0..1"
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=text("now()")
     )
@@ -64,6 +79,15 @@ class Host(Base):
     last_resolved_ips: Mapped[list[str] | None] = mapped_column(ARRAY(INET), nullable=True)
     asn: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     hosting_country: Mapped[str | None] = mapped_column(String(2), nullable=True)
+    cname: Mapped[str | None] = mapped_column(String(253), nullable=True)
+    mx: Mapped[list[str] | None] = mapped_column(ARRAY(String(253)), nullable=True)
+    ns: Mapped[list[str] | None] = mapped_column(ARRAY(String(253)), nullable=True)
+    dns_status: Mapped[str | None] = mapped_column(
+        String(16), nullable=True, comment="ok | no_dns | error (FR-DS-06)"
+    )
+    dns_checked_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, index=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=text("now()")
     )
@@ -92,3 +116,24 @@ class DomainSource(Base):
     batch_id: Mapped[str] = mapped_column(String(128), nullable=False)
 
     domain: Mapped[Domain] = relationship(back_populates="sources")
+
+
+class ImportBatch(Base):
+    """One import run of a discovery source; `domain_source.batch_id` points here (FR-DS-03)."""
+
+    __tablename__ = "import_batch"
+
+    id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    source: Mapped[DomainSourceKind] = mapped_column(
+        enum_column(DomainSourceKind, name="import_batch_source"), nullable=False, index=True
+    )
+    origin: Mapped[str] = mapped_column(
+        Text, nullable=False, comment="file name, URL or feed identifier"
+    )
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    records_seen: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    records_invalid: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    domains_new: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    domains_updated: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    hosts_new: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
