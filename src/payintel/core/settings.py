@@ -77,6 +77,11 @@ class IdentitySettings(BaseModel):
         default="PayIntelBot/1.0 (+{bot_page_url})",
         description="Identifying User-Agent (LR-02).",
     )
+    company_phone: str = Field(
+        default="+44 20 7946 0000",
+        description="Phone typed into checkout forms where no fictional range exists for the "
+        "country (FR-CW-05); the default is in the Ofcom drama range, never a real number.",
+    )
 
     @property
     def user_agent(self) -> str:
@@ -146,6 +151,20 @@ class CheckoutSettings(BaseModel):
     headless: bool = Field(default=True, description="FR-CW-01 browser mode (no stealth)")
     screenshot_max_bytes: int = Field(default=300 * 1024, description="FR-CW-08 (300 KB JPEG)")
     stop_detail_max_chars: int = Field(default=500, description="FR-CW-13")
+    action_timeout_seconds: float = Field(
+        default=10.0, description="Per click/fill/navigation timeout inside the 90 s walk"
+    )
+    max_clicks_per_walk: int = Field(
+        default=40, description="Hard cap on guarded clicks per walk (loop protection)"
+    )
+    max_steps_per_checkout: int = Field(
+        default=6, description="Max step-button presses between checkout and payment (FR-CW-02)"
+    )
+    concurrency_per_worker: int = Field(
+        default=8, description="Parallel browser contexts per checkout worker (6.1 worker-checkout)"
+    )
+    viewport_width: int = Field(default=1366, description="Desktop viewport (FR-CW-01)")
+    viewport_height: int = Field(default=900, description="Desktop viewport (FR-CW-01)")
 
 
 class RetentionSettings(BaseModel):

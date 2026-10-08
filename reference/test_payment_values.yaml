@@ -1,0 +1,74 @@
+# Values the checkout scanner may type into payment fields (FR-CW-14, ADR-0003).
+# Only two kinds of card numbers are allowed here:
+#   - `documented`: test numbers published by card schemes / PSPs in their
+#     official testing documentation (each entry names its source);
+#   - `luhn_invalid`: numbers that fail the Luhn check and can never belong
+#     to a real card.
+# The guardrail layer refuses any value that is not byte-for-byte in this file;
+# code must never generate numbers (ADR-0003). Real or third-party card data is
+# forbidden (FR-CW-04, LR-04).
+version: 1
+cards:
+  documented:
+    - number: "4242424242424242"
+      brand: visa
+      source: https://docs.stripe.com/testing
+    - number: "4000056655665556"
+      brand: visa
+      source: https://docs.stripe.com/testing
+    - number: "5555555555554444"
+      brand: mastercard
+      source: https://docs.stripe.com/testing
+    - number: "2223003122003222"
+      brand: mastercard
+      source: https://docs.stripe.com/testing
+    - number: "378282246310005"
+      brand: amex
+      source: https://docs.stripe.com/testing
+    - number: "6011111111111117"
+      brand: discover
+      source: https://docs.stripe.com/testing
+    - number: "3566002020360505"
+      brand: jcb
+      source: https://docs.stripe.com/testing
+    - number: "6200000000000005"
+      brand: unionpay
+      source: https://docs.stripe.com/testing
+    - number: "4111111111111111"
+      brand: visa
+      source: https://docs.adyen.com/development-resources/testing/test-card-numbers
+    - number: "5555444433331111"
+      brand: mastercard
+      source: https://docs.adyen.com/development-resources/testing/test-card-numbers
+    - number: "370000000000002"
+      brand: amex
+      source: https://docs.adyen.com/development-resources/testing/test-card-numbers
+  luhn_invalid:
+    - "4000000000000001"
+    - "4242424242424241"
+    - "5555555555554441"
+    - "4111111111111112"
+    - "378282246310004"
+# Order of preference when a form needs one number: a documented Visa first
+# (widest acceptance in test modes), then a Luhn-invalid Visa-looking number.
+preferred:
+  - "4242424242424242"
+  - "4111111111111111"
+  - "4000000000000001"
+expiry:
+  month: "12"
+  year_offset_years: 4   # a future year: current year + 4, formatted per field (YY or YYYY)
+cvc:
+  default: "123"
+  amex: "1234"
+holder_name: "TEST PROBE"
+# PSPs that tokenise card fields on the client (blur/input) before any button
+# is pressed (FR-CW-14 technical note). Filling their hosted fields is logged as
+# a possible data transfer; it is never an authorisation.
+client_side_tokenizers:
+  - stripe
+  - adyen
+  - braintree
+  - checkout_com
+  - mollie
+  - square

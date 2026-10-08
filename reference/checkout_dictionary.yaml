@@ -1,0 +1,581 @@
+# Checkout vocabulary in the 10 languages of FR-CW-03 (EN, DE, FR, NL, ES, IT, PL, PT, SV, DA).
+#
+# `final_actions` is the dictionary of FR-CW-04: a control whose text, aria-label,
+# value, title, alt, name or id matches any phrase is a "place order / pay / buy"
+# action and is NEVER clicked by the scanner. `final_markers` are attribute
+# fragments (ids, classes, names, data-* values, form actions) that identify the
+# same controls when they carry no readable text. Matching is done on normalised
+# text (NFKC, lower-case, punctuation and extra whitespace removed); a phrase
+# matches when it equals the text or is contained in it as whole words.
+#
+# `step_actions` are the only buttons the walk may press to move between
+# checkout steps (FR-CW-02). A control that matches both lists is ambiguous and
+# is not clicked (guardrail_ambiguous_button).
+version: 1
+languages: [en, de, fr, nl, es, it, pl, pt, sv, da]
+final_actions:
+  en:
+    - place order
+    - place your order
+    - place my order
+    - pay now
+    - pay
+    - pay securely
+    - buy now
+    - buy
+    - complete order
+    - complete purchase
+    - complete payment
+    - confirm order
+    - confirm purchase
+    - confirm and pay
+    - confirm payment
+    - submit order
+    - submit payment
+    - order now
+    - order and pay
+    - purchase
+    - make payment
+    - authorize payment
+    - authorise payment
+    - checkout and pay
+    - finish order
+    - finalize order
+    - finalise order
+  de:
+    - zahlungspflichtig bestellen
+    - kostenpflichtig bestellen
+    - jetzt kaufen
+    - kaufen
+    - jetzt bezahlen
+    - bezahlen
+    - jetzt zahlen
+    - zahlen
+    - bestellung abschicken
+    - bestellung absenden
+    - bestellung abschließen
+    - bestellung abschliessen
+    - bestellung bestätigen
+    - bestellen
+    - jetzt bestellen
+    - kauf abschließen
+    - kauf abschliessen
+    - zahlung bestätigen
+    - zahlung abschließen
+    - zahlung abschliessen
+    - kostenpflichtig kaufen
+  fr:
+    - commander
+    - commande avec obligation de paiement
+    - payer
+    - payer maintenant
+    - acheter
+    - acheter maintenant
+    - valider la commande
+    - valider ma commande
+    - confirmer la commande
+    - confirmer ma commande
+    - valider et payer
+    - passer la commande
+    - passer commande
+    - finaliser la commande
+    - finaliser ma commande
+    - confirmer le paiement
+    - procéder au paiement
+    - effectuer le paiement
+    - régler
+    - régler la commande
+  nl:
+    - bestellen
+    - bestelling plaatsen
+    - plaats bestelling
+    - nu betalen
+    - betalen
+    - kopen
+    - nu kopen
+    - koop nu
+    - bestelling afronden
+    - bestelling bevestigen
+    - betaling bevestigen
+    - bevestig en betaal
+    - bestelling voltooien
+    - betaal nu
+    - afronden en betalen
+  es:
+    - realizar pedido
+    - realizar el pedido
+    - pagar
+    - pagar ahora
+    - comprar
+    - comprar ahora
+    - confirmar pedido
+    - confirmar el pedido
+    - finalizar compra
+    - finalizar la compra
+    - confirmar compra
+    - finalizar pedido
+    - hacer pedido
+    - hacer el pedido
+    - confirmar y pagar
+    - realizar el pago
+    - efectuar pago
+    - completar compra
+    - completar pedido
+  it:
+    - acquista
+    - acquista ora
+    - compra
+    - compra ora
+    - paga
+    - paga ora
+    - paga adesso
+    - effettua ordine
+    - effettua l'ordine
+    - conferma ordine
+    - conferma l'ordine
+    - invia ordine
+    - invia l'ordine
+    - completa l'ordine
+    - completa ordine
+    - conferma e paga
+    - concludi l'ordine
+    - concludi ordine
+    - ordina
+    - ordina ora
+    - procedi al pagamento
+    - effettua il pagamento
+  pl:
+    - zamawiam i płacę
+    - kupuję i płacę
+    - zapłać
+    - zapłać teraz
+    - płacę
+    - kup teraz
+    - kup
+    - kupuję
+    - złóż zamówienie
+    - potwierdź zamówienie
+    - zamawiam
+    - zamów
+    - zamów teraz
+    - potwierdź i zapłać
+    - zakończ zamówienie
+    - zatwierdź zamówienie
+    - zamawiam z obowiązkiem zapłaty
+  pt:
+    - finalizar compra
+    - finalizar a compra
+    - finalizar pedido
+    - finalizar o pedido
+    - pagar
+    - pagar agora
+    - comprar
+    - comprar agora
+    - confirmar pedido
+    - confirmar o pedido
+    - concluir compra
+    - concluir a compra
+    - concluir pedido
+    - efetuar pagamento
+    - efectuar pagamento
+    - fazer pedido
+    - fazer o pedido
+    - confirmar e pagar
+    - confirmar pagamento
+    - encomendar
+    - confirmar encomenda
+  sv:
+    - slutför köp
+    - slutför köpet
+    - slutför beställning
+    - slutför beställningen
+    - betala
+    - betala nu
+    - köp
+    - köp nu
+    - beställ
+    - beställ nu
+    - lägg beställning
+    - bekräfta köp
+    - bekräfta köpet
+    - bekräfta beställning
+    - bekräfta beställningen
+    - genomför köp
+    - genomför köpet
+    - genomför beställning
+    - bekräfta och betala
+  da:
+    - gennemfør køb
+    - gennemfør købet
+    - gennemfør bestilling
+    - gennemfør ordre
+    - betal
+    - betal nu
+    - køb
+    - køb nu
+    - bestil
+    - bestil nu
+    - afgiv ordre
+    - afgiv bestilling
+    - bekræft køb
+    - bekræft købet
+    - bekræft ordre
+    - bekræft bestilling
+    - afslut køb
+    - afslut købet
+    - godkend og betal
+    - bekræft og betal
+# Wallet / BNPL branded buttons start a payment flow by themselves; they are
+# final actions too (never clicked, FR-CW-04).
+final_brands:
+  - paypal
+  - apple pay
+  - google pay
+  - amazon pay
+  - shop pay
+  - klarna
+  - afterpay
+  - clearpay
+  - affirm
+  - sofort
+  - ideal
+  - bancontact
+  - twint
+  - swish
+  - vipps
+  - mobilepay
+  - blik
+  - przelewy24
+  - link
+# Attribute fragments (lower-case, matched as substrings of id/class/name/data-*/form action).
+final_markers:
+  - place_order
+  - placeorder
+  - place-order
+  - submit-order
+  - submit_order
+  - submitorder
+  - order-submit
+  - order_submit
+  - confirm-order
+  - confirm_order
+  - confirmorder
+  - complete-order
+  - complete_order
+  - pay-now
+  - pay_now
+  - paynow
+  - btn-pay
+  - btn_pay
+  - payment-submit
+  - payment_submit
+  - submit-payment
+  - submit_payment
+  - buy-now
+  - buy_now
+  - buynow
+  - checkout-place-order
+  - checkout_place_order
+  - onestepcheckout-place-order
+  - wc-stripe-submit
+  - confirmorderform
+  - confirm-order-form
+  - payment-form-submit
+  - paypal-button
+  - apple-pay-button
+  - google-pay-button
+  - gpay-button
+  - klarna-button
+  - express-checkout
+  - expresscheckout
+# Form markers: submitting a form whose action/id/class/name contains one of these
+# places an order; the injected submit listener cancels it (last line of defence).
+order_form_markers:
+  - checkout/onepage/payment
+  - payment-information
+  - set-payment-information
+  - checkout/order
+  - checkout/confirm
+  - checkout/finish
+  - place_order
+  - place-order
+  - placeorder
+  - wc-ajax=checkout
+  - confirmorderform
+  - confirm-order
+  - order/confirm
+  - order-confirm
+  - order/payment
+  - payment-form
+  - payment_form
+  - checkout-payment-form
+  - co-payment-form
+  - checkouts/
+  - /pay
+  - /payment/submit
+  - /payment/authorize
+  - /authorize
+  - /capture
+step_actions:
+  en:
+    - continue
+    - next
+    - next step
+    - proceed
+    - proceed to checkout
+    - go to checkout
+    - checkout
+    - continue to checkout
+    - continue to shipping
+    - continue to delivery
+    - continue to payment
+    - continue to billing
+    - save and continue
+    - ship to this address
+    - use this address
+    - continue checkout
+    - view cart
+    - go to cart
+    - secure checkout
+  de:
+    - weiter
+    - weiter zur kasse
+    - zur kasse
+    - zur kasse gehen
+    - zum warenkorb
+    - warenkorb anzeigen
+    - weiter zum versand
+    - weiter zur lieferung
+    - weiter zur zahlung
+    - weiter zur zahlungsart
+    - nächster schritt
+    - fortfahren
+    - speichern und weiter
+    - adresse übernehmen
+    - weiter einkaufen gehen zur kasse
+  fr:
+    - continuer
+    - suivant
+    - étape suivante
+    - passer à la caisse
+    - aller à la caisse
+    - valider
+    - valider l'adresse
+    - continuer vers la livraison
+    - continuer vers le paiement
+    - voir le panier
+    - voir mon panier
+    - enregistrer et continuer
+    - poursuivre
+  nl:
+    - verder
+    - volgende
+    - volgende stap
+    - doorgaan
+    - ga verder
+    - ga door
+    - naar de kassa
+    - naar kassa
+    - afrekenen
+    - verder naar verzending
+    - verder naar bezorging
+    - verder naar betaling
+    - bekijk winkelwagen
+    - naar winkelwagen
+    - opslaan en doorgaan
+  es:
+    - continuar
+    - siguiente
+    - siguiente paso
+    - tramitar pedido
+    - ir a la caja
+    - ir al checkout
+    - proceder al checkout
+    - ver carrito
+    - ver cesta
+    - continuar con el envío
+    - continuar con el pago
+    - guardar y continuar
+    - proceder
+  it:
+    - continua
+    - avanti
+    - procedi
+    - procedi al checkout
+    - vai alla cassa
+    - vai al checkout
+    - vai al carrello
+    - vedi carrello
+    - continua con la spedizione
+    - continua con il pagamento
+    - passo successivo
+    - salva e continua
+    - prosegui
+  pl:
+    - dalej
+    - kontynuuj
+    - następny
+    - następny krok
+    - przejdź do kasy
+    - do kasy
+    - przejdź do realizacji zamówienia
+    - realizacja zamówienia
+    - zobacz koszyk
+    - przejdź do koszyka
+    - przejdź do dostawy
+    - przejdź do płatności
+    - zapisz i kontynuuj
+  pt:
+    - continuar
+    - seguinte
+    - próximo
+    - próximo passo
+    - avançar
+    - prosseguir
+    - ir para o checkout
+    - ir para a caixa
+    - ver carrinho
+    - ver o carrinho
+    - continuar para envio
+    - continuar para entrega
+    - continuar para pagamento
+    - guardar e continuar
+  sv:
+    - fortsätt
+    - nästa
+    - nästa steg
+    - gå till kassan
+    - till kassan
+    - kassan
+    - visa varukorg
+    - gå till varukorgen
+    - fortsätt till leverans
+    - fortsätt till betalning
+    - spara och fortsätt
+    - gå vidare
+  da:
+    - fortsæt
+    - næste
+    - næste trin
+    - videre
+    - gå til kassen
+    - til kassen
+    - kassen
+    - se kurv
+    - gå til kurv
+    - fortsæt til levering
+    - fortsæt til betaling
+    - gem og fortsæt
+    - gå videre
+add_to_cart:
+  en: [add to cart, add to basket, add to bag, add to trolley]
+  de: [in den warenkorb, in den einkaufswagen, in den warenkorb legen, zum warenkorb hinzufügen]
+  fr: [ajouter au panier, ajouter à mon panier]
+  nl: [in winkelwagen, toevoegen aan winkelwagen, in winkelmandje, in de winkelwagen]
+  es: [añadir al carrito, agregar al carrito, añadir a la cesta, agregar a la cesta]
+  it: [aggiungi al carrello, aggiungi]
+  pl: [dodaj do koszyka, do koszyka]
+  pt: [adicionar ao carrinho, adicionar ao cesto, adicionar]
+  sv: [lägg i varukorgen, lägg i kundvagnen, lägg i varukorg]
+  da: [læg i kurv, læg i kurven, tilføj til kurv, læg i indkøbskurv]
+guest_checkout:
+  en: [checkout as guest, guest checkout, continue as guest, proceed as guest, check out as guest]
+  de: [als gast bestellen, als gast fortfahren, als gast weiter, ohne registrierung, gastbestellung, ohne kundenkonto]
+  fr: [commander en tant qu'invité, continuer en tant qu'invité, commande invité, sans créer de compte, commander sans compte]
+  nl: [afrekenen als gast, doorgaan als gast, verder als gast, zonder account, bestellen zonder account]
+  es: [comprar como invitado, continuar como invitado, sin registrarse, sin cuenta]
+  it: [acquista come ospite, procedi come ospite, continua come ospite, senza registrazione]
+  pl: [kup jako gość, kontynuuj jako gość, bez rejestracji, zamów bez rejestracji, jako gość]
+  pt: [comprar como convidado, continuar como convidado, sem registo, sem cadastro, como convidado]
+  sv: [handla som gäst, fortsätt som gäst, utan konto, som gäst]
+  da: [fortsæt som gæst, køb som gæst, uden konto, som gæst]
+login:
+  en: [log in, login, sign in]
+  de: [anmelden, einloggen, login]
+  fr: [se connecter, connexion, identifiez-vous]
+  nl: [inloggen, aanmelden, log in]
+  es: [iniciar sesión, acceder, entrar]
+  it: [accedi, login, entra]
+  pl: [zaloguj, zaloguj się]
+  pt: [entrar, iniciar sessão, login]
+  sv: [logga in]
+  da: [log ind, log på]
+register:
+  en: [create account, create an account, register, sign up, create my account]
+  de: [konto erstellen, registrieren, kundenkonto anlegen, konto anlegen, jetzt registrieren]
+  fr: [créer un compte, s'inscrire, créer mon compte, inscription]
+  nl: [account aanmaken, registreren, maak een account]
+  es: [crear cuenta, crear una cuenta, registrarse, registrarme]
+  it: [crea account, crea un account, registrati, registrazione]
+  pl: [załóż konto, zarejestruj się, utwórz konto, rejestracja]
+  pt: [criar conta, registar, registrar-se, cadastrar, criar a minha conta]
+  sv: [skapa konto, registrera, registrera dig]
+  da: [opret konto, registrer, opret bruger]
+# Checkbox labels the scanner must never tick (newsletters, marketing, optional consents, account creation at guest checkout).
+forbidden_consents:
+  en: [newsletter, subscribe, marketing, offers, promotions, news and offers, special offers, create an account, create account, save my information, remember me, keep me updated, email me]
+  de: [newsletter, abonnieren, werbung, angebote, aktionen, neuigkeiten, konto erstellen, kundenkonto anlegen, informiert bleiben]
+  fr: [newsletter, actualités, offres, promotions, créer un compte, recevoir, m'abonner, abonnement]
+  nl: [nieuwsbrief, aanbiedingen, acties, account aanmaken, op de hoogte]
+  es: [boletín, newsletter, ofertas, promociones, novedades, crear una cuenta, crear cuenta, suscribirme]
+  it: [newsletter, offerte, promozioni, novità, crea un account, crea account, iscrivimi]
+  pl: [newsletter, biuletyn, oferty, promocje, informacje handlowe, zgoda marketingowa, załóż konto, utwórz konto]
+  pt: [newsletter, novidades, ofertas, promoções, criar conta, subscrever]
+  sv: [nyhetsbrev, erbjudanden, kampanjer, skapa konto]
+  da: [nyhedsbrev, tilbud, kampagner, opret konto]
+# Required consents that may be ticked when the control is required (terms, privacy, age confirmation).
+required_consents:
+  en: [terms, conditions, privacy, i agree, i accept, i have read]
+  de: [agb, datenschutz, widerruf, bedingungen, ich stimme, gelesen]
+  fr: [conditions, cgv, confidentialité, j'accepte, j'ai lu]
+  nl: [voorwaarden, privacy, ik ga akkoord, gelezen]
+  es: [términos, condiciones, privacidad, acepto, he leído]
+  it: [termini, condizioni, privacy, accetto, ho letto]
+  pl: [regulamin, polityka prywatności, akceptuję, zapoznałem]
+  pt: [termos, condições, privacidade, aceito, li e aceito]
+  sv: [villkor, köpvillkor, integritet, godkänner]
+  da: [betingelser, handelsbetingelser, vilkår, privatliv, accepterer]
+shipping_words:
+  en: [shipping, delivery, shipping method, delivery method]
+  de: [versand, lieferung, versandart, lieferart]
+  fr: [livraison, mode de livraison, expédition]
+  nl: [verzending, bezorging, verzendmethode, bezorgmethode]
+  es: [envío, entrega, método de envío]
+  it: [spedizione, consegna, metodo di spedizione]
+  pl: [dostawa, wysyłka, sposób dostawy, metoda dostawy]
+  pt: [entrega, envio, método de envio]
+  sv: [leverans, frakt, leveranssätt, fraktsätt]
+  da: [levering, fragt, leveringsmetode]
+payment_words:
+  en: [payment, payment method, pay with, payment options, how would you like to pay]
+  de: [zahlung, zahlungsart, zahlungsmethode, bezahlung, zahlungsweise]
+  fr: [paiement, mode de paiement, moyen de paiement, méthode de paiement]
+  nl: [betaling, betaalmethode, betaalwijze, betaalmethoden]
+  es: [pago, forma de pago, método de pago, medios de pago]
+  it: [pagamento, metodo di pagamento, modalità di pagamento]
+  pl: [płatność, metoda płatności, sposób płatności, forma płatności]
+  pt: [pagamento, método de pagamento, forma de pagamento, meio de pagamento]
+  sv: [betalning, betalsätt, betalningsmetod]
+  da: [betaling, betalingsmetode, betalingsmåde]
+cart_words:
+  en: [cart, basket, bag, shopping cart, shopping bag]
+  de: [warenkorb, einkaufswagen]
+  fr: [panier, mon panier]
+  nl: [winkelwagen, winkelmandje, winkelmand]
+  es: [carrito, cesta, carro]
+  it: [carrello]
+  pl: [koszyk]
+  pt: [carrinho, cesto]
+  sv: [varukorg, kundvagn]
+  da: [kurv, indkøbskurv]
+checkout_words:
+  en: [checkout, check out]
+  de: [kasse, zur kasse]
+  fr: [caisse, commande]
+  nl: [afrekenen, kassa]
+  es: [caja, tramitar pedido, finalizar compra]
+  it: [cassa, checkout]
+  pl: [kasa, do kasy, realizacja zamówienia]
+  pt: [checkout, finalizar compra, caixa]
+  sv: [kassa, kassan]
+  da: [kasse, kassen]

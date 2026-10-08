@@ -1,0 +1,9 @@
+version: 1
+country: FR
+locale: fr-FR
+first_names: [Test, Probe]
+last_names: [Testclient, Probeclient]
+phone:
+  kind: company
+addresses:
+  - { street: rue de Test, house_number: "1", postcode: "75001", city: Paris, region: Île-de-France }

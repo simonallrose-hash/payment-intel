@@ -1,0 +1,11 @@
+version: 1
+country: CA
+locale: en-CA
+first_names: [Test, Probe]
+last_names: [Testbuyer, Probebuyer]
+phone:
+  kind: fictional_range
+  source: https://www.nationalnanpa.com/
+  numbers: ["+1 613 555 0123"]
+addresses:
+  - { street: Test Street, house_number: "100", postcode: K1A 0B1, city: Ottawa, region: Ontario, region_code: "ON" }

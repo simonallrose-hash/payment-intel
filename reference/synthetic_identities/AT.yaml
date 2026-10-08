@@ -1,0 +1,9 @@
+version: 1
+country: AT
+locale: de-AT
+first_names: [Test, Probe]
+last_names: [Testkunde, Probekunde]
+phone:
+  kind: company
+addresses:
+  - { street: Mustergasse, house_number: "1", postcode: "1010", city: Wien, region: Wien, region_code: "9" }

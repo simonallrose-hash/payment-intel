@@ -1,0 +1,119 @@
+# Categories of third-party hosts on the checkout page (FR-DT-11): analytics,
+# ads, cdn, tag_manager, session_replay, chat. PSP hosts are not listed here:
+# they come from the enabled provider rules (`network_host`, `script_src`,
+# `iframe_src`), so the category `psp` always follows the rule set. Everything
+# else is `unknown`. Suffix match on the hostname (eTLD+1 or deeper).
+version: 1
+categories:
+  analytics:
+    - google-analytics.com
+    - analytics.google.com
+    - matomo.cloud
+    - plausible.io
+    - segment.com
+    - segment.io
+    - mixpanel.com
+    - amplitude.com
+    - clarity.ms
+    - hs-scripts.com
+    - hs-analytics.net
+    - hubspot.com
+    - newrelic.com
+    - nr-data.net
+    - sentry.io
+    - datadoghq.com
+    - optimizely.com
+    - klaviyo.com
+    - mailchimp.com
+    - list-manage.com
+    - trustpilot.com
+    - trustedshops.com
+    - bazaarvoice.com
+    - yotpo.com
+  ads:
+    - doubleclick.net
+    - googlesyndication.com
+    - googleadservices.com
+    - facebook.net
+    - facebook.com
+    - bing.com
+    - ads-twitter.com
+    - pinterest.com
+    - pinimg.com
+    - snapchat.com
+    - sc-static.net
+    - tiktok.com
+    - criteo.com
+    - criteo.net
+    - adroll.com
+    - taboola.com
+    - outbrain.com
+    - awin1.com
+    - linkedin.com
+    - licdn.com
+    - rakuten.com
+    - adnxs.com
+  cdn:
+    - cloudflare.com
+    - cloudflareinsights.com
+    - jsdelivr.net
+    - unpkg.com
+    - cloudfront.net
+    - akamaized.net
+    - akamaihd.net
+    - fastly.net
+    - fastlylb.net
+    - googleapis.com
+    - gstatic.com
+    - bootstrapcdn.com
+    - jquery.com
+    - azureedge.net
+    - cdn77.org
+    - keycdn.com
+    - typekit.net
+    - fontawesome.com
+    - shopifycdn.com
+    - bigcommerce.com
+    - wp.com
+    - imgix.net
+    - cloudinary.com
+  tag_manager:
+    - googletagmanager.com
+    - tagmanager.google.com
+    - tealiumiq.com
+    - tiqcdn.com
+    - adobedtm.com
+    - ensighten.com
+    - tagcommander.com
+    - commander1.com
+  session_replay:
+    - hotjar.com
+    - hotjar.io
+    - fullstory.com
+    - mouseflow.com
+    - contentsquare.com
+    - contentsquare.net
+    - smartlook.com
+    - luckyorange.com
+    - luckyorange.net
+    - logrocket.com
+    - lr-ingest.io
+    - inspectlet.com
+    - crazyegg.com
+  chat:
+    - intercom.io
+    - intercomcdn.com
+    - zendesk.com
+    - zdassets.com
+    - tawk.to
+    - crisp.chat
+    - livechatinc.com
+    - livechat.com
+    - drift.com
+    - freshchat.com
+    - tidio.co
+    - olark.com
+    - smartsupp.com
+    - gorgias.com
+    - userlike.com
+    - hubspotusercontent.com

@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "host_categories.yaml",
+  "type": "object",
+  "required": ["version", "categories"],
+  "additionalProperties": false,
+  "properties": {
+    "version": { "type": "integer", "minimum": 1 },
+    "categories": {
+      "type": "object",
+      "required": ["analytics", "ads", "cdn", "tag_manager", "session_replay", "chat"],
+      "additionalProperties": false,
+      "properties": {
+        "analytics": { "$ref": "#/$defs/hosts" },
+        "ads": { "$ref": "#/$defs/hosts" },
+        "cdn": { "$ref": "#/$defs/hosts" },
+        "tag_manager": { "$ref": "#/$defs/hosts" },
+        "session_replay": { "$ref": "#/$defs/hosts" },
+        "chat": { "$ref": "#/$defs/hosts" }
+      }
+    }
+  },
+  "$defs": {
+    "hosts": { "type": "array", "minItems": 1, "items": { "type": "string", "pattern": "^([a-z0-9-]+\\.)+[a-z]{2,}$" } }
+  }
+}

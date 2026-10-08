@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "checkout_dictionary.yaml",
+  "type": "object",
+  "required": ["version", "languages", "final_actions", "final_brands", "final_markers", "order_form_markers",
+               "step_actions", "add_to_cart", "guest_checkout", "login", "register", "forbidden_consents",
+               "required_consents", "shipping_words", "payment_words", "cart_words", "checkout_words"],
+  "additionalProperties": false,
+  "$defs": {
+    "phrases": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 2, "maxLength": 80 } },
+    "by_language": {
+      "type": "object",
+      "minProperties": 10,
+      "propertyNames": { "pattern": "^[a-z]{2}$" },
+      "additionalProperties": { "$ref": "#/$defs/phrases" }
+    }
+  },
+  "properties": {
+    "version": { "type": "integer", "minimum": 1 },
+    "languages": { "type": "array", "minItems": 10, "items": { "type": "string", "pattern": "^[a-z]{2}$" } },
+    "final_actions": { "$ref": "#/$defs/by_language" },
+    "final_brands": { "$ref": "#/$defs/phrases" },
+    "final_markers": { "$ref": "#/$defs/phrases" },
+    "order_form_markers": { "$ref": "#/$defs/phrases" },
+    "step_actions": { "$ref": "#/$defs/by_language" },
+    "add_to_cart": { "$ref": "#/$defs/by_language" },
+    "guest_checkout": { "$ref": "#/$defs/by_language" },
+    "login": { "$ref": "#/$defs/by_language" },
+    "register": { "$ref": "#/$defs/by_language" },
+    "forbidden_consents": { "$ref": "#/$defs/by_language" },
+    "required_consents": { "$ref": "#/$defs/by_language" },
+    "shipping_words": { "$ref": "#/$defs/by_language" },
+    "payment_words": { "$ref": "#/$defs/by_language" },
+    "cart_words": { "$ref": "#/$defs/by_language" },
+    "checkout_words": { "$ref": "#/$defs/by_language" }
+  }
+}

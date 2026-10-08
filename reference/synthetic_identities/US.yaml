@@ -1,0 +1,12 @@
+# 555-0100 … 555-0199 are reserved for fictional use in the North American Numbering Plan.
+version: 1
+country: US
+locale: en-US
+first_names: [Test, Probe]
+last_names: [Testbuyer, Probebuyer]
+phone:
+  kind: fictional_range
+  source: https://www.nationalnanpa.com/
+  numbers: ["+1 202 555 0123", "+1 202 555 0145"]
+addresses:
+  - { street: Test Street NW, house_number: "100", postcode: "20001", city: Washington, region: District of Columbia, region_code: DC }

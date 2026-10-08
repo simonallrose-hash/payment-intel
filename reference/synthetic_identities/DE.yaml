@@ -1,0 +1,12 @@
+# Synthetic buyer identity for DE (FR-CW-05, AS-21). Names are explicitly fictional; the
+# address uses the conventional German sample street with a valid Berlin postcode.
+version: 1
+country: DE
+locale: de-DE
+first_names: [Test, Probe]
+last_names: [Testkunde, Probekunde]
+phone:
+  kind: company
+addresses:
+  - { street: Musterstraße, house_number: "1", postcode: "10115", city: Berlin, region: Berlin, region_code: BE }
+  - { street: Beispielweg, house_number: "12", postcode: "80331", city: München, region: Bayern, region_code: BY }
