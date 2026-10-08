@@ -3,7 +3,7 @@ SHELL := /bin/bash
 UV ?= uv
 COMPOSE_DEV := docker compose -f docker-compose.dev.yml
 
-.PHONY: help install dev dev-down lint typecheck test test-unit eval migrate seed cov check-coverage clean
+.PHONY: help install dev dev-down lint typecheck test test-unit eval migrate seed cov check-coverage clean bench-light worker-light
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}'
@@ -45,6 +45,12 @@ seed: ## Load reference dictionaries and detection rules into the database
 
 eval: ## Compute precision/recall/F1 on the gold set (FR-QA-02); fails if PSP precision < threshold
 	$(UV) run payintel eval --report eval-report.json
+
+bench-light: ## NFR-P-01 load run of the light scanner against a local fixture server (not in CI)
+	$(UV) run python scripts/bench_light.py --domains $${BENCH_DOMAINS:-500} --concurrency $${BENCH_CONCURRENCY:-200}
+
+worker-light: ## Run one light-scan worker loop against the dev environment
+	$(UV) run payintel worker-light
 
 clean: ## Remove caches and build artifacts
 	rm -rf .pytest_cache .mypy_cache .ruff_cache coverage.json .coverage htmlcov dist build

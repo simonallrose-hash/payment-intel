@@ -2,35 +2,53 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
+import shutil
 import sys
+import time
 from pathlib import Path
 from typing import Annotated
 
 import typer
 from alembic import command as alembic_command
 from alembic.config import Config as AlembicConfig
+from sqlalchemy.orm import sessionmaker
 
 from payintel.core import audit as audit_mod
 from payintel.core.ch import apply_migrations, make_ch_client
+from payintel.core.clock import SYSTEM_CLOCK
 from payintel.core.db import get_engine, session_scope
 from payintel.core.flags import FlagService
 from payintel.core.logging import configure_logging, get_logger
-from payintel.core.models.base import ConfidenceLevel
+from payintel.core.models.base import ConfidenceLevel, DomainSourceKind, ScanType
 from payintel.core.reference_loader import load_reference, sync_reference
+from payintel.core.s3 import ObjectStore, make_s3_client
 from payintel.core.settings import get_settings
+from payintel.crawl.light.runtime import build_context
+from payintel.crawl.light.worker import LightScanner, run_batch
 from payintel.detect.rules import load_rules, sync_rules
+from payintel.discovery import dns as dns_mod
+from payintel.discovery.ingest import ingest
+from payintel.discovery.psl import PSL_PATH, SuffixList
+from payintel.discovery.sources import parse_source
 from payintel.quality import eval as eval_mod
 from payintel.quality.findings import import_findings_csv
 from payintel.quality.gold import gold_size, import_gold_csv
+from payintel.scheduler import planner
+from payintel.scheduler.politeness import RedisRateLimiter
 
 app = typer.Typer(no_args_is_help=True, add_completion=False, help="PayIntel operations CLI")
 gold_app = typer.Typer(no_args_is_help=True, help="Gold set (FR-QA-01)")
 flags_app = typer.Typer(no_args_is_help=True, help="Feature flags (FR-ADM-05)")
 audit_app = typer.Typer(no_args_is_help=True, help="Audit log (FR-AB-01, NFR-S-11)")
+discovery_app = typer.Typer(no_args_is_help=True, help="Domain discovery (FR-DS-*)")
+scheduler_app = typer.Typer(no_args_is_help=True, help="Scan planning (FR-SC-*)")
 app.add_typer(gold_app, name="gold")
 app.add_typer(flags_app, name="flags")
 app.add_typer(audit_app, name="audit")
+app.add_typer(discovery_app, name="discovery")
+app.add_typer(scheduler_app, name="scheduler")
 
 ROOT = Path(__file__).resolve().parents[2]
 log = get_logger("payintel.cli")
@@ -197,6 +215,164 @@ def audit_verify() -> None:
         f"audit chain BROKEN at row id {result.first_broken_id} ({result.rows} rows checked)"
     )
     sys.exit(1)
+
+
+# --- stage 1: discovery -------------------------------------------------------
+
+
+@discovery_app.command("import")
+def discovery_import(
+    path: Annotated[Path, typer.Argument(exists=True, dir_okay=False)],
+    source: Annotated[
+        str, typer.Option(help="tranco | commoncrawl | ct | manual | czds")
+    ] = "manual",
+    origin: Annotated[str | None, typer.Option(help="Lineage label; default file name")] = None,
+) -> None:
+    """Ingest a source file into domain/host/domain_source with lineage (FR-DS-01..05)."""
+    kind = DomainSourceKind(source)
+    with session_scope(get_engine()) as session:
+        r = ingest(session, parse_source(kind, path), source=kind, origin=origin or path.name)
+    typer.echo(
+        f"{kind.value}: batch {r.batch_id}; records {r.records_seen} "
+        f"(invalid {r.records_invalid}); domains +{r.domains_new} ~{r.domains_updated}; "
+        f"hosts +{r.hosts_new}"
+    )
+    for sample in r.invalid_samples:
+        typer.echo(f"  invalid: {sample}")
+
+
+@discovery_app.command("resolve")
+def discovery_resolve(
+    limit: Annotated[int, typer.Option(help="Hosts per run")] = 10_000,
+    recheck_days: Annotated[
+        int | None,
+        typer.Option(help="Re-check interval; default settings.scan.no_dns_recheck_days"),
+    ] = None,
+) -> None:
+    """Resolve A/AAAA/CNAME/MX/NS through the local Unbound; mark no_dns and parked (FR-DS-06)."""
+    settings = get_settings()
+    resolver = dns_mod.UnboundResolver(
+        settings.discovery.dns_nameservers,
+        settings.discovery.dns_port,
+        settings.discovery.dns_timeout_seconds,
+    )
+    days = settings.scan.no_dns_recheck_days if recheck_days is None else recheck_days
+    with session_scope(get_engine()) as session:
+        hosts = dns_mod.hosts_due(session, clock=SYSTEM_CLOCK, recheck_days=days, limit=limit)
+        r = asyncio.run(
+            dns_mod.resolve_hosts(
+                session, hosts, resolver, concurrency=settings.discovery.dns_concurrency
+            )
+        )
+    typer.echo(
+        f"dns: checked {r.checked}, ok {r.ok}, no_dns {r.no_dns}, errors {r.errors}, "
+        f"parked {r.parked}"
+    )
+
+
+@discovery_app.command("update-psl")
+def discovery_update_psl(
+    path: Annotated[Path, typer.Argument(exists=True, dir_okay=False)],
+) -> None:
+    """Replace the repository PSL snapshot after validating the downloaded file (FR-DS-04)."""
+    candidate = SuffixList(path)
+    shutil.copyfile(path, PSL_PATH)
+    typer.echo(f"psl: {candidate.rule_count} rules written to {PSL_PATH} (commit the change)")
+
+
+# --- stage 1: scheduler -------------------------------------------------------
+
+
+@scheduler_app.command("plan")
+def scheduler_plan(
+    scan_type: Annotated[str, typer.Option(help="light | checkout")] = "light",
+    limit: Annotated[int, typer.Option(help="Max new plans per run")] = 10_000,
+) -> None:
+    """Create/refresh scan_plan rows with priorities; drop plans of opted-out domains."""
+    settings = get_settings()
+    with session_scope(get_engine()) as session:
+        r = planner.ensure_plans(session, ScanType(scan_type), s=settings.scan, limit=limit)
+    typer.echo(
+        f"{scan_type}: plans +{r.created} ~{r.updated}, removed (opt-out) {r.removed_optout}"
+    )
+
+
+@scheduler_app.command("prioritize")
+def scheduler_prioritize(
+    domains: Annotated[list[str], typer.Argument(help="eTLD+1 names")],
+    scan_type: Annotated[str, typer.Option(help="light | checkout")] = "light",
+    actor: Annotated[str, typer.Option(help="Audited actor")] = "cli",
+) -> None:
+    """Move the domains to the front of the queue (FR-SC-07, audited)."""
+    settings = get_settings()
+    with session_scope(get_engine()) as session:
+        n = planner.prioritize_manual(
+            session, domains, scan_type=ScanType(scan_type), actor=actor, s=settings.scan
+        )
+    typer.echo(f"{scan_type}: {n} plans prioritised (audited as {actor})")
+
+
+# --- stage 1: light worker ----------------------------------------------------
+
+
+@app.command("worker-light")
+def worker_light(
+    once: Annotated[bool, typer.Option(help="Process one batch and exit")] = False,
+    limit: Annotated[int, typer.Option(help="Tasks leased per batch")] = 200,
+    concurrency: Annotated[
+        int | None,
+        typer.Option(help="Parallel scans; default settings.light.concurrency_per_worker"),
+    ] = None,
+    worker_id: Annotated[str, typer.Option(help="Lease owner id")] = "worker-light-0",
+    poll_seconds: Annotated[float, typer.Option(help="Sleep when the queue is empty")] = 5.0,
+    allow_private: Annotated[
+        bool,
+        typer.Option(
+            help="LOCAL TEST STANDS ONLY: system resolver and private targets allowed (NFR-S-09)"
+        ),
+    ] = False,
+) -> None:
+    """Lease light tasks and scan them (4.3); observations go to ClickHouse, artefacts to S3."""
+    from redis.asyncio import Redis
+
+    settings = get_settings()
+    store = ObjectStore(make_s3_client(settings.s3))
+    store.ensure_bucket(settings.s3.bucket_artifacts)
+    ch = make_ch_client(settings.clickhouse)
+    redis = Redis.from_url(settings.redis.url)
+    ctx = build_context(
+        settings,
+        worker_id=worker_id,
+        ch_client=ch,
+        store=store,
+        limiter=RedisRateLimiter(redis),
+        allow_private=allow_private,
+    )
+    scanner = LightScanner(ctx)
+    factory = sessionmaker(bind=get_engine(), expire_on_commit=False)
+    conc = concurrency or settings.light.concurrency_per_worker
+
+    async def loop() -> None:
+        try:
+            while True:
+                started = time.monotonic()
+                outcomes = await run_batch(factory, scanner, limit=limit, concurrency=conc)
+                elapsed = time.monotonic() - started
+                typer.echo(
+                    f"batch: {len(outcomes)} scans in {elapsed:.1f}s "
+                    f"({len(outcomes) / elapsed if elapsed else 0:.1f}/s); "
+                    f"ok {sum(o.status.value == 'ok' for o in outcomes)}"
+                )
+                if once:
+                    return
+                if not outcomes:
+                    await asyncio.sleep(poll_seconds)
+        finally:
+            ctx.buffer.flush()
+            await ctx.fetcher.aclose()
+            await redis.aclose()
+
+    asyncio.run(loop())
 
 
 if __name__ == "__main__":  # pragma: no cover

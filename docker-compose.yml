@@ -89,6 +89,18 @@ services:
     restart: "no"
     command: ["payintel", "migrate"]
 
+  worker-light:
+    <<: *app
+    profiles: [crawl-1]
+    command: ["payintel", "worker-light", "--worker-id", "crawl-1-light"]
+    environment:
+      PAYINTEL_DISCOVERY__DNS_NAMESERVERS: '["unbound"]'
+      PAYINTEL_DISCOVERY__DNS_PORT: "53"
+    depends_on: [unbound]
+    deploy:
+      resources:
+        limits: { memory: 2g }
+
 volumes:
   pg-data:
   ch-data:
