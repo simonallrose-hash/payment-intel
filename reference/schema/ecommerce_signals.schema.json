@@ -2,11 +2,12 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "ecommerce_signals.yaml",
   "type": "object",
-  "required": ["version", "add_to_cart_phrases", "cart_paths", "checkout_paths", "currency_markers", "schema_org_types", "weights"],
+  "required": ["version", "add_to_cart_phrases", "product_paths", "cart_paths", "checkout_paths", "currency_markers", "schema_org_types", "weights"],
   "additionalProperties": false,
   "properties": {
     "version": { "type": "integer", "minimum": 1 },
     "add_to_cart_phrases": { "type": "array", "minItems": 10, "items": { "type": "string", "minLength": 2 } },
+    "product_paths": { "type": "array", "minItems": 3, "items": { "type": "string", "minLength": 2 } },
     "cart_paths": { "type": "array", "minItems": 5, "items": { "type": "string", "minLength": 2 } },
     "checkout_paths": { "type": "array", "minItems": 5, "items": { "type": "string", "minLength": 2 } },
     "currency_markers": { "type": "array", "minItems": 3, "items": { "type": "string", "minLength": 1 } },

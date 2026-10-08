@@ -50,6 +50,7 @@ class EcommerceClassifier:
             doc = yaml.safe_load(fh)
         validate_schema(doc, "ecommerce_signals.schema.json", label=path.name)
         self.phrases: list[str] = [p.lower() for p in doc["add_to_cart_phrases"]]
+        self.product_paths: list[str] = [p.lower() for p in doc["product_paths"]]
         self.cart_paths: list[str] = [p.lower() for p in doc["cart_paths"]]
         self.checkout_paths: list[str] = [p.lower() for p in doc["checkout_paths"]]
         self.schema_types: set[str] = set(doc["schema_org_types"])

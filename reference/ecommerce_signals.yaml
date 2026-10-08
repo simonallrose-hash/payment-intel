@@ -29,6 +29,20 @@ add_to_cart_phrases:
 - do košíku
 - přidat do košíku
 - koupit
+product_paths:
+- /product/
+- /products/
+- /produkt/
+- /produkte/
+- /produit/
+- /producto/
+- /prodotto/
+- /artikel/
+- /item/
+- /p/
+- /shop/
+- /collections/
+- /catalog/product/
 cart_paths:
 - /cart
 - /basket
