@@ -225,3 +225,24 @@ def object_store(s3_settings: S3Settings) -> ObjectStore:
 @pytest.fixture
 def metadata_tables() -> list[str]:
     return sorted(Base.metadata.tables.keys())
+
+
+# --- Redis --------------------------------------------------------------------
+
+
+@pytest.fixture(scope="session")
+def redis_url() -> Iterator[str]:
+    external = os.environ.get("PAYINTEL_TEST_REDIS_URL")
+    if external:
+        yield external
+        return
+    from testcontainers.core.container import DockerContainer
+    from testcontainers.core.wait_strategies import LogMessageWaitStrategy
+
+    container = (
+        DockerContainer(os.environ.get("PAYINTEL_TEST_REDIS_IMAGE", "redis:7-alpine"))
+        .with_exposed_ports(6379)
+        .waiting_for(LogMessageWaitStrategy("Ready to accept connections"))
+    )
+    with container as redis:
+        yield f"redis://127.0.0.1:{redis.get_exposed_port(6379)}/0"
