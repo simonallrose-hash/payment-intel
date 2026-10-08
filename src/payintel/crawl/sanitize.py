@@ -56,10 +56,16 @@ def sanitize_text(text: str) -> tuple[str, SanitizeStats]:
     return out, SanitizeStats(emails=n_mail + n_mail2, phones=n_tel + n_phone)
 
 
+DROPPED_HEADERS = frozenset({"set-cookie", "cookie", "authorization", "proxy-authorization"})
+
+
 def sanitize_headers(headers: dict[str, str]) -> tuple[dict[str, str], SanitizeStats]:
+    """Mask PII in header values; credentials and cookies are never stored (LR-08)."""
     stats = SanitizeStats()
     clean: dict[str, str] = {}
     for k, v in headers.items():
+        if k.lower() in DROPPED_HEADERS:
+            continue
         value, s = sanitize_text(v)
         stats = stats + s
         clean[k] = value

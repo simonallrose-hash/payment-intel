@@ -106,10 +106,12 @@ class Fetcher:
         ip_rps: float,
         sleep: Any = None,
         verify_tls: bool = True,
+        transport: httpx.AsyncBaseTransport | None = None,
     ) -> None:
         import asyncio
 
         self._client = httpx.AsyncClient(
+            transport=transport,
             timeout=httpx.Timeout(
                 connect=connect_timeout, read=read_timeout, write=read_timeout, pool=connect_timeout
             ),

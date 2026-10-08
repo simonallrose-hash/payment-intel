@@ -10,6 +10,7 @@ moves `last_seen` (plus a better Tranco rank).
 from __future__ import annotations
 
 import hashlib
+import uuid
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -51,8 +52,13 @@ class _Prepared:
 
 
 def make_batch_id(source: DomainSourceKind, origin: str, clock: Clock) -> str:
+    """`<source>:<utc stamp>:<origin hash>:<nonce>`.
+
+    The nonce keeps ids unique when several batches of the same origin start in
+    the same second (e.g. crawl_link feeds from parallel light scans).
+    """
     digest = hashlib.sha256(origin.encode()).hexdigest()[:8]
-    return f"{source.value}:{clock.now():%Y%m%dT%H%M%S}:{digest}"
+    return f"{source.value}:{clock.now():%Y%m%dT%H%M%S}:{digest}:{uuid.uuid4().hex[:6]}"
 
 
 def prepare(record: SourceRecord, psl: SuffixList) -> _Prepared | None:
