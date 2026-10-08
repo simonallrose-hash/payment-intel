@@ -1,7 +1,7 @@
-# Runbook (этап 0)
+# Runbook (этапы 0–1)
 
 Эксплуатационные процедуры для того, что уже существует. Разделы для
-сканера, API и алертов добавляются на этапах 1–3.
+сканера чекаута, API и алертов добавляются на этапах 2–3.
 
 ## 1. Серверы и раскладка (AS-17)
 
@@ -10,7 +10,7 @@
 | Профиль | Сервер | Сервисы |
 | --- | --- | --- |
 | `app-1` | приложение | Caddy (80/443), Postgres 16, Redis 7, `migrate` (одноразовый), далее api/portal (этап 3) |
-| `crawl-1` | сканер | Unbound, воркеры light/checkout (этапы 1–2) |
+| `crawl-1` | сканер | Unbound, `worker-light` (масштабируется `--scale worker-light=N`), воркер checkout (этап 2) |
 | `data-1` | данные | ClickHouse 24.8, MinIO |
 
 Запуск на сервере: `docker compose --profile app-1 up -d` (и аналогично для
@@ -82,3 +82,66 @@ payintel TO S3(...)` еженедельно. MinIO: версионировани
 магазинах в продакшене и любое использование C1/C2 запрещены. Удаление
 аккаунта, созданного сканером, по opt-out — ручная процедура средствами
 магазина; заявки фиксируются в `optout_request`.
+
+## 9. Discovery (FR-DS-01..08)
+
+1. Источники: `payintel discovery import <файл> --source tranco|commoncrawl|ct|manual|czds`.
+   Форматы: Tranco CSV `rank,domain`; Common Crawl `vertices.txt` (`id<TAB>reversed.host`);
+   CT — JSON-строки certstream (`data.leaf_cert.all_domains`); manual — CSV с
+   колонкой `domain`; CZDS — зонный файл (NS-записи). Каждый импорт создаёт
+   `import_batch` и пишет lineage в `domain_source` (идемпотентно, повтор
+   двигает `last_seen`). Невалидные строки считаются и первые 10 печатаются.
+2. CZDS выключен флагом `czds_import_enabled` (AS-22); домены только из CZDS
+   никогда не попадают в C1 (`discovery.lineage.c1_visible_clause`).
+3. Public Suffix List лежит в репозитории (`reference/public_suffix_list.dat`).
+   Обновление: скачать `https://publicsuffix.org/list/public_suffix_list.dat`,
+   выполнить `payintel discovery update-psl <файл>` (валидирует ≥5000 правил и
+   секцию ICANN), закоммитить. Частота — раз в квартал.
+4. DNS: `payintel discovery resolve --limit N` опрашивает хосты без проверки
+   или старше `scan.no_dns_recheck_days` через Unbound
+   (`PAYINTEL_DISCOVERY__DNS_NAMESERVERS`, `__DNS_PORT`). Главный хост без
+   A/AAAA → домен `no_dns`; NS/CNAME из `reference/parking_signatures.yaml` →
+   `parked`; восстановившийся → `candidate`. Статусы `optout` не трогаются.
+
+## 10. Планировщик и очередь (FR-SC-01..07)
+
+- `payintel scheduler plan [--scan-type light|checkout]` — создаёт/обновляет
+  `scan_plan` (приоритет = произведение факторов: ранг Tranco, статус,
+  давность, watchlist), удаляет планы opt-out доменов, для checkout исключает
+  TLD из `scan.heavy_scan_excluded_tlds` (LR-22).
+- Воркер берёт задачи `UPDATE … WHERE id IN (SELECT … FOR UPDATE SKIP LOCKED)`
+  с арендой `scan.lease_seconds`; `scan_run.id` выводится из (план, аренда),
+  поэтому повтор внутри аренды идемпотентен (NFR-R-05). Истёкшая аренда
+  перехватывается другим воркером.
+- Ошибки: backoff 1/6/24/72 ч, после `max_failures_before_unreachable`
+  домен → `unreachable`. Блокировка (401/403/429/503, запрет robots) —
+  пауза `scan.blocked_cooldown_days` без увеличения счётчика ошибок.
+- `payintel scheduler prioritize <домены…> --actor <кто>` — ручной приоритет
+  (FR-SC-07), пишется в `audit_log` как `scan_plan.prioritize`; сбрасывается
+  после первого завершённого скана.
+
+## 11. Лёгкий сканер (4.3, FR-LS-01..07)
+
+- Запуск: `payintel worker-light [--once] [--limit N] [--concurrency N] [--worker-id ID]`.
+  В compose — сервис `worker-light` профиля `crawl-1`; несколько процессов:
+  `docker compose --profile crawl-1 up -d --scale worker-light=4`. Нужны Postgres,
+  Redis (politeness общий для всех воркеров), ClickHouse и S3.
+- Порядок на хост: `robots.txt` → главная → ≤2 страницы товара → корзина →
+  первосторонние скрипты. Страница чекаута не запрашивается. Запрещённое
+  robots для `PayIntelBot` не запрашивается; недоступный robots (5xx,
+  таймаут) = запрет (консервативно).
+- Лимиты: 1 rps на хост и 5 rps на IP (Redis token bucket), 5 МБ на страницу,
+  таймауты `light.connect_timeout_seconds`/`read_timeout_seconds`, ≤5 редиректов,
+  egress-фильтр на каждом переходе (NFR-S-09, ADR-0010).
+- Артефакты: `s3://<bucket>/light/<etld1>/<scan_run_id>/manifest.json`,
+  `pages/<тип>.html.gz`, скрипты `js/<aa>/<sha256>.js.gz`. HTML и заголовки
+  проходят санитайзер (email/телефоны → маски), cookie/authorization не
+  сохраняются. Lifecycle 90 дней задаётся на бакете (LR-08).
+- Наблюдения: `obs_scan`, `obs_tech`, `obs_provider`, `obs_payment_method`
+  батчами (10 000 строк или 5 с); `store_profile`/`store_provider`
+  материализуются в той же транзакции, что `scan_run`.
+- Диагностика: `scan_run.stop_reason` (`robots_disallow`, `http_403`,
+  `read_timeout`, `egress_blocked: …`), логи JSON с `scan_run_id`.
+- Нагрузочный прогон NFR-P-01: `make bench-light` (локальный фикстурный
+  сервер, реальные ожидания politeness). Цель ≥20 доменов/с на сервер
+  достигается несколькими процессами; один процесс на 4 vCPU даёт ≈15/с.

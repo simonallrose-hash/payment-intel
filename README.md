@@ -5,8 +5,12 @@ B2B-датасет «домен e-commerce × PSP × способы оплаты
 фаза 2 «C2») не реализуются, оставлены только точки расширения
 (`feature_c2_enabled`, пакет `src/payintel/c2/`).
 
-Текущее состояние: **этап 0 — фундамент** (схема данных, миграции, справочники,
-правила детекции, gold set и `make eval`, инфраструктура и CI).
+Текущее состояние: **этап 1 — discovery и лёгкий скан** поверх фундамента
+этапа 0 (схема данных, миграции, справочники, правила детекции, gold set и
+`make eval`, инфраструктура и CI): импорт источников доменов с lineage, DNS
+через собственный Unbound, классификатор e-commerce, планировщик с очередью
+`SKIP LOCKED`, лёгкий сканер (robots → главная → товары → корзина) с
+детекцией платформы/PSP/страны, артефактами в S3 и наблюдениями в ClickHouse.
 
 ## Запуск за 15 минут
 
@@ -41,6 +45,18 @@ uv run payintel gold import-findings tests/fixtures/gold/sample_findings.csv
 uv run payintel eval --report eval-report.json   # precision/recall/F1 по сущностям и по правилам
 ```
 
+Этап 1 руками (после `make dev`):
+
+```bash
+uv run payintel discovery import tests/fixtures/sources/tranco_sample.csv --source tranco
+uv run payintel discovery import my-domains.csv              # ручной список (колонка domain)
+uv run payintel discovery resolve --limit 1000               # DNS через Unbound :5335, parking по NS/CNAME
+uv run payintel scheduler plan                               # scan_plan + приоритеты (FR-SC-01)
+uv run payintel scheduler prioritize shop.example.de --actor me   # в начало очереди, с аудитом
+uv run payintel worker-light --once --limit 50 --concurrency 50   # один пакет лёгких сканов
+make bench-light                                             # NFR-P-01 на локальном фикстурном сервере
+```
+
 Остановить и удалить данные: `make dev-down`.
 
 ## Команды Makefile
@@ -53,11 +69,13 @@ uv run payintel eval --report eval-report.json   # precision/recall/F1 по су
 | `make test` / `make test-unit` | pytest с покрытием и пороговой проверкой по пакетам (NFR-M-01) |
 | `make migrate` / `make seed` | миграции Postgres + ClickHouse / загрузка справочников и правил |
 | `make eval` | метрики качества, ненулевой код при precision PSP < 0.95 (FR-QA-02) |
+| `make worker-light` | цикл лёгкого сканера против dev-окружения |
+| `make bench-light` | нагрузочный прогон NFR-P-01 (`BENCH_DOMAINS`, `BENCH_CONCURRENCY`), не в CI |
 
 ## Структура
 
 ```text
-alembic/            миграции Postgres (единственная 0001_initial_schema на этапе 0)
+alembic/            миграции Postgres (0001 схема, 0002 discovery/DNS/JS-ассеты)
 clickhouse/         нумерованные идемпотентные SQL-миграции ClickHouse (раздел 5.2 ТЗ)
 docker/             Dockerfile приложения, конфиги Unbound и Caddy
 docs/               runbook, methodology, api, capacity, adr/, legal/
@@ -65,11 +83,15 @@ reference/          справочники YAML + JSON-схемы (PSP, мето
 rules/              правила детекции YAML (providers/, methods/, platforms/) + схема
 src/payintel/
   core/             settings, logging, errors, db, ch, s3, flags, crypto, clock, audit, models/
-  detect/           загрузчик и валидатор правил (FR-DT-01, FR-NR-05)
+  detect/           правила (rules), движок сигналов (engine), скоринг, страна (FR-DT-*)
+  discovery/        нормализация, PSL, источники, ingest с lineage, DNS, parking, классификатор
+  scheduler/        приоритет, планы, очередь SKIP LOCKED, backoff, politeness (FR-SC-*)
+  crawl/            egress-фильтр, PII-санитайзер; light/: robots, fetcher, HTML, артефакты, воркер
+  history/          буфер наблюдений ClickHouse и материализация store_* (FR-HS-*)
   quality/          gold set, импорт находок, eval (FR-QA-01/02)
   c2/               пустой пакет фазы 2, импорт только при feature_c2_enabled
-  discovery/ scheduler/ crawl/ history/ api/ entitlements/ exports/ alerts/ reports/ compliance/
-                    пакеты этапов 1–3 (пока без кода)
+  api/ entitlements/ exports/ alerts/ reports/ compliance/   пакеты этапов 2–3 (пока без кода)
+scripts/            check_coverage.py, bench_light.py (NFR-P-01)
 tests/              unit/ (без контейнеров) и integration/ (testcontainers)
 ```
 
@@ -86,10 +108,14 @@ tests/              unit/ (без контейнеров) и integration/ (testc
 ## Тесты
 
 - `tests/unit` — без сети и контейнеров; `pytest-socket` блокирует всё, кроме localhost.
-- `tests/integration` — Postgres, ClickHouse и S3 через testcontainers. Можно
+- `tests/integration` — Postgres, ClickHouse, S3 и Redis через testcontainers. Можно
   подставить внешние сервисы: `PAYINTEL_TEST_PG_DSN`, `PAYINTEL_TEST_CH_URL`
   (+ `_CH_USER/_CH_PASSWORD/_CH_DATABASE`), `PAYINTEL_TEST_S3_ENDPOINT`
-  (+ `_S3_ACCESS_KEY/_S3_SECRET_KEY`). Так же работает CI.
+  (+ `_S3_ACCESS_KEY/_S3_SECRET_KEY`), `PAYINTEL_TEST_REDIS_URL`. Так же работает CI.
+- Лёгкий сканер тестируется против локального HTTP-сервера с фикстурными
+  магазинами (`tests/fixtures/shops/`), транспорт httpx перенаправляется на
+  127.0.0.1; politeness-лимитер идёт по виртуальным часам, так что 1 rps
+  проверяется без ожиданий.
 - Время — через `core/clock.py` (`FixedClock` в тестах), случайность не используется.
 
 ## Правила безопасности (неизменяемые)
