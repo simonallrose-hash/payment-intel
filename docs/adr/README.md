@@ -13,3 +13,4 @@
 - [ADR-0009](0009-clickhouse-denormalized-observations.md) — Денормализация наблюдений в ClickHouse
 - [ADR-0010](0010-light-worker-egress-and-persistence.md) — Лёгкий сканер: egress «resolve → connect» и персистентность в потоках
 - [ADR-0011](0011-light-scan-scope-and-third-party-scripts.md) — Объём лёгкого скана, сторонние скрипты и обратная связь ссылок
+- [ADR-0012](0012-provider-expansion-and-signature-tiers.md) — Расширение справочника PSP и ярусы достоверности сигнатур
