@@ -3,35 +3,29 @@
 # rules with needs_verification: true are disabled until confirmed (brief rule 8).
 target_type: provider
 target_id: verifone_2checkout
-source: https://docs.2checkout.com/ (inline checkout guide not reachable; verify)
+source: 'https://docs.2checkout.com/; verified: https://docs.2checkout.com/shopping-carts/inline/inline-checkout-ordering-engine.md and https://docs.2checkout.com/2checkout-apis/2checkout-apis/2pay.js-payments-solution-integration-guide/use-cases/basic-implementation-for-2pay.js-payments-solution.md'
 rules:
 - id: provider.verifone_2checkout.script_src.1
-  version: 1
+  version: 2
   signal_type: script_src
   pattern: secure.2checkout.com/checkout/client/twoCoInlineCart.js
   weight: 0.7
   page_scope: any
-  enabled: false
-  needs_verification: true
-  note: inline cart script path not confirmed
+  enabled: true
 - id: provider.verifone_2checkout.js_global.1
-  version: 1
+  version: 2
   signal_type: js_global
   pattern: TwoCoInlineCart
   weight: 0.6
   page_scope: any
-  enabled: false
-  needs_verification: true
-  note: global name not confirmed
+  enabled: true
 - id: provider.verifone_2checkout.network_host.1
-  version: 1
+  version: 2
   signal_type: network_host
   pattern: secure.2checkout.com
   weight: 0.6
   page_scope: checkout
-  enabled: false
-  needs_verification: true
-  note: hosted checkout host not confirmed
+  enabled: true
 - id: provider.verifone_2checkout.network_host.2
   version: 1
   signal_type: network_host
@@ -41,3 +35,24 @@ rules:
   enabled: false
   needs_verification: true
   note: legacy Avangate host not confirmed
+- id: provider.verifone_2checkout.script_src.2
+  version: 1
+  signal_type: script_src
+  pattern: 2pay-js.2checkout.com/v1/2pay.js
+  weight: 0.7
+  page_scope: any
+  enabled: true
+- id: provider.verifone_2checkout.js_global.2
+  version: 1
+  signal_type: js_global
+  pattern: TwoPayClient
+  weight: 0.6
+  page_scope: any
+  enabled: true
+- id: provider.verifone_2checkout.network_host.3
+  version: 1
+  signal_type: network_host
+  pattern: 2pay-js.2checkout.com
+  weight: 0.6
+  page_scope: any
+  enabled: true

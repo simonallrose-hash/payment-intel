@@ -3,7 +3,7 @@
 # rules with needs_verification: true are disabled until confirmed (brief rule 8).
 target_type: provider
 target_id: bambora
-source: https://developer.bambora.com/ (content not reachable; verify)
+source: 'https://developer.bambora.com/; verified: https://www.npmjs.com/package/@bambora/checkout-sdk-web (official SDK) and https://static.bambora.com/checkout-sdk-web/latest/checkout-sdk-web.min.js (defines Bambora, endpoint v1.checkout.bambora.com)'
 rules:
 - id: provider.bambora.script_src.1
   version: 1
@@ -41,3 +41,31 @@ rules:
   enabled: false
   needs_verification: true
   note: Nordic checkout host not confirmed
+- id: provider.bambora.script_src.2
+  version: 1
+  signal_type: script_src
+  pattern: static.bambora.com/checkout-sdk-web/
+  weight: 0.7
+  page_scope: any
+  enabled: true
+- id: provider.bambora.js_global.2
+  version: 1
+  signal_type: js_global
+  pattern: Bambora
+  weight: 0.5
+  page_scope: any
+  enabled: true
+- id: provider.bambora.network_host.3
+  version: 1
+  signal_type: network_host
+  pattern: v1.checkout.bambora.com
+  weight: 0.6
+  page_scope: checkout
+  enabled: true
+- id: provider.bambora.network_host.4
+  version: 1
+  signal_type: network_host
+  pattern: static.bambora.com
+  weight: 0.5
+  page_scope: any
+  enabled: true

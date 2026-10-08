@@ -3,7 +3,7 @@
 # rules with needs_verification: true are disabled until confirmed (brief rule 8).
 target_type: provider
 target_id: helcim
-source: https://devdocs.helcim.com/docs/overview-of-helcimpayjs
+source: 'https://devdocs.helcim.com/docs/overview-of-helcimpayjs; verified: https://devdocs.helcim.com/docs/render-helcimpayjs'
 rules:
 - id: provider.helcim.js_global.1
   version: 1
@@ -20,14 +20,12 @@ rules:
   page_scope: any
   enabled: true
 - id: provider.helcim.script_src.1
-  version: 1
+  version: 2
   signal_type: script_src
   pattern: secure.helcim.app/helcim-pay/
   weight: 0.6
   page_scope: any
-  enabled: false
-  needs_verification: true
-  note: script host not named in the overview page
+  enabled: true
 - id: provider.helcim.iframe_src.1
   version: 1
   signal_type: iframe_src
@@ -37,3 +35,17 @@ rules:
   enabled: false
   needs_verification: true
   note: iframe host not named in the overview page
+- id: provider.helcim.network_host.1
+  version: 1
+  signal_type: network_host
+  pattern: secure.helcim.app
+  weight: 0.5
+  page_scope: any
+  enabled: true
+- id: provider.helcim.html_pattern.1
+  version: 1
+  signal_type: html_pattern
+  pattern: id=["']helcimPayIframe["']
+  weight: 0.5
+  page_scope: checkout
+  enabled: true

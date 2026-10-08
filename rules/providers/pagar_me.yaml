@@ -3,32 +3,26 @@
 # rules with needs_verification: true are disabled until confirmed (brief rule 8).
 target_type: provider
 target_id: pagar_me
-source: https://docs.pagar.me/ (not reachable; verify)
+source: 'https://docs.pagar.me/; verified: https://assets.pagar.me/checkout/1.1.0/checkout.js (official script: window.PagarMeCheckout) and https://docs.pagar.me/reference/checkout-2'
 rules:
 - id: provider.pagar_me.script_src.1
-  version: 1
+  version: 2
   signal_type: script_src
   pattern: assets.pagar.me/checkout/
   weight: 0.7
   page_scope: any
-  enabled: false
-  needs_verification: true
-  note: checkout script path not confirmed
+  enabled: true
 - id: provider.pagar_me.js_global.1
-  version: 1
+  version: 2
   signal_type: js_global
   pattern: PagarMeCheckout
   weight: 0.6
   page_scope: any
-  enabled: false
-  needs_verification: true
-  note: global name not confirmed
+  enabled: true
 - id: provider.pagar_me.network_host.1
-  version: 1
+  version: 2
   signal_type: network_host
   pattern: api.pagar.me
   weight: 0.5
   page_scope: checkout
-  enabled: false
-  needs_verification: true
-  note: API host not confirmed
+  enabled: true

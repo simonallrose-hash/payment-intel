@@ -3,7 +3,7 @@
 # rules with needs_verification: true are disabled until confirmed (brief rule 8).
 target_type: provider
 target_id: openpay
-source: https://docs.openpay.co/en/docs/openpayjs.html
+source: 'https://docs.openpay.co/en/docs/openpayjs.html; verified: https://github.com/open-pay/openpay-js (official README: resources.openpay.mx/lib/openpay-js/)'
 rules:
 - id: provider.openpay.js_global.1
   version: 1
@@ -13,14 +13,12 @@ rules:
   page_scope: any
   enabled: true
 - id: provider.openpay.script_src.1
-  version: 1
+  version: 2
   signal_type: script_src
-  pattern: openpay.js
-  weight: 0.3
+  pattern: resources.openpay.mx/lib/openpay-js/
+  weight: 0.7
   page_scope: any
-  enabled: false
-  needs_verification: true
-  note: script tag stripped from the docs page
+  enabled: true
 - id: provider.openpay.network_host.1
   version: 1
   signal_type: network_host
@@ -30,3 +28,17 @@ rules:
   enabled: false
   needs_verification: true
   note: runtime host not named in the docs
+- id: provider.openpay.script_src.2
+  version: 1
+  signal_type: script_src
+  pattern: resources.openpay.mx/lib/openpay-data-js/
+  weight: 0.5
+  page_scope: any
+  enabled: true
+- id: provider.openpay.network_host.2
+  version: 1
+  signal_type: network_host
+  pattern: resources.openpay.mx
+  weight: 0.5
+  page_scope: any
+  enabled: true

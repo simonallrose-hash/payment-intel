@@ -3,17 +3,15 @@
 # rules with needs_verification: true are disabled until confirmed (brief rule 8).
 target_type: provider
 target_id: windcave
-source: https://developer.windcave.com/ (not reachable; verify)
+source: 'https://developer.windcave.com/; verified: https://windcave.com/developer-ecommerce-drop-in'
 rules:
 - id: provider.windcave.network_host.1
-  version: 1
+  version: 2
   signal_type: network_host
   pattern: sec.windcave.com
   weight: 0.6
   page_scope: checkout
-  enabled: false
-  needs_verification: true
-  note: hosted page host not confirmed
+  enabled: true
 - id: provider.windcave.network_host.2
   version: 1
   signal_type: network_host
@@ -24,11 +22,24 @@ rules:
   needs_verification: true
   note: legacy host not confirmed
 - id: provider.windcave.network_host.3
-  version: 1
+  version: 2
   signal_type: network_host
   pattern: uat.windcave.com
   weight: 0.2
   page_scope: any
-  enabled: false
-  needs_verification: true
+  enabled: true
   note: test host not confirmed
+- id: provider.windcave.script_src.1
+  version: 1
+  signal_type: script_src
+  pattern: sec.windcave.com/js/
+  weight: 0.7
+  page_scope: any
+  enabled: true
+- id: provider.windcave.js_global.1
+  version: 1
+  signal_type: js_global
+  pattern: WindcavePayments
+  weight: 0.6
+  page_scope: any
+  enabled: true

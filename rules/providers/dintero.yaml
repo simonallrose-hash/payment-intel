@@ -3,26 +3,22 @@
 # rules with needs_verification: true are disabled until confirmed (brief rule 8).
 target_type: provider
 target_id: dintero
-source: https://docs.dintero.com/docs/checkout/ (embed page not reachable; verify)
+source: 'https://docs.dintero.com/docs/checkout/; verified: https://www.npmjs.com/package/@dintero/checkout-web-sdk (official SDK embeds checkout.dintero.com/v1/view/)'
 rules:
 - id: provider.dintero.network_host.1
-  version: 1
+  version: 2
   signal_type: network_host
   pattern: checkout.dintero.com
   weight: 0.6
   page_scope: checkout
-  enabled: false
-  needs_verification: true
-  note: host not confirmed
+  enabled: true
 - id: provider.dintero.iframe_src.1
-  version: 1
+  version: 2
   signal_type: iframe_src
   pattern: checkout.dintero.com
   weight: 0.6
   page_scope: checkout
-  enabled: false
-  needs_verification: true
-  note: iframe host not confirmed
+  enabled: true
 - id: provider.dintero.network_host.2
   version: 1
   signal_type: network_host

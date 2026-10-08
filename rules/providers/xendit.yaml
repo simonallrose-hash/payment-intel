@@ -3,7 +3,7 @@
 # rules with needs_verification: true are disabled until confirmed (brief rule 8).
 target_type: provider
 target_id: xendit
-source: https://docs.xendit.co/ (browser SDK page not reachable; verify)
+source: 'https://docs.xendit.co/; verified: https://www.npmjs.com/package/xendit-components-web (official package README) and https://docs.xendit.co/docs/components-overview.md'
 rules:
 - id: provider.xendit.script_src.1
   version: 1
@@ -32,3 +32,25 @@ rules:
   enabled: false
   needs_verification: true
   note: invoice page host not confirmed
+- id: provider.xendit.script_src.2
+  version: 1
+  signal_type: script_src
+  pattern: assets.xendit.co/components/
+  weight: 0.7
+  page_scope: any
+  enabled: true
+- id: provider.xendit.network_host.2
+  version: 1
+  signal_type: network_host
+  pattern: assets.xendit.co
+  weight: 0.5
+  page_scope: any
+  enabled: true
+- id: provider.xendit.network_host.3
+  version: 1
+  signal_type: network_host
+  pattern: checkout-ui-gateway.xendit.co
+  weight: 0.5
+  page_scope: checkout
+  enabled: true
+  note: host inside the official components SDK bundle

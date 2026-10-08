@@ -3,15 +3,15 @@
 # rules with needs_verification: true are disabled until confirmed (brief rule 8).
 target_type: platform
 target_id: shopware5
+source: https://github.com/shopware5/shopware (themes/Frontend/Bare/frontend/index/index.tpl defines document.asyncReady; theme assets live under themes/Frontend/Responsive/frontend/_public/src/)
 rules:
 - id: platform.shopware5.html_pattern.1
-  version: 1
+  version: 2
   signal_type: html_pattern
   pattern: /frontend/_public/src/
-  weight: 0.5
+  weight: 0.4
   page_scope: any
-  enabled: false
-  needs_verification: true
+  enabled: true
 - id: platform.shopware5.js_global.1
   version: 1
   signal_type: js_global
@@ -20,3 +20,11 @@ rules:
   page_scope: any
   enabled: false
   needs_verification: true
+  note: defined on document, not window; see html_pattern.2
+- id: platform.shopware5.html_pattern.2
+  version: 1
+  signal_type: html_pattern
+  pattern: document\.asyncReady
+  weight: 0.5
+  page_scope: any
+  enabled: true

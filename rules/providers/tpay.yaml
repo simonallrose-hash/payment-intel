@@ -3,7 +3,7 @@
 # rules with needs_verification: true are disabled until confirmed (brief rule 8).
 target_type: provider
 target_id: tpay
-source: https://docs.tpay.com/ (not reachable; verify)
+source: 'https://docs.tpay.com/; verified: https://docs-api.tpay.com/en/payment-methods/cards/ (secure.tpay.com is the transactionPaymentUrl host)'
 rules:
 - id: provider.tpay.form_action.1
   version: 1
@@ -15,14 +15,12 @@ rules:
   needs_verification: true
   note: form target not confirmed
 - id: provider.tpay.network_host.1
-  version: 1
+  version: 2
   signal_type: network_host
   pattern: secure.tpay.com
-  weight: 0.6
+  weight: 0.5
   page_scope: checkout
-  enabled: false
-  needs_verification: true
-  note: host not confirmed
+  enabled: true
 - id: provider.tpay.network_host.2
   version: 1
   signal_type: network_host

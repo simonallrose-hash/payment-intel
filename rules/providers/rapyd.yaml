@@ -3,7 +3,7 @@
 # rules with needs_verification: true are disabled until confirmed (brief rule 8).
 target_type: provider
 target_id: rapyd
-source: https://docs.rapyd.net/
+source: 'https://docs.rapyd.net/; verified: https://docs.rapyd.net/en/checkout-toolkit-integration.html'
 rules:
 - id: provider.rapyd.network_host.1
   version: 1
@@ -20,10 +20,24 @@ rules:
   page_scope: checkout
   enabled: true
 - id: provider.rapyd.js_global.1
-  version: 1
+  version: 2
   signal_type: js_global
   pattern: RapydCheckoutToolkit
-  weight: 0.5
+  weight: 0.6
   page_scope: any
-  enabled: false
-  needs_verification: true
+  enabled: true
+- id: provider.rapyd.script_src.1
+  version: 1
+  signal_type: script_src
+  pattern: checkouttoolkit.rapyd.net
+  weight: 0.7
+  page_scope: any
+  enabled: true
+- id: provider.rapyd.network_host.3
+  version: 1
+  signal_type: network_host
+  pattern: sandboxcheckouttoolkit.rapyd.net
+  weight: 0.2
+  page_scope: any
+  enabled: true
+  note: sandbox

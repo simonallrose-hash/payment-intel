@@ -3,23 +3,26 @@
 # rules with needs_verification: true are disabled until confirmed (brief rule 8).
 target_type: provider
 target_id: paidy
-source: https://paidy.com/docs/en/checkout.html (not reachable; verify)
+source: 'https://paidy.com/docs/en/checkout.html; verified: https://paidy.com/docs/en/paidycheckout.html'
 rules:
 - id: provider.paidy.script_src.1
-  version: 1
+  version: 2
   signal_type: script_src
   pattern: apps.paidy.com/
   weight: 0.6
   page_scope: any
-  enabled: false
-  needs_verification: true
-  note: checkout script host not confirmed
+  enabled: true
 - id: provider.paidy.js_global.1
-  version: 1
+  version: 2
   signal_type: js_global
   pattern: Paidy
   weight: 0.6
   page_scope: any
-  enabled: false
-  needs_verification: true
-  note: global name not confirmed
+  enabled: true
+- id: provider.paidy.network_host.1
+  version: 1
+  signal_type: network_host
+  pattern: apps.paidy.com
+  weight: 0.6
+  page_scope: any
+  enabled: true

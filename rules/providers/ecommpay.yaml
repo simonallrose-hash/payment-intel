@@ -3,7 +3,7 @@
 # rules with needs_verification: true are disabled until confirmed (brief rule 8).
 target_type: provider
 target_id: ecommpay
-source: https://developer.ecommpay.com/ (not reachable; verify)
+source: 'https://developer.ecommpay.com/; verified: https://www.npmjs.com/package/ecommpay (official package, paymentpage.ecommpay.com)'
 rules:
 - id: provider.ecommpay.script_src.1
   version: 1
@@ -24,11 +24,9 @@ rules:
   needs_verification: true
   note: global name not confirmed
 - id: provider.ecommpay.network_host.1
-  version: 1
+  version: 2
   signal_type: network_host
   pattern: paymentpage.ecommpay.com
   weight: 0.6
   page_scope: checkout
-  enabled: false
-  needs_verification: true
-  note: host not confirmed
+  enabled: true

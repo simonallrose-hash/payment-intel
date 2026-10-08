@@ -3,7 +3,7 @@
 # rules with needs_verification: true are disabled until confirmed (brief rule 8).
 target_type: provider
 target_id: worldline
-source: https://docs.direct.worldline-solutions.com/ and https://saferpay.github.io/
+source: 'https://docs.direct.worldline-solutions.com/ and https://saferpay.github.io/; verified: https://docs.direct.worldline-solutions.com/en/integration/basic-integration-methods/hosted-tokenization-page'
 rules:
 - id: provider.worldline.network_host.1
   version: 1
@@ -35,14 +35,13 @@ rules:
   enabled: true
   note: test
 - id: provider.worldline.network_host.5
-  version: 1
+  version: 2
   signal_type: network_host
   pattern: '*.worldline-solutions.com'
-  weight: 0.5
+  weight: 0.4
   page_scope: any
-  enabled: false
-  needs_verification: true
-  note: Worldline Direct hosts
+  enabled: true
+  note: Worldline Direct hosts (payment.direct.worldline-solutions.com)
 - id: provider.worldline.network_host.6
   version: 1
   signal_type: network_host
@@ -51,3 +50,25 @@ rules:
   page_scope: any
   enabled: false
   needs_verification: true
+- id: provider.worldline.network_host.7
+  version: 1
+  signal_type: network_host
+  pattern: payment.direct.worldline-solutions.com
+  weight: 0.6
+  page_scope: checkout
+  enabled: true
+- id: provider.worldline.network_host.8
+  version: 1
+  signal_type: network_host
+  pattern: payment.preprod.direct.worldline-solutions.com
+  weight: 0.2
+  page_scope: any
+  enabled: true
+  note: test
+- id: provider.worldline.script_src.1
+  version: 1
+  signal_type: script_src
+  pattern: /hostedtokenization/js/client/tokenizer
+  weight: 0.6
+  page_scope: any
+  enabled: true

@@ -3,7 +3,7 @@
 # rules with needs_verification: true are disabled until confirmed (brief rule 8).
 target_type: provider
 target_id: worldpay
-source: https://developer.worldpay.com/
+source: 'https://developer.worldpay.com/; verified: https://docs.worldpay.com/access/products/checkout/web/card-only'
 rules:
 - id: provider.worldpay.network_host.1
   version: 1
@@ -13,22 +13,20 @@ rules:
   page_scope: any
   enabled: true
 - id: provider.worldpay.network_host.2
-  version: 1
+  version: 2
   signal_type: network_host
   pattern: access.worldpay.com
   weight: 0.7
   page_scope: checkout
-  enabled: false
-  needs_verification: true
+  enabled: true
   note: Access Worldpay checkout SDK host
 - id: provider.worldpay.script_src.1
-  version: 1
+  version: 2
   signal_type: script_src
-  pattern: access.worldpay.com/access-checkout
-  weight: 0.6
+  pattern: access.worldpay.com/access-checkout/
+  weight: 0.7
   page_scope: any
-  enabled: false
-  needs_verification: true
+  enabled: true
 - id: provider.worldpay.network_host.3
   version: 1
   signal_type: network_host
@@ -38,3 +36,18 @@ rules:
   enabled: false
   needs_verification: true
   note: legacy hosted pages
+- id: provider.worldpay.js_global.1
+  version: 1
+  signal_type: js_global
+  pattern: Worldpay
+  weight: 0.4
+  page_scope: any
+  enabled: true
+- id: provider.worldpay.network_host.4
+  version: 1
+  signal_type: network_host
+  pattern: try.access.worldpay.com
+  weight: 0.2
+  page_scope: any
+  enabled: true
+  note: test

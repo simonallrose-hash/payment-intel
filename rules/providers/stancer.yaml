@@ -3,7 +3,7 @@
 # rules with needs_verification: true are disabled until confirmed (brief rule 8).
 target_type: provider
 target_id: stancer
-source: https://www.stancer.com/en/documentation/
+source: 'https://www.stancer.com/en/documentation/; verified: https://www.stancer.com/documentation/api/ (payment page at payment.stancer.com)'
 rules:
 - id: provider.stancer.network_host.1
   version: 1
@@ -28,3 +28,17 @@ rules:
   page_scope: any
   enabled: false
   needs_verification: true
+- id: provider.stancer.iframe_src.1
+  version: 1
+  signal_type: iframe_src
+  pattern: payment.stancer.com
+  weight: 0.7
+  page_scope: checkout
+  enabled: true
+- id: provider.stancer.network_host.4
+  version: 1
+  signal_type: network_host
+  pattern: payment.stancer.com
+  weight: 0.6
+  page_scope: checkout
+  enabled: true

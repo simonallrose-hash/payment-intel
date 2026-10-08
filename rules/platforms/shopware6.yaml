@@ -3,7 +3,7 @@
 # rules with needs_verification: true are disabled until confirmed (brief rule 8).
 target_type: platform
 target_id: shopware6
-source: https://developer.shopware.com/
+source: 'https://developer.shopware.com/; verified: https://developer.shopware.com/docs/concepts/framework/http_cache.html and https://github.com/shopware/shopware (src/Core/Framework/Adapter/Cache/Http/CacheResponseSubscriber.php)'
 rules:
 - id: platform.shopware6.html_pattern.1
   version: 1
@@ -30,13 +30,12 @@ rules:
   enabled: false
   needs_verification: true
 - id: platform.shopware6.cookie.1
-  version: 1
+  version: 2
   signal_type: cookie
   pattern: sw-cache-hash
   weight: 0.5
   page_scope: any
-  enabled: false
-  needs_verification: true
+  enabled: true
 - id: platform.shopware6.cookie.2
   version: 1
   signal_type: cookie
@@ -46,3 +45,11 @@ rules:
   enabled: false
   needs_verification: true
   note: too generic
+- id: platform.shopware6.cookie.3
+  version: 1
+  signal_type: cookie
+  pattern: sw-states
+  weight: 0.3
+  page_scope: any
+  enabled: true
+  note: deprecated, removed in 6.8

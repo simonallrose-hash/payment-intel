@@ -3,23 +3,19 @@
 # rules with needs_verification: true are disabled until confirmed (brief rule 8).
 target_type: provider
 target_id: paycomet
-source: https://docs.paycomet.com/ (not reachable; verify)
+source: 'https://docs.paycomet.com/; verified: https://docs.paycomet.com/en/tarjetas/jetiframe'
 rules:
 - id: provider.paycomet.script_src.1
-  version: 1
+  version: 2
   signal_type: script_src
-  pattern: api.paycomet.com/gateway/jetiframe.js
+  pattern: api.paycomet.com/gateway/paycomet.jetiframe.js
   weight: 0.7
   page_scope: any
-  enabled: false
-  needs_verification: true
-  note: JET iframe script not confirmed
+  enabled: true
 - id: provider.paycomet.network_host.1
-  version: 1
+  version: 2
   signal_type: network_host
   pattern: api.paycomet.com
   weight: 0.6
   page_scope: checkout
-  enabled: false
-  needs_verification: true
-  note: host not confirmed
+  enabled: true

@@ -3,7 +3,7 @@
 # rules with needs_verification: true are disabled until confirmed (brief rule 8).
 target_type: provider
 target_id: network_international
-source: https://developer.network.ae/ (not reachable; verify)
+source: 'https://developer.network.ae/; verified: https://docs.ngenius-payments.com/reference/request-payment-from-your-customer-paypage.md'
 rules:
 - id: provider.network_international.network_host.1
   version: 1
@@ -24,11 +24,10 @@ rules:
   needs_verification: true
   note: API host not confirmed
 - id: provider.network_international.network_host.3
-  version: 1
+  version: 2
   signal_type: network_host
   pattern: paypage.sandbox.ngenius-payments.com
   weight: 0.2
   page_scope: any
-  enabled: false
-  needs_verification: true
+  enabled: true
   note: sandbox host not confirmed

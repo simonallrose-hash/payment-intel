@@ -3,7 +3,7 @@
 # rules with needs_verification: true are disabled until confirmed (brief rule 8).
 target_type: provider
 target_id: unzer
-source: https://docs.unzer.com/
+source: 'https://docs.unzer.com/; verified: https://docs.unzer.com/online-payments/ui-component-v2/'
 rules:
 - id: provider.unzer.network_host.1
   version: 1
@@ -13,13 +13,12 @@ rules:
   page_scope: any
   enabled: true
 - id: provider.unzer.network_host.2
-  version: 1
+  version: 2
   signal_type: network_host
   pattern: api.unzer.com
-  weight: 0.7
+  weight: 0.5
   page_scope: checkout
-  enabled: false
-  needs_verification: true
+  enabled: true
 - id: provider.unzer.script_src.1
   version: 1
   signal_type: script_src
@@ -36,3 +35,38 @@ rules:
   page_scope: any
   enabled: false
   needs_verification: true
+- id: provider.unzer.script_src.2
+  version: 1
+  signal_type: script_src
+  pattern: static-v2.unzer.com/v2/ui-components/
+  weight: 0.7
+  page_scope: any
+  enabled: true
+- id: provider.unzer.network_host.3
+  version: 1
+  signal_type: network_host
+  pattern: static-v2.unzer.com
+  weight: 0.5
+  page_scope: any
+  enabled: true
+- id: provider.unzer.network_host.4
+  version: 1
+  signal_type: network_host
+  pattern: static-cc.unzer.com
+  weight: 0.6
+  page_scope: checkout
+  enabled: true
+- id: provider.unzer.iframe_src.1
+  version: 1
+  signal_type: iframe_src
+  pattern: static-cc.unzer.com
+  weight: 0.6
+  page_scope: checkout
+  enabled: true
+- id: provider.unzer.html_pattern.1
+  version: 1
+  signal_type: html_pattern
+  pattern: <unzer-(payment|checkout)
+  weight: 0.5
+  page_scope: any
+  enabled: true

@@ -3,23 +3,26 @@
 # rules with needs_verification: true are disabled until confirmed (brief rule 8).
 target_type: provider
 target_id: woopayments
-source: https://wordpress.org/plugins/woocommerce-payments/ (plugin path; verify asset names)
+source: 'https://wordpress.org/plugins/woocommerce-payments/; verified: https://github.com/Automattic/woocommerce-payments (official plugin: woocommerce-payments.php, wp_localize_script ''wcpay_upe_config'' in includes/class-wc-payments-checkout.php)'
 rules:
 - id: provider.woopayments.platform_plugin.1
-  version: 1
+  version: 2
   signal_type: platform_plugin
   pattern: /wp-content/plugins/woocommerce-payments/
   weight: 0.7
   page_scope: any
-  enabled: false
-  needs_verification: true
-  note: plugin asset path not confirmed on a live shop
+  enabled: true
 - id: provider.woopayments.js_global.1
+  version: 2
+  signal_type: js_global
+  pattern: wcpay_upe_config
+  weight: 0.6
+  page_scope: any
+  enabled: true
+- id: provider.woopayments.js_global.2
   version: 1
   signal_type: js_global
-  pattern: wcpayConfig
-  weight: 0.5
+  pattern: wcpayCustomerData
+  weight: 0.4
   page_scope: any
-  enabled: false
-  needs_verification: true
-  note: global name not confirmed
+  enabled: true

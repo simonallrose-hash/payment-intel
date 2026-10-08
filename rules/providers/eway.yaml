@@ -3,7 +3,7 @@
 # rules with needs_verification: true are disabled until confirmed (brief rule 8).
 target_type: provider
 target_id: eway
-source: https://eway.io/api-v3/
+source: 'https://eway.io/api-v3/; verified: https://secure.ewaypayments.com/scripts/eCrypt.min.js (official script: function eCrypt, secure.ewaypayments.com)'
 rules:
 - id: provider.eway.network_host.1
   version: 1
@@ -21,20 +21,24 @@ rules:
   enabled: true
   note: sandbox
 - id: provider.eway.script_src.1
-  version: 1
+  version: 2
   signal_type: script_src
   pattern: secure.ewaypayments.com/scripts/eCrypt
   weight: 0.6
   page_scope: any
-  enabled: false
-  needs_verification: true
+  enabled: true
   note: client-side encryption script path not confirmed
 - id: provider.eway.js_global.1
-  version: 1
+  version: 2
   signal_type: js_global
   pattern: eCrypt
   weight: 0.5
   page_scope: any
-  enabled: false
-  needs_verification: true
-  note: global of the client-side encryption script not confirmed
+  enabled: true
+- id: provider.eway.network_host.3
+  version: 1
+  signal_type: network_host
+  pattern: secure.ewaypayments.com
+  weight: 0.5
+  page_scope: any
+  enabled: true

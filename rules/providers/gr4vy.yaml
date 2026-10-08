@@ -3,7 +3,7 @@
 # rules with needs_verification: true are disabled until confirmed (brief rule 8).
 target_type: provider
 target_id: gr4vy
-source: https://docs.gr4vy.com/
+source: 'https://docs.gr4vy.com/; verified: https://docs.gr4vy.com/guides/payments/embed/quick-start/embed.md'
 rules:
 - id: provider.gr4vy.network_host.1
   version: 1
@@ -20,18 +20,17 @@ rules:
   page_scope: any
   enabled: true
 - id: provider.gr4vy.js_global.1
-  version: 1
+  version: 2
   signal_type: js_global
   pattern: gr4vy
-  weight: 0.4
+  weight: 0.5
   page_scope: any
-  enabled: false
-  needs_verification: true
+  enabled: true
 - id: provider.gr4vy.script_src.1
-  version: 1
+  version: 2
   signal_type: script_src
-  pattern: cdn.gr4vy.app
-  weight: 0.6
+  pattern: .gr4vy.app/embed
+  weight: 0.7
   page_scope: any
-  enabled: false
-  needs_verification: true
+  enabled: true
+  note: cdn.<instance>.gr4vy.app/embed.latest.js

@@ -3,7 +3,7 @@
 # rules with needs_verification: true are disabled until confirmed (brief rule 8).
 target_type: provider
 target_id: checkout_com
-source: https://www.checkout.com/docs/payments/accept-payments/accept-a-payment-on-your-website/frames
+source: 'https://www.checkout.com/docs/payments/accept-payments/accept-a-payment-on-your-website/frames; verified: https://www.checkout.com/docs/payments/accept-payments/accept-a-payment-on-your-website/get-started-with-flow'
 rules:
 - id: provider.checkout_com.script_src.1
   version: 1
@@ -41,11 +41,24 @@ rules:
   page_scope: checkout
   enabled: true
 - id: provider.checkout_com.network_host.3
-  version: 1
+  version: 2
   signal_type: network_host
   pattern: checkout-web-components.checkout.com
   weight: 0.6
   page_scope: checkout
-  enabled: false
-  needs_verification: true
+  enabled: true
   note: Flow components host
+- id: provider.checkout_com.script_src.2
+  version: 1
+  signal_type: script_src
+  pattern: checkout-web-components.checkout.com/index.js
+  weight: 0.7
+  page_scope: any
+  enabled: true
+- id: provider.checkout_com.js_global.2
+  version: 1
+  signal_type: js_global
+  pattern: CheckoutWebComponents
+  weight: 0.6
+  page_scope: any
+  enabled: true

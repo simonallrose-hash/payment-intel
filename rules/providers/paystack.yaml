@@ -3,7 +3,7 @@
 # rules with needs_verification: true are disabled until confirmed (brief rule 8).
 target_type: provider
 target_id: paystack
-source: https://paystack.com/docs/payments/accept-payments/
+source: 'https://paystack.com/docs/payments/accept-payments/; verified: https://www.npmjs.com/package/@paystack/inline-js (official package: checkout.paystack.com, js.paystack.co/v2/popup.js)'
 rules:
 - id: provider.paystack.script_src.1
   version: 1
@@ -34,11 +34,23 @@ rules:
   page_scope: checkout
   enabled: true
 - id: provider.paystack.iframe_src.1
-  version: 1
+  version: 2
   signal_type: iframe_src
   pattern: checkout.paystack.com
   weight: 0.7
   page_scope: checkout
-  enabled: false
-  needs_verification: true
-  note: popup iframe host not in the docs page
+  enabled: true
+- id: provider.paystack.network_host.3
+  version: 1
+  signal_type: network_host
+  pattern: checkout.paystack.com
+  weight: 0.6
+  page_scope: checkout
+  enabled: true
+- id: provider.paystack.script_src.2
+  version: 1
+  signal_type: script_src
+  pattern: js.paystack.co/v2/popup.js
+  weight: 0.6
+  page_scope: any
+  enabled: true

@@ -3,32 +3,42 @@
 # rules with needs_verification: true are disabled until confirmed (brief rule 8).
 target_type: provider
 target_id: fastspring
-source: https://developer.fastspring.com/ (not reachable; verify)
+source: 'https://developer.fastspring.com/; verified: https://developer.fastspring.com/docs/add-a-shopping-cart and https://developer.fastspring.com/docs/store-builder-library-overview'
 rules:
 - id: provider.fastspring.script_src.1
-  version: 1
+  version: 2
   signal_type: script_src
   pattern: sbl.onfastspring.com/sbl/
   weight: 0.7
   page_scope: any
-  enabled: false
-  needs_verification: true
+  enabled: true
   note: SBL script path not confirmed
 - id: provider.fastspring.js_global.1
-  version: 1
+  version: 2
   signal_type: js_global
   pattern: fastspring
   weight: 0.5
   page_scope: any
-  enabled: false
-  needs_verification: true
-  note: global name not confirmed
+  enabled: true
 - id: provider.fastspring.network_host.1
-  version: 1
+  version: 2
   signal_type: network_host
   pattern: '*.onfastspring.com'
-  weight: 0.5
+  weight: 0.4
   page_scope: checkout
-  enabled: false
-  needs_verification: true
-  note: store hosts not confirmed
+  enabled: true
+  note: store checkout hosts such as yourstore.onfastspring.com
+- id: provider.fastspring.network_host.2
+  version: 1
+  signal_type: network_host
+  pattern: sbl.onfastspring.com
+  weight: 0.5
+  page_scope: any
+  enabled: true
+- id: provider.fastspring.html_pattern.1
+  version: 1
+  signal_type: html_pattern
+  pattern: id=["']fsc-api["']
+  weight: 0.5
+  page_scope: any
+  enabled: true

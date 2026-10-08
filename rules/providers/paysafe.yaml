@@ -3,7 +3,7 @@
 # rules with needs_verification: true are disabled until confirmed (brief rule 8).
 target_type: provider
 target_id: paysafe
-source: https://developer.paysafe.com/
+source: 'https://developer.paysafe.com/; verified: https://developer.paysafe.com/en/sdks/paysafejs/overview and https://developer.paysafe.com/en/sdks/paysafe-checkout/setup/'
 rules:
 - id: provider.paysafe.network_host.1
   version: 1
@@ -20,18 +20,30 @@ rules:
   page_scope: any
   enabled: true
 - id: provider.paysafe.script_src.1
-  version: 1
+  version: 2
   signal_type: script_src
   pattern: hosted.paysafe.com/js/v1/latest/paysafe.min.js
   weight: 0.6
   page_scope: any
-  enabled: false
-  needs_verification: true
+  enabled: true
 - id: provider.paysafe.js_global.1
-  version: 1
+  version: 2
   signal_type: js_global
   pattern: paysafe
-  weight: 0.4
+  weight: 0.5
   page_scope: any
-  enabled: false
-  needs_verification: true
+  enabled: true
+- id: provider.paysafe.script_src.2
+  version: 1
+  signal_type: script_src
+  pattern: hosted.paysafe.com/checkout/
+  weight: 0.7
+  page_scope: any
+  enabled: true
+- id: provider.paysafe.network_host.3
+  version: 1
+  signal_type: network_host
+  pattern: hosted.paysafe.com
+  weight: 0.5
+  page_scope: any
+  enabled: true

@@ -3,7 +3,7 @@
 # rules with needs_verification: true are disabled until confirmed (brief rule 8).
 target_type: provider
 target_id: airwallex
-source: https://www.airwallex.com/docs/js/getting-started
+source: 'https://www.airwallex.com/docs/js/getting-started; verified: https://www.airwallex.com/docs/payments__upgrade-to-airwallex.js'
 rules:
 - id: provider.airwallex.js_global.1
   version: 1
@@ -20,20 +20,32 @@ rules:
   page_scope: checkout
   enabled: true
 - id: provider.airwallex.script_src.1
-  version: 1
+  version: 2
   signal_type: script_src
   pattern: static.airwallex.com/components/sdk/
   weight: 0.6
   page_scope: any
-  enabled: false
-  needs_verification: true
-  note: script URL is not shown in the docs (npm only)
+  enabled: true
 - id: provider.airwallex.js_global.2
-  version: 1
+  version: 2
   signal_type: js_global
   pattern: Airwallex
-  weight: 0.4
+  weight: 0.3
   page_scope: any
-  enabled: false
-  needs_verification: true
-  note: legacy global name, not in current docs
+  enabled: true
+  note: legacy Payment Elements global
+- id: provider.airwallex.script_src.2
+  version: 1
+  signal_type: script_src
+  pattern: checkout.airwallex.com/assets/elements.bundle.min.js
+  weight: 0.5
+  page_scope: any
+  enabled: true
+  note: deprecated Payment Elements
+- id: provider.airwallex.network_host.2
+  version: 1
+  signal_type: network_host
+  pattern: static.airwallex.com
+  weight: 0.5
+  page_scope: any
+  enabled: true

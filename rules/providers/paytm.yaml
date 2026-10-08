@@ -3,41 +3,35 @@
 # rules with needs_verification: true are disabled until confirmed (brief rule 8).
 target_type: provider
 target_id: paytm
-source: https://www.paytmpayments.com/docs/js-checkout (loader URL not on the page; verify)
+source: 'https://www.paytmpayments.com/docs/js-checkout; verified: https://www.npmjs.com/package/paytm-blink-checkout-react (official package: securegw.paytm.in/merchantpgpui/checkoutjs/merchants/, window.Paytm.CheckoutJS)'
 rules:
 - id: provider.paytm.script_src.1
-  version: 1
+  version: 2
   signal_type: script_src
   pattern: securegw.paytm.in/merchantpgpui/checkoutjs/
   weight: 0.7
   page_scope: any
-  enabled: false
-  needs_verification: true
+  enabled: true
   note: JS checkout loader path not confirmed
 - id: provider.paytm.js_global.1
-  version: 1
+  version: 2
   signal_type: js_global
   pattern: Paytm.CheckoutJS
   weight: 0.6
   page_scope: any
-  enabled: false
-  needs_verification: true
-  note: global name not confirmed
+  enabled: true
 - id: provider.paytm.network_host.1
-  version: 1
+  version: 2
   signal_type: network_host
   pattern: securegw.paytm.in
   weight: 0.6
   page_scope: checkout
-  enabled: false
-  needs_verification: true
-  note: host not confirmed
+  enabled: true
 - id: provider.paytm.network_host.2
-  version: 1
+  version: 2
   signal_type: network_host
   pattern: securegw-stage.paytm.in
   weight: 0.2
   page_scope: any
-  enabled: false
-  needs_verification: true
+  enabled: true
   note: staging host not confirmed

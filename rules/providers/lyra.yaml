@@ -3,35 +3,30 @@
 # rules with needs_verification: true are disabled until confirmed (brief rule 8).
 target_type: provider
 target_id: lyra
-source: https://docs.lyra.com/en/rest/V4.0/javascript/ (page content not reachable; verify)
+source: 'https://docs.lyra.com/en/rest/V4.0/javascript/; verified: https://www.npmjs.com/package/@lyracom/embedded-form-glue (official package: window.KR, static.lyra.com) and https://github.com/lyra/embedded-form-glue'
 rules:
 - id: provider.lyra.script_src.1
-  version: 1
+  version: 2
   signal_type: script_src
   pattern: /static/js/krypton-client/V4.0/
   weight: 0.7
   page_scope: any
-  enabled: false
-  needs_verification: true
+  enabled: true
   note: Krypton client path not confirmed
 - id: provider.lyra.js_global.1
-  version: 1
+  version: 2
   signal_type: js_global
   pattern: KR
-  weight: 0.4
+  weight: 0.5
   page_scope: any
-  enabled: false
-  needs_verification: true
-  note: global name not confirmed
+  enabled: true
 - id: provider.lyra.network_host.1
-  version: 1
+  version: 2
   signal_type: network_host
   pattern: static.lyra.com
   weight: 0.5
   page_scope: any
-  enabled: false
-  needs_verification: true
-  note: host not confirmed
+  enabled: true
 - id: provider.lyra.network_host.2
   version: 1
   signal_type: network_host
@@ -50,3 +45,10 @@ rules:
   enabled: false
   needs_verification: true
   note: hosted page host not confirmed
+- id: provider.lyra.script_src.2
+  version: 1
+  signal_type: script_src
+  pattern: kr-payment-form.min.js
+  weight: 0.5
+  page_scope: any
+  enabled: true

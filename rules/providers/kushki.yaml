@@ -3,26 +3,22 @@
 # rules with needs_verification: true are disabled until confirmed (brief rule 8).
 target_type: provider
 target_id: kushki
-source: https://api-docs.kushkipagos.com/online-payments/libraries-sdks/web/kushki-js
+source: 'https://api-docs.kushkipagos.com/online-payments/libraries-sdks/web/kushki-js; verified: https://docs.kushki.com/ec/en/card-payments/one-step-payments/accept-a-payment'
 rules:
 - id: provider.kushki.js_global.1
-  version: 1
+  version: 2
   signal_type: js_global
   pattern: Kushki
   weight: 0.5
   page_scope: any
-  enabled: false
-  needs_verification: true
-  note: entry point named in the docs, global exposure not confirmed
+  enabled: true
 - id: provider.kushki.script_src.1
-  version: 1
+  version: 2
   signal_type: script_src
   pattern: cdn.kushkipagos.com/kushki
-  weight: 0.6
+  weight: 0.7
   page_scope: any
-  enabled: false
-  needs_verification: true
-  note: script URL stripped from the docs page
+  enabled: true
 - id: provider.kushki.network_host.1
   version: 1
   signal_type: network_host
@@ -32,3 +28,24 @@ rules:
   enabled: false
   needs_verification: true
   note: API host not confirmed
+- id: provider.kushki.script_src.2
+  version: 1
+  signal_type: script_src
+  pattern: cdn.kushkipagos.com/js/latest/
+  weight: 0.7
+  page_scope: any
+  enabled: true
+- id: provider.kushki.js_global.2
+  version: 1
+  signal_type: js_global
+  pattern: KushkiCheckout
+  weight: 0.6
+  page_scope: any
+  enabled: true
+- id: provider.kushki.network_host.2
+  version: 1
+  signal_type: network_host
+  pattern: cdn.kushkipagos.com
+  weight: 0.5
+  page_scope: any
+  enabled: true

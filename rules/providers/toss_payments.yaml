@@ -3,7 +3,7 @@
 # rules with needs_verification: true are disabled until confirmed (brief rule 8).
 target_type: provider
 target_id: toss_payments
-source: https://docs.tosspayments.com/sdk/v2/js
+source: 'https://docs.tosspayments.com/sdk/v2/js; verified: https://docs.tosspayments.com/guides/v2/get-started/llms-quick-reference'
 rules:
 - id: provider.toss_payments.js_global.1
   version: 1
@@ -13,14 +13,12 @@ rules:
   page_scope: any
   enabled: true
 - id: provider.toss_payments.script_src.1
-  version: 1
+  version: 2
   signal_type: script_src
-  pattern: js.tosspayments.com/
-  weight: 0.6
+  pattern: js.tosspayments.com/v2/standard
+  weight: 0.7
   page_scope: any
-  enabled: false
-  needs_verification: true
-  note: SDK URL is in a code tab the docs page does not expose
+  enabled: true
 - id: provider.toss_payments.network_host.1
   version: 1
   signal_type: network_host
@@ -30,3 +28,24 @@ rules:
   enabled: false
   needs_verification: true
   note: hosts not listed in the SDK docs
+- id: provider.toss_payments.script_src.2
+  version: 1
+  signal_type: script_src
+  pattern: js.tosspayments.com/v1/payment-widget
+  weight: 0.6
+  page_scope: any
+  enabled: true
+- id: provider.toss_payments.network_host.2
+  version: 1
+  signal_type: network_host
+  pattern: js.tosspayments.com
+  weight: 0.5
+  page_scope: any
+  enabled: true
+- id: provider.toss_payments.network_host.3
+  version: 1
+  signal_type: network_host
+  pattern: api.tosspayments.com
+  weight: 0.5
+  page_scope: checkout
+  enabled: true

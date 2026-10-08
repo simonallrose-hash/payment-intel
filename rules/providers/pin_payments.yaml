@@ -3,7 +3,7 @@
 # rules with needs_verification: true are disabled until confirmed (brief rule 8).
 target_type: provider
 target_id: pin_payments
-source: https://pinpayments.com/developers/integration-guides/pin-js (code not reachable; verify)
+source: 'https://pinpayments.com/developers/integration-guides/pin-js; verified: https://pinpayments.com/developers/integration-guides/hosted-fields'
 rules:
 - id: provider.pin_payments.script_src.1
   version: 1
@@ -32,3 +32,26 @@ rules:
   enabled: false
   needs_verification: true
   note: API host not confirmed
+- id: provider.pin_payments.script_src.2
+  version: 1
+  signal_type: script_src
+  pattern: cdn.pinpayments.com/pin.hosted_fields.v1.js
+  weight: 0.7
+  page_scope: any
+  enabled: true
+- id: provider.pin_payments.network_host.2
+  version: 1
+  signal_type: network_host
+  pattern: cdn.pinpayments.com
+  weight: 0.5
+  page_scope: any
+  enabled: true
+- id: provider.pin_payments.js_global.2
+  version: 1
+  signal_type: js_global
+  pattern: HostedFields
+  weight: 0.2
+  page_scope: any
+  enabled: false
+  needs_verification: true
+  note: too generic a global name

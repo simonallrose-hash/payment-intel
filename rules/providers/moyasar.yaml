@@ -3,32 +3,33 @@
 # rules with needs_verification: true are disabled until confirmed (brief rule 8).
 target_type: provider
 target_id: moyasar
-source: https://docs.moyasar.com/payment-form (not reachable; verify)
+source: 'https://docs.moyasar.com/payment-form; verified: https://docs.moyasar.com/guides/card-payments/basic-integration, https://www.npmjs.com/package/moyasar-payment-form (official) and https://cdn.moyasar.com/mpf/1.14.0/moyasar.js'
 rules:
 - id: provider.moyasar.script_src.1
-  version: 1
+  version: 2
   signal_type: script_src
   pattern: cdn.moyasar.com/mpf/
   weight: 0.7
   page_scope: any
-  enabled: false
-  needs_verification: true
-  note: payment form script path not confirmed
+  enabled: true
 - id: provider.moyasar.js_global.1
-  version: 1
+  version: 2
   signal_type: js_global
   pattern: Moyasar
   weight: 0.6
   page_scope: any
-  enabled: false
-  needs_verification: true
-  note: global name not confirmed
+  enabled: true
 - id: provider.moyasar.network_host.1
-  version: 1
+  version: 2
   signal_type: network_host
   pattern: api.moyasar.com
   weight: 0.5
   page_scope: checkout
-  enabled: false
-  needs_verification: true
-  note: API host not confirmed
+  enabled: true
+- id: provider.moyasar.network_host.2
+  version: 1
+  signal_type: network_host
+  pattern: cdn.moyasar.com
+  weight: 0.5
+  page_scope: any
+  enabled: true

@@ -3,26 +3,22 @@
 # rules with needs_verification: true are disabled until confirmed (brief rule 8).
 target_type: provider
 target_id: alma
-source: https://docs.alma.eu/docs/widgets-integration (blocked by robots.txt from here; verify)
+source: 'https://docs.alma.eu/docs/widgets-integration; verified: https://www.npmjs.com/package/@alma/widgets (official package README: cdn.jsdelivr.net/npm/@alma/widgets, Alma.Widgets, api.getalma.eu)'
 rules:
 - id: provider.alma.script_src.1
-  version: 1
+  version: 2
   signal_type: script_src
   pattern: '@alma/widgets'
   weight: 0.6
   page_scope: any
-  enabled: false
-  needs_verification: true
-  note: widgets are served from a public npm CDN; path not confirmed
+  enabled: true
 - id: provider.alma.js_global.1
-  version: 1
+  version: 2
   signal_type: js_global
   pattern: Alma.Widgets
   weight: 0.6
   page_scope: any
-  enabled: false
-  needs_verification: true
-  note: global name not confirmed
+  enabled: true
 - id: provider.alma.network_host.1
   version: 1
   signal_type: network_host
@@ -32,3 +28,18 @@ rules:
   enabled: false
   needs_verification: true
   note: API hosts not confirmed
+- id: provider.alma.network_host.2
+  version: 1
+  signal_type: network_host
+  pattern: api.getalma.eu
+  weight: 0.5
+  page_scope: checkout
+  enabled: true
+- id: provider.alma.network_host.3
+  version: 1
+  signal_type: network_host
+  pattern: api.sandbox.getalma.eu
+  weight: 0.2
+  page_scope: any
+  enabled: true
+  note: sandbox

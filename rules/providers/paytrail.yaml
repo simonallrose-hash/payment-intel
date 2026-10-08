@@ -3,17 +3,15 @@
 # rules with needs_verification: true are disabled until confirmed (brief rule 8).
 target_type: provider
 target_id: paytrail
-source: https://docs.paytrail.com/ (hosts not on the index page; verify)
+source: 'https://docs.paytrail.com/; verified: https://www.npmjs.com/package/@paytrail/paytrail-js-sdk (official SDK, services.paytrail.com)'
 rules:
 - id: provider.paytrail.network_host.1
-  version: 1
+  version: 2
   signal_type: network_host
   pattern: services.paytrail.com
-  weight: 0.6
+  weight: 0.5
   page_scope: checkout
-  enabled: false
-  needs_verification: true
-  note: API host not confirmed
+  enabled: true
 - id: provider.paytrail.network_host.2
   version: 1
   signal_type: network_host

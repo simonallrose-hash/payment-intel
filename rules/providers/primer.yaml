@@ -3,7 +3,7 @@
 # rules with needs_verification: true are disabled until confirmed (brief rule 8).
 target_type: provider
 target_id: primer
-source: https://primer.io/docs
+source: 'https://primer.io/docs; verified: https://primer.io/docs/payments/universal-checkout/drop-in/get-started/web'
 rules:
 - id: provider.primer.network_host.1
   version: 1
@@ -21,18 +21,23 @@ rules:
   enabled: false
   needs_verification: true
 - id: provider.primer.network_host.3
-  version: 1
+  version: 2
   signal_type: network_host
   pattern: sdk.primer.io
   weight: 0.6
   page_scope: any
-  enabled: false
-  needs_verification: true
+  enabled: true
 - id: provider.primer.js_global.1
-  version: 1
+  version: 2
   signal_type: js_global
   pattern: Primer
-  weight: 0.4
+  weight: 0.5
   page_scope: any
-  enabled: false
-  needs_verification: true
+  enabled: true
+- id: provider.primer.script_src.1
+  version: 1
+  signal_type: script_src
+  pattern: sdk.primer.io/web/
+  weight: 0.7
+  page_scope: any
+  enabled: true

@@ -3,17 +3,15 @@
 # rules with needs_verification: true are disabled until confirmed (brief rule 8).
 target_type: provider
 target_id: gmo_payment_gateway
-source: https://developer.gmo-pg.com/ (not reachable; verify)
+source: 'https://developer.gmo-pg.com/; verified: https://static.mul-pay.jp/ext/js/token.js (official token script)'
 rules:
 - id: provider.gmo_payment_gateway.script_src.1
-  version: 1
+  version: 2
   signal_type: script_src
   pattern: static.mul-pay.jp/ext/js/token.js
-  weight: 0.7
+  weight: 0.6
   page_scope: any
-  enabled: false
-  needs_verification: true
-  note: token script path not confirmed
+  enabled: true
 - id: provider.gmo_payment_gateway.js_global.1
   version: 1
   signal_type: js_global
@@ -32,3 +30,10 @@ rules:
   enabled: false
   needs_verification: true
   note: hosts not confirmed
+- id: provider.gmo_payment_gateway.network_host.2
+  version: 1
+  signal_type: network_host
+  pattern: static.mul-pay.jp
+  weight: 0.5
+  page_scope: any
+  enabled: true

@@ -3,32 +3,47 @@
 # rules with needs_verification: true are disabled until confirmed (brief rule 8).
 target_type: provider
 target_id: tabby
-source: https://docs.tabby.ai/ (not reachable; verify)
+source: 'https://docs.tabby.ai/; verified: https://docs.tabby.ai/pay-in-4-custom-integration/on-site-messaging.md'
 rules:
 - id: provider.tabby.script_src.1
-  version: 1
+  version: 2
   signal_type: script_src
   pattern: checkout.tabby.ai/tabby-promo.js
   weight: 0.7
   page_scope: any
-  enabled: false
-  needs_verification: true
-  note: promo script path not confirmed
+  enabled: true
 - id: provider.tabby.js_global.1
-  version: 1
+  version: 2
   signal_type: js_global
   pattern: TabbyPromo
   weight: 0.6
   page_scope: any
-  enabled: false
-  needs_verification: true
-  note: global name not confirmed
+  enabled: true
 - id: provider.tabby.network_host.1
-  version: 1
+  version: 2
   signal_type: network_host
   pattern: checkout.tabby.ai
   weight: 0.6
   page_scope: checkout
-  enabled: false
-  needs_verification: true
-  note: checkout host not confirmed
+  enabled: true
+- id: provider.tabby.script_src.2
+  version: 1
+  signal_type: script_src
+  pattern: checkout.tabby.ai/tabby-card.js
+  weight: 0.7
+  page_scope: any
+  enabled: true
+- id: provider.tabby.js_global.2
+  version: 1
+  signal_type: js_global
+  pattern: TabbyCard
+  weight: 0.6
+  page_scope: any
+  enabled: true
+- id: provider.tabby.network_host.2
+  version: 1
+  signal_type: network_host
+  pattern: checkout.tabby.sa
+  weight: 0.5
+  page_scope: checkout
+  enabled: true

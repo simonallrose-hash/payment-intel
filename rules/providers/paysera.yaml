@@ -3,23 +3,20 @@
 # rules with needs_verification: true are disabled until confirmed (brief rule 8).
 target_type: provider
 target_id: paysera
-source: https://docs.paysera.com/en/checkout/integration (not reachable; verify)
+source: 'https://docs.paysera.com/en/checkout/integration; verified: https://developers.paysera.com/guides/checkout-classic/getting-started/making-your-first-payment/custom-integration'
 rules:
 - id: provider.paysera.form_action.1
-  version: 1
+  version: 2
   signal_type: form_action
-  pattern: bank.paysera.com
+  pattern: www.paysera.com
   weight: 0.7
   page_scope: checkout
-  enabled: false
-  needs_verification: true
-  note: checkout form target not confirmed
+  enabled: true
+  note: checkout form posts to www.paysera.com/pay/
 - id: provider.paysera.network_host.1
-  version: 1
+  version: 2
   signal_type: network_host
-  pattern: bank.paysera.com
-  weight: 0.6
+  pattern: www.paysera.com
+  weight: 0.4
   page_scope: checkout
-  enabled: false
-  needs_verification: true
-  note: host not confirmed
+  enabled: true

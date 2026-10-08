@@ -3,17 +3,15 @@
 # rules with needs_verification: true are disabled until confirmed (brief rule 8).
 target_type: provider
 target_id: sezzle
-source: https://docs.sezzle.com/ (not reachable; verify)
+source: 'https://docs.sezzle.com/; verified: https://docs.sezzle.com/docs/guides/widgets/sdk'
 rules:
 - id: provider.sezzle.script_src.1
-  version: 1
+  version: 2
   signal_type: script_src
   pattern: widget.sezzle.com/v1/javascript/price-widget
   weight: 0.7
   page_scope: any
-  enabled: false
-  needs_verification: true
-  note: widget script path not confirmed
+  enabled: true
 - id: provider.sezzle.js_global.1
   version: 1
   signal_type: js_global
@@ -32,3 +30,17 @@ rules:
   enabled: false
   needs_verification: true
   note: checkout host not confirmed
+- id: provider.sezzle.network_host.2
+  version: 1
+  signal_type: network_host
+  pattern: widget.sezzle.com
+  weight: 0.5
+  page_scope: any
+  enabled: true
+- id: provider.sezzle.html_pattern.1
+  version: 1
+  signal_type: html_pattern
+  pattern: sezzleConfig
+  weight: 0.4
+  page_scope: any
+  enabled: true

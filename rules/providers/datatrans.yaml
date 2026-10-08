@@ -36,3 +36,18 @@ rules:
   enabled: false
   needs_verification: true
   note: production host not shown in the lightbox docs
+- id: provider.datatrans.script_src.2
+  version: 1
+  signal_type: script_src
+  pattern: /upp/payment/js/secure-fields-
+  weight: 0.6
+  page_scope: any
+  enabled: true
+- id: provider.datatrans.network_host.3
+  version: 1
+  signal_type: network_host
+  pattern: api.sandbox.datatrans.com
+  weight: 0.2
+  page_scope: any
+  enabled: true
+  note: sandbox

@@ -3,35 +3,29 @@
 # rules with needs_verification: true are disabled until confirmed (brief rule 8).
 target_type: provider
 target_id: tamara
-source: https://docs.tamara.co/docs/direct-widgets (script URLs not on the page; verify)
+source: 'https://docs.tamara.co/docs/direct-widgets; verified: https://cdn.tamara.co/widget-v2/tamara-widget.js (official widget bundle: window.TamaraWidgetV2, custom element tamara-widget) and https://docs.tamara.co/docs/direct-widgets.md'
 rules:
 - id: provider.tamara.script_src.1
-  version: 1
+  version: 2
   signal_type: script_src
-  pattern: cdn.tamara.co/widget
+  pattern: cdn.tamara.co/widget-v2/
   weight: 0.7
   page_scope: any
-  enabled: false
-  needs_verification: true
-  note: widget script path not confirmed
+  enabled: true
 - id: provider.tamara.js_global.1
-  version: 1
+  version: 2
   signal_type: js_global
   pattern: TamaraWidgetV2
   weight: 0.6
   page_scope: any
-  enabled: false
-  needs_verification: true
-  note: global name not confirmed
+  enabled: true
 - id: provider.tamara.html_pattern.1
-  version: 1
+  version: 2
   signal_type: html_pattern
   pattern: <tamara-widget
   weight: 0.5
   page_scope: any
-  enabled: false
-  needs_verification: true
-  note: custom element not confirmed
+  enabled: true
 - id: provider.tamara.network_host.1
   version: 1
   signal_type: network_host
@@ -41,3 +35,10 @@ rules:
   enabled: false
   needs_verification: true
   note: checkout host not confirmed
+- id: provider.tamara.network_host.2
+  version: 1
+  signal_type: network_host
+  pattern: cdn.tamara.co
+  weight: 0.5
+  page_scope: any
+  enabled: true

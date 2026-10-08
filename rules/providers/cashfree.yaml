@@ -3,26 +3,22 @@
 # rules with needs_verification: true are disabled until confirmed (brief rule 8).
 target_type: provider
 target_id: cashfree
-source: https://docs.cashfree.com/docs/javascript-integration (code blocks not reachable; verify)
+source: 'https://docs.cashfree.com/docs/javascript-integration; verified: https://www.cashfree.com/docs/payments/online/element/sdks.md and https://www.npmjs.com/package/@cashfreepayments/cashfree-js'
 rules:
 - id: provider.cashfree.script_src.1
-  version: 1
+  version: 2
   signal_type: script_src
   pattern: sdk.cashfree.com/js/v3/cashfree.js
   weight: 0.7
   page_scope: any
-  enabled: false
-  needs_verification: true
-  note: script path not confirmed
+  enabled: true
 - id: provider.cashfree.js_global.1
-  version: 1
+  version: 2
   signal_type: js_global
   pattern: Cashfree
   weight: 0.6
   page_scope: any
-  enabled: false
-  needs_verification: true
-  note: global name not confirmed
+  enabled: true
 - id: provider.cashfree.network_host.1
   version: 1
   signal_type: network_host
@@ -32,3 +28,25 @@ rules:
   enabled: false
   needs_verification: true
   note: hosts not confirmed
+- id: provider.cashfree.network_host.2
+  version: 1
+  signal_type: network_host
+  pattern: sdk.cashfree.com
+  weight: 0.5
+  page_scope: any
+  enabled: true
+- id: provider.cashfree.network_host.3
+  version: 1
+  signal_type: network_host
+  pattern: payments.cashfree.com
+  weight: 0.5
+  page_scope: checkout
+  enabled: true
+- id: provider.cashfree.network_host.4
+  version: 1
+  signal_type: network_host
+  pattern: sandbox.cashfree.com
+  weight: 0.2
+  page_scope: any
+  enabled: true
+  note: sandbox

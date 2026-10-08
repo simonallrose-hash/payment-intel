@@ -3,7 +3,7 @@
 # rules with needs_verification: true are disabled until confirmed (brief rule 8).
 target_type: provider
 target_id: juspay
-source: https://docs.juspay.io/ (not reachable; verify)
+source: 'https://docs.juspay.io/; verified: https://docs.hyperpg.in/hyper-checkout/web/base-sdk-integration/open-hypercheckout-screen.md and https://docs.juspay.io/hyper-checkout/iframe-web/base-sdk-integration/initialize-sdk'
 rules:
 - id: provider.juspay.script_src.1
   version: 1
@@ -32,3 +32,38 @@ rules:
   enabled: false
   needs_verification: true
   note: hosts not confirmed
+- id: provider.juspay.script_src.2
+  version: 1
+  signal_type: script_src
+  pattern: payments.juspay.in/payment-page/HyperServices.js
+  weight: 0.7
+  page_scope: any
+  enabled: true
+- id: provider.juspay.js_global.2
+  version: 1
+  signal_type: js_global
+  pattern: HyperServices
+  weight: 0.6
+  page_scope: any
+  enabled: true
+- id: provider.juspay.network_host.2
+  version: 1
+  signal_type: network_host
+  pattern: payments.juspay.in
+  weight: 0.6
+  page_scope: any
+  enabled: true
+- id: provider.juspay.network_host.3
+  version: 1
+  signal_type: network_host
+  pattern: api.juspay.in
+  weight: 0.5
+  page_scope: checkout
+  enabled: true
+- id: provider.juspay.iframe_src.1
+  version: 1
+  signal_type: iframe_src
+  pattern: api.juspay.in
+  weight: 0.6
+  page_scope: checkout
+  enabled: true

@@ -3,32 +3,34 @@
 # rules with needs_verification: true are disabled until confirmed (brief rule 8).
 target_type: provider
 target_id: komoju
-source: https://docs.komoju.com/en/fields/ (not reachable; verify)
+source: 'https://docs.komoju.com/en/fields/; verified: https://docs.komoju.com/en/docs/integration-guides/web-integrations/hosted-fields/introduction-to-hosted-fields'
 rules:
 - id: provider.komoju.script_src.1
-  version: 1
+  version: 2
   signal_type: script_src
   pattern: multipay.komoju.com/fields.js
   weight: 0.7
   page_scope: any
-  enabled: false
-  needs_verification: true
+  enabled: true
   note: Fields script path not confirmed
 - id: provider.komoju.html_pattern.1
-  version: 1
+  version: 2
   signal_type: html_pattern
   pattern: <komoju-fields
   weight: 0.5
   page_scope: any
-  enabled: false
-  needs_verification: true
-  note: custom element not confirmed
+  enabled: true
 - id: provider.komoju.network_host.1
-  version: 1
+  version: 2
   signal_type: network_host
   pattern: multipay.komoju.com
   weight: 0.6
   page_scope: checkout
-  enabled: false
-  needs_verification: true
-  note: host not confirmed
+  enabled: true
+- id: provider.komoju.html_pattern.2
+  version: 1
+  signal_type: html_pattern
+  pattern: <komoju-picker
+  weight: 0.4
+  page_scope: any
+  enabled: true

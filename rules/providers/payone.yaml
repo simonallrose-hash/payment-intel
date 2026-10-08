@@ -3,7 +3,7 @@
 # rules with needs_verification: true are disabled until confirmed (brief rule 8).
 target_type: provider
 target_id: payone
-source: https://docs.payone.com/
+source: 'https://docs.payone.com/; verified: https://docs.payone.com/integration/channel-client-api/client-api-hosted-iframe-mode'
 rules:
 - id: provider.payone.network_host.1
   version: 1
@@ -27,17 +27,23 @@ rules:
   page_scope: any
   enabled: true
 - id: provider.payone.js_global.1
-  version: 1
+  version: 2
   signal_type: js_global
   pattern: Payone
-  weight: 0.4
+  weight: 0.5
   page_scope: any
-  enabled: false
-  needs_verification: true
+  enabled: true
 - id: provider.payone.network_host.3
   version: 1
   signal_type: network_host
   pattern: '*.payone.com'
   weight: 0.3
+  page_scope: any
+  enabled: true
+- id: provider.payone.script_src.2
+  version: 1
+  signal_type: script_src
+  pattern: secure.pay1.de/client-api/js/v1/payone_hosted_min.js
+  weight: 0.6
   page_scope: any
   enabled: true

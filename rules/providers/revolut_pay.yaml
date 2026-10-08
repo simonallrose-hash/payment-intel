@@ -3,7 +3,7 @@
 # rules with needs_verification: true are disabled until confirmed (brief rule 8).
 target_type: provider
 target_id: revolut_pay
-source: https://developer.revolut.com/docs/guides/accept-payments/payment-methods/revolut-pay/web
+source: 'https://developer.revolut.com/docs/guides/accept-payments/payment-methods/revolut-pay/web; verified: https://www.npmjs.com/package/@revolut/checkout (official package: merchant.revolut.com/embed.js, window.RevolutCheckout)'
 rules:
 - id: provider.revolut_pay.js_global.1
   version: 1
@@ -28,11 +28,18 @@ rules:
   enabled: true
   note: sandbox
 - id: provider.revolut_pay.script_src.1
-  version: 1
+  version: 2
   signal_type: script_src
   pattern: merchant.revolut.com/embed.js
   weight: 0.7
   page_scope: any
-  enabled: false
-  needs_verification: true
+  enabled: true
   note: embed script URL not printed in the docs page
+- id: provider.revolut_pay.script_src.2
+  version: 1
+  signal_type: script_src
+  pattern: sandbox-merchant.revolut.com/embed.js
+  weight: 0.2
+  page_scope: any
+  enabled: true
+  note: sandbox

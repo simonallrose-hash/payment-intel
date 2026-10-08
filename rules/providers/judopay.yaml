@@ -3,26 +3,22 @@
 # rules with needs_verification: true are disabled until confirmed (brief rule 8).
 target_type: provider
 target_id: judopay
-source: https://docs.judopay.com/ (not reachable; verify)
+source: 'https://docs.judopay.com/; verified: https://docs.judopay.com/web-sdk'
 rules:
 - id: provider.judopay.script_src.1
-  version: 1
+  version: 2
   signal_type: script_src
   pattern: web.judopay.com/js/
   weight: 0.7
   page_scope: any
-  enabled: false
-  needs_verification: true
-  note: web SDK script not confirmed
+  enabled: true
 - id: provider.judopay.js_global.1
-  version: 1
+  version: 2
   signal_type: js_global
   pattern: JudoPay
   weight: 0.6
   page_scope: any
-  enabled: false
-  needs_verification: true
-  note: global name not confirmed
+  enabled: true
 - id: provider.judopay.network_host.1
   version: 1
   signal_type: network_host
@@ -32,3 +28,10 @@ rules:
   enabled: false
   needs_verification: true
   note: hosts not confirmed
+- id: provider.judopay.network_host.2
+  version: 1
+  signal_type: network_host
+  pattern: web.judopay.com
+  weight: 0.5
+  page_scope: any
+  enabled: true

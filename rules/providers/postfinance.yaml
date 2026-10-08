@@ -3,17 +3,15 @@
 # rules with needs_verification: true are disabled until confirmed (brief rule 8).
 target_type: provider
 target_id: postfinance
-source: https://checkout.postfinance.ch/en-us/doc (not fetched; verify)
+source: 'https://checkout.postfinance.ch/en-us/doc; verified: https://checkout.postfinance.ch/en-us/doc/payment/lightbox'
 rules:
 - id: provider.postfinance.network_host.1
-  version: 1
+  version: 2
   signal_type: network_host
   pattern: checkout.postfinance.ch
   weight: 0.6
   page_scope: checkout
-  enabled: false
-  needs_verification: true
-  note: host not confirmed
+  enabled: true
 - id: provider.postfinance.network_host.2
   version: 1
   signal_type: network_host
@@ -23,3 +21,11 @@ rules:
   enabled: false
   needs_verification: true
   note: legacy e-payment host not confirmed
+- id: provider.postfinance.js_global.1
+  version: 1
+  signal_type: js_global
+  pattern: LightboxCheckoutHandler
+  weight: 0.3
+  page_scope: any
+  enabled: true
+  note: same platform as wallee; host decides
