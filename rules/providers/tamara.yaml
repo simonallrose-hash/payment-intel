@@ -1,0 +1,43 @@
+# Detection rules for provider `tamara` (FR-DT-01, FR-DT-02).
+# Signatures come from the provider's official documentation (see `source`);
+# rules with needs_verification: true are disabled until confirmed (brief rule 8).
+target_type: provider
+target_id: tamara
+source: https://docs.tamara.co/docs/direct-widgets (script URLs not on the page; verify)
+rules:
+- id: provider.tamara.script_src.1
+  version: 1
+  signal_type: script_src
+  pattern: cdn.tamara.co/widget
+  weight: 0.7
+  page_scope: any
+  enabled: false
+  needs_verification: true
+  note: widget script path not confirmed
+- id: provider.tamara.js_global.1
+  version: 1
+  signal_type: js_global
+  pattern: TamaraWidgetV2
+  weight: 0.6
+  page_scope: any
+  enabled: false
+  needs_verification: true
+  note: global name not confirmed
+- id: provider.tamara.html_pattern.1
+  version: 1
+  signal_type: html_pattern
+  pattern: <tamara-widget
+  weight: 0.5
+  page_scope: any
+  enabled: false
+  needs_verification: true
+  note: custom element not confirmed
+- id: provider.tamara.network_host.1
+  version: 1
+  signal_type: network_host
+  pattern: checkout.tamara.co
+  weight: 0.6
+  page_scope: checkout
+  enabled: false
+  needs_verification: true
+  note: checkout host not confirmed

@@ -1,0 +1,44 @@
+# Detection rules for provider `omise` (FR-DT-01, FR-DT-02).
+# Signatures come from the provider's official documentation (see `source`);
+# rules with needs_verification: true are disabled until confirmed (brief rule 8).
+target_type: provider
+target_id: omise
+source: https://docs.opn.ooo/omise-js
+rules:
+- id: provider.omise.script_src.1
+  version: 1
+  signal_type: script_src
+  pattern: cdn.omise.co/omise.js
+  weight: 0.7
+  page_scope: any
+  enabled: true
+- id: provider.omise.js_global.1
+  version: 1
+  signal_type: js_global
+  pattern: OmiseCard
+  weight: 0.6
+  page_scope: any
+  enabled: true
+- id: provider.omise.js_global.2
+  version: 1
+  signal_type: js_global
+  pattern: Omise
+  weight: 0.4
+  page_scope: any
+  enabled: true
+- id: provider.omise.network_host.1
+  version: 1
+  signal_type: network_host
+  pattern: cdn.omise.co
+  weight: 0.5
+  page_scope: any
+  enabled: true
+- id: provider.omise.network_host.2
+  version: 1
+  signal_type: network_host
+  pattern: vault.omise.co
+  weight: 0.6
+  page_scope: checkout
+  enabled: false
+  needs_verification: true
+  note: tokenisation host not named in the docs page

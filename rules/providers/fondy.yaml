@@ -1,0 +1,36 @@
+# Detection rules for provider `fondy` (FR-DT-01, FR-DT-02).
+# Signatures come from the provider's official documentation (see `source`);
+# rules with needs_verification: true are disabled until confirmed (brief rule 8).
+target_type: provider
+target_id: fondy
+source: https://github.com/cloudipsp/ipsp-js-sdk (official SDK) and https://docs.fondy.io/
+rules:
+- id: provider.fondy.script_src.1
+  version: 1
+  signal_type: script_src
+  pattern: ipsp-js-sdk
+  weight: 0.5
+  page_scope: any
+  enabled: true
+  note: SDK is served from unpkg
+- id: provider.fondy.js_global.1
+  version: 1
+  signal_type: js_global
+  pattern: $checkout
+  weight: 0.5
+  page_scope: any
+  enabled: true
+- id: provider.fondy.network_host.1
+  version: 1
+  signal_type: network_host
+  pattern: pay.fondy.eu
+  weight: 0.6
+  page_scope: checkout
+  enabled: true
+- id: provider.fondy.network_host.2
+  version: 1
+  signal_type: network_host
+  pattern: api.fondy.eu
+  weight: 0.5
+  page_scope: checkout
+  enabled: true

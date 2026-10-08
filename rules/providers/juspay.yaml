@@ -1,0 +1,34 @@
+# Detection rules for provider `juspay` (FR-DT-01, FR-DT-02).
+# Signatures come from the provider's official documentation (see `source`);
+# rules with needs_verification: true are disabled until confirmed (brief rule 8).
+target_type: provider
+target_id: juspay
+source: https://docs.juspay.io/ (not reachable; verify)
+rules:
+- id: provider.juspay.script_src.1
+  version: 1
+  signal_type: script_src
+  pattern: sdk.juspay.in/hyper-checkout/
+  weight: 0.7
+  page_scope: any
+  enabled: false
+  needs_verification: true
+  note: HyperCheckout script path not confirmed
+- id: provider.juspay.js_global.1
+  version: 1
+  signal_type: js_global
+  pattern: HyperCheckout
+  weight: 0.6
+  page_scope: any
+  enabled: false
+  needs_verification: true
+  note: global name not confirmed
+- id: provider.juspay.network_host.1
+  version: 1
+  signal_type: network_host
+  pattern: '*.juspay.in'
+  weight: 0.4
+  page_scope: checkout
+  enabled: false
+  needs_verification: true
+  note: hosts not confirmed

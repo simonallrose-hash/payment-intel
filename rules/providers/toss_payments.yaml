@@ -1,0 +1,32 @@
+# Detection rules for provider `toss_payments` (FR-DT-01, FR-DT-02).
+# Signatures come from the provider's official documentation (see `source`);
+# rules with needs_verification: true are disabled until confirmed (brief rule 8).
+target_type: provider
+target_id: toss_payments
+source: https://docs.tosspayments.com/sdk/v2/js
+rules:
+- id: provider.toss_payments.js_global.1
+  version: 1
+  signal_type: js_global
+  pattern: TossPayments
+  weight: 0.6
+  page_scope: any
+  enabled: true
+- id: provider.toss_payments.script_src.1
+  version: 1
+  signal_type: script_src
+  pattern: js.tosspayments.com/
+  weight: 0.6
+  page_scope: any
+  enabled: false
+  needs_verification: true
+  note: SDK URL is in a code tab the docs page does not expose
+- id: provider.toss_payments.network_host.1
+  version: 1
+  signal_type: network_host
+  pattern: '*.tosspayments.com'
+  weight: 0.4
+  page_scope: checkout
+  enabled: false
+  needs_verification: true
+  note: hosts not listed in the SDK docs

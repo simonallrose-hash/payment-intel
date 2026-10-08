@@ -1,0 +1,34 @@
+# Detection rules for provider `gocardless` (FR-DT-01, FR-DT-02).
+# Signatures come from the provider's official documentation (see `source`);
+# rules with needs_verification: true are disabled until confirmed (brief rule 8).
+target_type: provider
+target_id: gocardless
+source: https://developer.gocardless.com/billing-request-flow/dropin-integration (not reachable; verify)
+rules:
+- id: provider.gocardless.script_src.1
+  version: 1
+  signal_type: script_src
+  pattern: pay.gocardless.com/billing/static/dropin/
+  weight: 0.7
+  page_scope: any
+  enabled: false
+  needs_verification: true
+  note: drop-in script path not confirmed
+- id: provider.gocardless.js_global.1
+  version: 1
+  signal_type: js_global
+  pattern: GoCardlessDropin
+  weight: 0.6
+  page_scope: any
+  enabled: false
+  needs_verification: true
+  note: global name not confirmed
+- id: provider.gocardless.network_host.1
+  version: 1
+  signal_type: network_host
+  pattern: pay.gocardless.com
+  weight: 0.6
+  page_scope: checkout
+  enabled: false
+  needs_verification: true
+  note: host not confirmed

@@ -1,0 +1,28 @@
+# Detection rules for provider `scalapay` (FR-DT-01, FR-DT-02).
+# Signatures come from the provider's official documentation (see `source`);
+# rules with needs_verification: true are disabled until confirmed (brief rule 8).
+target_type: provider
+target_id: scalapay
+source: https://developers.scalapay.com/docs/custom-integration-widget-installation
+rules:
+- id: provider.scalapay.script_src.1
+  version: 1
+  signal_type: script_src
+  pattern: cdn.scalapay.com/widget/scalapay-widget-loader.js
+  weight: 0.7
+  page_scope: any
+  enabled: true
+- id: provider.scalapay.html_pattern.1
+  version: 1
+  signal_type: html_pattern
+  pattern: <scalapay-widget
+  weight: 0.5
+  page_scope: any
+  enabled: true
+- id: provider.scalapay.network_host.1
+  version: 1
+  signal_type: network_host
+  pattern: cdn.scalapay.com
+  weight: 0.5
+  page_scope: any
+  enabled: true

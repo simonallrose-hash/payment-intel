@@ -1,0 +1,34 @@
+# Detection rules for provider `phonepe` (FR-DT-01, FR-DT-02).
+# Signatures come from the provider's official documentation (see `source`);
+# rules with needs_verification: true are disabled until confirmed (brief rule 8).
+target_type: provider
+target_id: phonepe
+source: https://developer.phonepe.com/ (not reachable; verify)
+rules:
+- id: provider.phonepe.script_src.1
+  version: 1
+  signal_type: script_src
+  pattern: mercury.phonepe.com/web/bundle/checkout.js
+  weight: 0.7
+  page_scope: any
+  enabled: false
+  needs_verification: true
+  note: checkout bundle not confirmed
+- id: provider.phonepe.js_global.1
+  version: 1
+  signal_type: js_global
+  pattern: PhonePeCheckout
+  weight: 0.6
+  page_scope: any
+  enabled: false
+  needs_verification: true
+  note: global name not confirmed
+- id: provider.phonepe.network_host.1
+  version: 1
+  signal_type: network_host
+  pattern: mercury.phonepe.com
+  weight: 0.6
+  page_scope: checkout
+  enabled: false
+  needs_verification: true
+  note: host not confirmed

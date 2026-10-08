@@ -1,0 +1,43 @@
+# Detection rules for provider `bambora` (FR-DT-01, FR-DT-02).
+# Signatures come from the provider's official documentation (see `source`);
+# rules with needs_verification: true are disabled until confirmed (brief rule 8).
+target_type: provider
+target_id: bambora
+source: https://developer.bambora.com/ (content not reachable; verify)
+rules:
+- id: provider.bambora.script_src.1
+  version: 1
+  signal_type: script_src
+  pattern: libs.na.bambora.com/customcheckout/
+  weight: 0.7
+  page_scope: any
+  enabled: false
+  needs_verification: true
+  note: Custom Checkout script path not confirmed
+- id: provider.bambora.js_global.1
+  version: 1
+  signal_type: js_global
+  pattern: customcheckout
+  weight: 0.5
+  page_scope: any
+  enabled: false
+  needs_verification: true
+  note: global name not confirmed
+- id: provider.bambora.network_host.1
+  version: 1
+  signal_type: network_host
+  pattern: '*.bambora.com'
+  weight: 0.4
+  page_scope: checkout
+  enabled: false
+  needs_verification: true
+  note: hosts not confirmed
+- id: provider.bambora.network_host.2
+  version: 1
+  signal_type: network_host
+  pattern: '*.bambora.online'
+  weight: 0.5
+  page_scope: checkout
+  enabled: false
+  needs_verification: true
+  note: Nordic checkout host not confirmed

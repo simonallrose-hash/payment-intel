@@ -1,0 +1,39 @@
+# Detection rules for provider `tap_payments` (FR-DT-01, FR-DT-02).
+# Signatures come from the provider's official documentation (see `source`);
+# rules with needs_verification: true are disabled until confirmed (brief rule 8).
+target_type: provider
+target_id: tap_payments
+source: https://developers.tap.company/docs/card-sdk-web-v2
+rules:
+- id: provider.tap_payments.script_src.1
+  version: 1
+  signal_type: script_src
+  pattern: tap-sdks.b-cdn.net/card/
+  weight: 0.6
+  page_scope: any
+  enabled: true
+- id: provider.tap_payments.network_host.1
+  version: 1
+  signal_type: network_host
+  pattern: tap-sdks.b-cdn.net
+  weight: 0.5
+  page_scope: any
+  enabled: true
+- id: provider.tap_payments.js_global.1
+  version: 1
+  signal_type: js_global
+  pattern: CardSDK
+  weight: 0.2
+  page_scope: any
+  enabled: false
+  needs_verification: true
+  note: too generic a global name
+- id: provider.tap_payments.network_host.2
+  version: 1
+  signal_type: network_host
+  pattern: api.tap.company
+  weight: 0.5
+  page_scope: checkout
+  enabled: false
+  needs_verification: true
+  note: server API host

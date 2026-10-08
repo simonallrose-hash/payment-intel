@@ -368,3 +368,746 @@ providers:
     countries: [US, CA]
     website: https://www.affirm.com
     status: active
+  # --- Expansion 2026-10-08: most used PSPs by region (ADR-0012) ---
+  - id: nuvei
+    name: Nuvei
+    aliases: [SafeCharge, Nuvei Checkout]
+    role: gateway
+    owner_company: Nuvei Corporation
+    countries: ["CA", "IL", "US", "GB"]
+    website: https://www.nuvei.com
+    status: active
+  - id: airwallex
+    name: Airwallex
+    aliases: [Airwallex Payments, Airwallex Elements]
+    role: gateway
+    owner_company: Airwallex Pty Ltd
+    countries: ["AU", "HK", "SG", "GB", "US"]
+    website: https://www.airwallex.com
+    status: active
+  - id: paddle
+    name: Paddle
+    aliases: [Paddle Billing, Paddle Classic]
+    role: gateway
+    owner_company: Paddle.com Market Ltd
+    countries: ["GB", "US"]
+    website: https://www.paddle.com
+    status: active
+    notes: merchant of record
+  - id: omise
+    name: Opn Payments (Omise)
+    aliases: [Omise, Opn]
+    role: gateway
+    owner_company: Opn Pte. Ltd.
+    countries: ["TH", "JP", "SG"]
+    website: https://www.opn.ooo
+    status: active
+  - id: paystack
+    name: Paystack
+    aliases: [Paystack Inline, Paystack Popup]
+    role: gateway
+    owner_company: Paystack Payments Ltd (Stripe)
+    countries: ["NG", "GH", "ZA", "KE"]
+    website: https://paystack.com
+    status: active
+  - id: dlocal
+    name: dLocal
+    aliases: [dLocal Smart Fields]
+    role: gateway
+    owner_company: dLocal Limited
+    countries: ["UY", "BR", "MX", "AR", "CO", "IN"]
+    website: https://dlocal.com
+    status: active
+  - id: flutterwave
+    name: Flutterwave
+    aliases: [Flutterwave Inline, Rave]
+    role: gateway
+    owner_company: Flutterwave Inc.
+    countries: ["NG", "GH", "KE", "ZA", "US"]
+    website: https://flutterwave.com
+    status: active
+  - id: tap_payments
+    name: Tap Payments
+    aliases: [Tap, goSell]
+    role: gateway
+    owner_company: Tap Payments
+    countries: ["AE", "SA", "KW", "BH", "QA"]
+    website: https://www.tap.company
+    status: active
+  - id: payplug
+    name: PayPlug
+    aliases: [Payplug]
+    role: gateway
+    owner_company: PayPlug SAS (BPCE)
+    countries: ["FR", "IT"]
+    website: https://www.payplug.com
+    status: active
+  - id: toss_payments
+    name: Toss Payments
+    aliases: [TossPayments, 토스페이먼츠]
+    role: gateway
+    owner_company: Toss Payments Co., Ltd.
+    countries: ["KR"]
+    website: https://www.tosspayments.com
+    status: active
+  - id: wompi
+    name: Wompi
+    aliases: [Wompi Bancolombia]
+    role: gateway
+    owner_company: Bancolombia S.A.
+    countries: ["CO"]
+    website: https://wompi.co
+    status: active
+  - id: culqi
+    name: Culqi
+    aliases: []
+    role: gateway
+    owner_company: Culqi S.A.
+    countries: ["PE"]
+    website: https://culqi.com
+    status: active
+  - id: helcim
+    name: Helcim
+    aliases: [HelcimPay.js]
+    role: gateway
+    owner_company: Helcim Inc.
+    countries: ["CA", "US"]
+    website: https://www.helcim.com
+    status: active
+  - id: eway
+    name: eWAY
+    aliases: [Eway Rapid]
+    role: gateway
+    owner_company: Web Active Corporation (Global Payments)
+    parent_provider_id: global_payments
+    countries: ["AU", "NZ"]
+    website: https://www.eway.com.au
+    status: active
+  - id: bluesnap
+    name: BlueSnap
+    aliases: [BlueSnap Hosted Payment Fields]
+    role: gateway
+    owner_company: BlueSnap Inc.
+    countries: ["US", "GB", "IL"]
+    website: https://www.bluesnap.com
+    status: active
+  - id: midtrans
+    name: Midtrans
+    aliases: [Midtrans Snap]
+    role: gateway
+    owner_company: PT Midtrans (GoTo)
+    countries: ["ID"]
+    website: https://midtrans.com
+    status: active
+  - id: datatrans
+    name: Datatrans
+    aliases: [Datatrans Payment Page, Datatrans Lightbox]
+    role: gateway
+    owner_company: Datatrans AG (Planet)
+    countries: ["CH", "DE", "AT"]
+    website: https://www.datatrans.ch
+    status: active
+  - id: nmi
+    name: NMI
+    aliases: [Network Merchants, Collect.js]
+    role: gateway
+    owner_company: Network Merchants, LLC
+    countries: ["US", "GB"]
+    website: https://www.nmi.com
+    status: active
+  - id: clover
+    name: Clover
+    aliases: [Clover Hosted Checkout, Clover Ecommerce]
+    role: gateway
+    owner_company: Clover Network, LLC (Fiserv)
+    parent_provider_id: fiserv
+    countries: ["US", "CA"]
+    website: https://www.clover.com
+    status: active
+  - id: moneris
+    name: Moneris
+    aliases: [Moneris Checkout]
+    role: gateway
+    owner_company: Moneris Solutions Corporation
+    countries: ["CA"]
+    website: https://www.moneris.com
+    status: active
+  - id: mastercard_gateway
+    name: Mastercard Gateway
+    aliases: [MPGS, Mastercard Payment Gateway Services]
+    role: gateway
+    owner_company: Mastercard International
+    countries: ["US", "AE", "AU", "ZA", "IN"]
+    website: https://developer.mastercard.com/mastercard-gateway/documentation/
+    status: active
+    notes: white-label gateway behind many banks
+  - id: trust_payments
+    name: Trust Payments
+    aliases: [SecureTrading, Trust Payments JavaScript Library]
+    role: gateway
+    owner_company: Trust Payments Ltd
+    countries: ["GB", "MT"]
+    website: https://www.trustpayments.com
+    status: active
+  - id: payrexx
+    name: Payrexx
+    aliases: []
+    role: gateway
+    owner_company: Payrexx AG
+    countries: ["CH", "DE"]
+    website: https://www.payrexx.com
+    status: active
+  - id: trustly
+    name: Trustly
+    aliases: [Trustly Pay, Trustly Direct Debit]
+    role: local_method_provider
+    owner_company: Trustly Group AB
+    countries: ["SE", "US", "DE", "NL", "GB"]
+    website: https://www.trustly.com
+    status: active
+    notes: open banking / bank payments
+  - id: zip
+    name: Zip
+    aliases: [Zip Pay, Zip Money, Quadpay]
+    role: bnpl
+    owner_company: Zip Co Limited
+    countries: ["AU", "US", "NZ"]
+    website: https://zip.co
+    status: active
+  - id: fondy
+    name: Fondy
+    aliases: [Fondy Checkout, Cloudipsp]
+    role: gateway
+    owner_company: Fondy Ltd
+    countries: ["GB", "PL", "LT"]
+    website: https://fondy.io
+    status: active
+  - id: scalapay
+    name: Scalapay
+    aliases: []
+    role: bnpl
+    owner_company: Scalapay S.r.l.
+    countries: ["IT", "FR", "ES"]
+    website: https://www.scalapay.com
+    status: active
+  - id: satispay
+    name: Satispay
+    aliases: []
+    role: wallet
+    owner_company: Satispay S.p.A.
+    countries: ["IT", "FR", "DE", "LU"]
+    website: https://www.satispay.com
+    status: active
+  - id: kushki
+    name: Kushki
+    aliases: []
+    role: gateway
+    owner_company: Kushki S.A.
+    countries: ["EC", "CO", "MX", "CL", "PE"]
+    website: https://www.kushki.com
+    status: active
+  - id: openpay
+    name: Openpay
+    aliases: [Openpay BBVA]
+    role: gateway
+    owner_company: Openpay S.A.P.I. de C.V. (BBVA)
+    countries: ["MX", "CO", "PE", "AR"]
+    website: https://www.openpay.mx
+    status: active
+  - id: ebanx
+    name: EBANX
+    aliases: [EBANX.js]
+    role: gateway
+    owner_company: EBANX Ltda.
+    countries: ["BR", "MX", "CO", "CL", "AR"]
+    website: https://www.ebanx.com
+    status: active
+  - id: stax
+    name: Stax
+    aliases: [Stax Payments, Fattmerchant]
+    role: gateway
+    owner_company: Stax Payments, Inc.
+    countries: ["US"]
+    website: https://staxpayments.com
+    status: active
+  - id: hipay
+    name: HiPay
+    aliases: [HiPay Enterprise]
+    role: gateway
+    owner_company: HiPay Group
+    countries: ["FR", "IT", "PT", "BE"]
+    website: https://hipay.com
+    status: active
+  - id: chargebee
+    name: Chargebee
+    aliases: [Chargebee Checkout]
+    role: orchestrator
+    owner_company: Chargebee Inc.
+    countries: ["US", "IN", "NL"]
+    website: https://www.chargebee.com
+    status: active
+    notes: subscription billing on top of gateways
+  - id: paytabs
+    name: PayTabs
+    aliases: []
+    role: gateway
+    owner_company: PayTabs Global
+    countries: ["AE", "SA", "EG", "OM"]
+    website: https://www.paytabs.com
+    status: active
+  - id: bolt
+    name: Bolt
+    aliases: [Bolt Checkout, Bolt One-Click]
+    role: orchestrator
+    owner_company: Bolt Financial, Inc.
+    countries: ["US"]
+    website: https://www.bolt.com
+    status: active
+    notes: one-click checkout over the merchant's gateway
+  - id: conekta
+    name: Conekta
+    aliases: []
+    role: gateway
+    owner_company: Conekta (Grupo Conekta)
+    countries: ["MX"]
+    website: https://www.conekta.com
+    status: active
+  - id: wallee
+    name: wallee
+    aliases: []
+    role: gateway
+    owner_company: wallee AG
+    countries: ["CH", "DE", "AT"]
+    website: https://www.wallee.com
+    status: active
+  - id: skrill
+    name: Skrill
+    aliases: [Skrill Quick Checkout]
+    role: wallet
+    owner_company: Paysafe Group
+    parent_provider_id: paysafe
+    countries: ["GB", "DE", "PL"]
+    website: https://www.skrill.com
+    status: active
+  - id: peach_payments
+    name: Peach Payments
+    aliases: []
+    role: gateway
+    owner_company: Peach Payments (Pty) Ltd
+    countries: ["ZA", "KE", "MU"]
+    website: https://www.peachpayments.com
+    status: active
+  - id: placetopay
+    name: PlacetoPay
+    aliases: [Placetopay, Evertec PlacetoPay]
+    role: gateway
+    owner_company: Evertec, Inc.
+    countries: ["CO", "EC", "CR", "HN", "BZ"]
+    website: https://www.placetopay.com
+    status: active
+  - id: getnet
+    name: Getnet
+    aliases: [Getnet Santander, Santander Getnet]
+    role: gateway
+    owner_company: Banco Santander S.A.
+    countries: ["BR", "CL", "UY", "AR", "MX"]
+    website: https://www.getnet.com.br
+    status: active
+  - id: recurly
+    name: Recurly
+    aliases: [Recurly.js]
+    role: orchestrator
+    owner_company: Recurly, Inc.
+    countries: ["US"]
+    website: https://recurly.com
+    status: active
+    notes: subscription billing on top of gateways
+  - id: vipps_mobilepay
+    name: Vipps MobilePay
+    aliases: [Vipps, MobilePay, Vipps Checkout]
+    role: wallet
+    owner_company: Vipps MobilePay AS
+    countries: ["NO", "DK", "FI", "SE"]
+    website: https://vippsmobilepay.com
+    status: active
+  - id: revolut_pay
+    name: Revolut Pay
+    aliases: [Revolut Checkout, Revolut Business Merchant]
+    role: wallet
+    owner_company: Revolut Ltd
+    countries: ["GB", "LT", "FR", "DE"]
+    website: https://www.revolut.com/business/merchant-accounts/
+    status: active
+  - id: pagbank
+    name: PagBank
+    aliases: [PagSeguro, PagBank PagSeguro]
+    role: gateway
+    owner_company: PagSeguro Internet S.A. (PagBank)
+    countries: ["BR"]
+    website: https://pagseguro.uol.com.br
+    status: active
+  - id: cielo
+    name: Cielo
+    aliases: [Cielo E-commerce, Cielo API 3.0]
+    role: gateway
+    owner_company: Cielo S.A.
+    countries: ["BR"]
+    website: https://www.cielo.com.br
+    status: active
+  - id: verifone_2checkout
+    name: 2Checkout (Verifone)
+    aliases: [2Checkout, 2CO, Avangate]
+    role: gateway
+    owner_company: Verifone Systems, Inc.
+    countries: ["US", "NL", "RO"]
+    website: https://www.2checkout.com
+    status: active
+    notes: merchant of record
+  - id: xendit
+    name: Xendit
+    aliases: []
+    role: gateway
+    owner_company: Xendit Inc.
+    countries: ["ID", "PH"]
+    website: https://www.xendit.co
+    status: active
+  - id: yoco
+    name: Yoco
+    aliases: [Yoco Online]
+    role: gateway
+    owner_company: Yoco Technologies (Pty) Ltd
+    countries: ["ZA"]
+    website: https://www.yoco.com
+    status: active
+  - id: cashfree
+    name: Cashfree Payments
+    aliases: [Cashfree]
+    role: gateway
+    owner_company: Cashfree Payments India Pvt. Ltd.
+    countries: ["IN"]
+    website: https://www.cashfree.com
+    status: active
+  - id: pin_payments
+    name: Pin Payments
+    aliases: [Pin.js]
+    role: gateway
+    owner_company: Pin Payments (Fat Zebra)
+    countries: ["AU", "NZ"]
+    website: https://pinpayments.com
+    status: active
+  - id: lyra
+    name: Lyra
+    aliases: [PayZen, Lyra Collect, Systempay, Scellius]
+    role: gateway
+    owner_company: Lyra Network SAS
+    countries: ["FR", "ES", "BR", "IN"]
+    website: https://www.lyra.com
+    status: active
+    notes: white-label platform behind PayZen, Systempay (Natixis), Scellius (La Banque Postale)
+  - id: moyasar
+    name: Moyasar
+    aliases: []
+    role: gateway
+    owner_company: Moyasar Financial Co.
+    countries: ["SA"]
+    website: https://moyasar.com
+    status: active
+  - id: tamara
+    name: Tamara
+    aliases: []
+    role: bnpl
+    owner_company: Tamara Technology
+    countries: ["SA", "AE", "KW"]
+    website: https://tamara.co
+    status: active
+  - id: tabby
+    name: Tabby
+    aliases: []
+    role: bnpl
+    owner_company: Tabby FZ-LLC
+    countries: ["AE", "SA", "KW"]
+    website: https://tabby.ai
+    status: active
+  - id: paymob
+    name: Paymob
+    aliases: [Paymob Accept]
+    role: gateway
+    owner_company: Paymob Solutions
+    countries: ["EG", "SA", "AE", "PK"]
+    website: https://paymob.com
+    status: active
+  - id: sezzle
+    name: Sezzle
+    aliases: []
+    role: bnpl
+    owner_company: Sezzle Inc.
+    countries: ["US", "CA"]
+    website: https://sezzle.com
+    status: active
+  - id: paidy
+    name: Paidy
+    aliases: []
+    role: bnpl
+    owner_company: Paidy Inc. (PayPal)
+    parent_provider_id: paypal
+    countries: ["JP"]
+    website: https://paidy.com
+    status: active
+  - id: paytrail
+    name: Paytrail
+    aliases: [Paytrail (Nets)]
+    role: gateway
+    owner_company: Paytrail Oyj (Nexi)
+    parent_provider_id: nexi
+    countries: ["FI"]
+    website: https://www.paytrail.com
+    status: active
+  - id: payfast
+    name: Payfast
+    aliases: [PayFast]
+    role: gateway
+    owner_company: Payfast (Network International)
+    parent_provider_id: network_international
+    countries: ["ZA"]
+    website: https://payfast.io
+    status: active
+  - id: komoju
+    name: KOMOJU
+    aliases: [Komoju (Degica)]
+    role: gateway
+    owner_company: Degica Co., Ltd.
+    countries: ["JP"]
+    website: https://komoju.com
+    status: active
+  - id: gocardless
+    name: GoCardless
+    aliases: [GoCardless Instant Bank Pay]
+    role: local_method_provider
+    owner_company: GoCardless Ltd
+    countries: ["GB", "FR", "DE", "AU"]
+    website: https://gocardless.com
+    status: active
+    notes: bank debit / open banking
+  - id: ecommpay
+    name: Ecommpay
+    aliases: [ECOMMPAY]
+    role: gateway
+    owner_company: ECommPay Limited
+    countries: ["GB", "CY", "LV"]
+    website: https://ecommpay.com
+    status: active
+  - id: opayo
+    name: Opayo
+    aliases: [Sage Pay, SagePay, Opayo by Elavon]
+    role: gateway
+    owner_company: Elavon Financial Services DAC
+    parent_provider_id: elavon
+    countries: ["GB", "IE"]
+    website: https://www.opayo.co.uk
+    status: active
+  - id: paysera
+    name: Paysera
+    aliases: []
+    role: gateway
+    owner_company: Paysera LT, UAB
+    countries: ["LT", "LV", "EE", "BG"]
+    website: https://www.paysera.com
+    status: active
+  - id: tpay
+    name: Tpay
+    aliases: [Tpay.com, Transferuj]
+    role: gateway
+    owner_company: Krajowy Integrator Płatności S.A.
+    countries: ["PL"]
+    website: https://tpay.com
+    status: active
+  - id: dintero
+    name: Dintero
+    aliases: [Dintero Checkout]
+    role: gateway
+    owner_company: Dintero AS
+    countries: ["NO", "SE"]
+    website: https://www.dintero.com
+    status: active
+  - id: fastspring
+    name: FastSpring
+    aliases: [FastSpring Store Builder]
+    role: gateway
+    owner_company: Bright Market, LLC (FastSpring)
+    countries: ["US"]
+    website: https://fastspring.com
+    status: active
+    notes: merchant of record
+  - id: juspay
+    name: Juspay
+    aliases: [HyperCheckout, Juspay HyperSDK]
+    role: orchestrator
+    owner_company: Juspay Technologies Pvt. Ltd.
+    countries: ["IN"]
+    website: https://juspay.io
+    status: active
+  - id: network_international
+    name: Network International
+    aliases: [N-Genius, N-Genius Online]
+    role: gateway
+    owner_company: Network International Holdings
+    countries: ["AE", "SA", "EG", "JO"]
+    website: https://www.network.ae
+    status: active
+  - id: hyperpay
+    name: HyperPay
+    aliases: [HyperPay (OPPWA)]
+    role: gateway
+    owner_company: HyperPay Inc.
+    countries: ["SA", "AE", "EG", "JO"]
+    website: https://www.hyperpay.com
+    status: active
+    notes: runs on ACI Worldwide's OPPWA platform
+  - id: bambora
+    name: Bambora
+    aliases: [Bambora Checkout, Worldline Bambora]
+    role: gateway
+    owner_company: Worldline SA
+    parent_provider_id: worldline
+    countries: ["CA", "SE", "DK", "NO"]
+    website: https://www.bambora.com
+    status: active
+  - id: pagar_me
+    name: Pagar.me
+    aliases: [Pagarme, Stone Pagar.me]
+    role: gateway
+    owner_company: Pagar.me Pagamentos S.A. (Stone Co.)
+    countries: ["BR"]
+    website: https://pagar.me
+    status: active
+  - id: axerve
+    name: Axerve
+    aliases: [GestPay, Fabrick Axerve, Banca Sella GestPay]
+    role: gateway
+    owner_company: Fabrick S.p.A. (Banca Sella)
+    countries: ["IT"]
+    website: https://www.axerve.com
+    status: active
+  - id: paycomet
+    name: PAYCOMET
+    aliases: [Paycomet, Banco Sabadell PAYCOMET]
+    role: gateway
+    owner_company: Banco de Sabadell, S.A.
+    countries: ["ES"]
+    website: https://www.paycomet.com
+    status: active
+  - id: dojo
+    name: Dojo
+    aliases: [Dojo Payments, Paymentsense]
+    role: gateway
+    owner_company: Dojo (Paymentsense Ltd)
+    countries: ["GB", "IE"]
+    website: https://dojo.tech
+    status: active
+  - id: judopay
+    name: Judopay
+    aliases: [Judo Pay]
+    role: gateway
+    owner_company: Judopay Ltd (Fabrick)
+    countries: ["GB"]
+    website: https://www.judopay.com
+    status: active
+  - id: ozow
+    name: Ozow
+    aliases: []
+    role: local_method_provider
+    owner_company: Ozow (Pty) Ltd
+    countries: ["ZA"]
+    website: https://ozow.com
+    status: active
+    notes: instant EFT
+  - id: phonepe
+    name: PhonePe
+    aliases: [PhonePe Payment Gateway]
+    role: wallet
+    owner_company: PhonePe Pvt. Ltd.
+    countries: ["IN"]
+    website: https://www.phonepe.com
+    status: active
+  - id: paytm
+    name: Paytm
+    aliases: [Paytm Payment Gateway, Paytm Payments]
+    role: wallet
+    owner_company: One97 Communications Ltd
+    countries: ["IN"]
+    website: https://business.paytm.com
+    status: active
+  - id: ccavenue
+    name: CCAvenue
+    aliases: []
+    role: gateway
+    owner_company: Avenues India Pvt. Ltd. (Infibeam)
+    countries: ["IN", "AE"]
+    website: https://www.ccavenue.com
+    status: active
+  - id: 2c2p
+    name: 2C2P
+    aliases: []
+    role: gateway
+    owner_company: 2C2P Pte. Ltd. (Ant Group)
+    countries: ["SG", "TH", "MY", "PH"]
+    website: https://2c2p.com
+    status: active
+  - id: paymongo
+    name: PayMongo
+    aliases: []
+    role: gateway
+    owner_company: PayMongo Philippines, Inc.
+    countries: ["PH"]
+    website: https://www.paymongo.com
+    status: active
+  - id: gmo_payment_gateway
+    name: GMO Payment Gateway
+    aliases: [GMO-PG, GMO PG]
+    role: gateway
+    owner_company: GMO Payment Gateway, Inc.
+    countries: ["JP"]
+    website: https://www.gmo-pg.com
+    status: active
+  - id: sb_payment_service
+    name: SB Payment Service
+    aliases: [SBPS, SoftBank Payment Service]
+    role: gateway
+    owner_company: SB Payment Service Corp.
+    countries: ["JP"]
+    website: https://www.sbpayment.jp
+    status: active
+  - id: alma
+    name: Alma
+    aliases: []
+    role: bnpl
+    owner_company: Alma SAS
+    countries: ["FR", "IT", "ES", "DE"]
+    website: https://almapay.com
+    status: active
+  - id: postfinance
+    name: PostFinance Checkout
+    aliases: [PostFinance E-Payment, PostFinance]
+    role: gateway
+    owner_company: PostFinance AG
+    countries: ["CH"]
+    website: https://www.postfinance.ch
+    status: active
+  - id: windcave
+    name: Windcave
+    aliases: [Payment Express, DPS]
+    role: gateway
+    owner_company: Windcave Limited
+    countries: ["NZ", "AU", "GB", "US"]
+    website: https://www.windcave.com
+    status: active
+  - id: woopayments
+    name: WooPayments
+    aliases: [WooCommerce Payments]
+    role: gateway
+    owner_company: Automattic Inc. (on Stripe)
+    parent_provider_id: stripe
+    countries: ["US", "GB", "DE", "AU"]
+    website: https://woocommerce.com/payments/
+    status: active
+    notes: white-label Stripe for WooCommerce; distinguish from plain Stripe via the plugin path

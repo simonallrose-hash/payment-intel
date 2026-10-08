@@ -1,0 +1,35 @@
+# Detection rules for provider `chargebee` (FR-DT-01, FR-DT-02).
+# Signatures come from the provider's official documentation (see `source`);
+# rules with needs_verification: true are disabled until confirmed (brief rule 8).
+target_type: provider
+target_id: chargebee
+source: https://www.chargebee.com/checkout-portal-docs/drop-in-tutorial.html
+rules:
+- id: provider.chargebee.script_src.1
+  version: 1
+  signal_type: script_src
+  pattern: js.chargebee.com/v2/chargebee.js
+  weight: 0.7
+  page_scope: any
+  enabled: true
+- id: provider.chargebee.js_global.1
+  version: 1
+  signal_type: js_global
+  pattern: Chargebee
+  weight: 0.6
+  page_scope: any
+  enabled: true
+- id: provider.chargebee.html_pattern.1
+  version: 1
+  signal_type: html_pattern
+  pattern: data-cb-(site|type)=
+  weight: 0.4
+  page_scope: any
+  enabled: true
+- id: provider.chargebee.network_host.1
+  version: 1
+  signal_type: network_host
+  pattern: js.chargebee.com
+  weight: 0.5
+  page_scope: any
+  enabled: true

@@ -146,8 +146,8 @@ def test_cli_end_to_end(tmp_path: Path, fresh_database: str, ch_settings, monkey
     try:
         steps = [
             (["migrate"], "postgres: migrated to head"),
-            (["seed"], "reference: +136 ~0 =0; rules: +268"),
-            (["seed"], "reference: +0 ~0 =136; rules: +0 ~0 =268"),
+            (["seed"], "reference: +226 ~0 =0; rules: +601"),
+            (["seed"], "reference: +0 ~0 =226; rules: +0 ~0 =601"),
             (["gold", "import", str(FIXTURES / "sample_labels.csv"), "--labeled-by", "ci"], "+74"),
             (["gold", "import-findings", str(FIXTURES / "sample_findings.csv")], "observations 48"),
             (["eval", "--report", str(tmp_path / "r.json")], "gate: PASS"),

@@ -1,0 +1,60 @@
+# Detection rules for provider `vipps_mobilepay` (FR-DT-01, FR-DT-02).
+# Signatures come from the provider's official documentation (see `source`);
+# rules with needs_verification: true are disabled until confirmed (brief rule 8).
+target_type: provider
+target_id: vipps_mobilepay
+source: https://developer.vippsmobilepay.com/docs/APIs/checkout-api/checkout-api-guide/
+rules:
+- id: provider.vipps_mobilepay.script_src.1
+  version: 1
+  signal_type: script_src
+  pattern: checkout.vipps.no/vippsCheckoutSDK.js
+  weight: 0.7
+  page_scope: any
+  enabled: true
+- id: provider.vipps_mobilepay.script_src.2
+  version: 1
+  signal_type: script_src
+  pattern: checkout.vipps.no/checkout-button/
+  weight: 0.6
+  page_scope: any
+  enabled: true
+- id: provider.vipps_mobilepay.js_global.1
+  version: 1
+  signal_type: js_global
+  pattern: VippsCheckout
+  weight: 0.6
+  page_scope: any
+  enabled: true
+- id: provider.vipps_mobilepay.html_pattern.1
+  version: 1
+  signal_type: html_pattern
+  pattern: <vipps-mobilepay-button
+  weight: 0.5
+  page_scope: any
+  enabled: true
+- id: provider.vipps_mobilepay.network_host.1
+  version: 1
+  signal_type: network_host
+  pattern: checkout.vipps.no
+  weight: 0.6
+  page_scope: any
+  enabled: true
+- id: provider.vipps_mobilepay.iframe_src.1
+  version: 1
+  signal_type: iframe_src
+  pattern: checkout.vipps.no
+  weight: 0.6
+  page_scope: checkout
+  enabled: false
+  needs_verification: true
+  note: iframe URL comes from the session response
+- id: provider.vipps_mobilepay.network_host.2
+  version: 1
+  signal_type: network_host
+  pattern: '*.mobilepay.dk'
+  weight: 0.4
+  page_scope: checkout
+  enabled: false
+  needs_verification: true
+  note: MobilePay hosts not in the checkout docs

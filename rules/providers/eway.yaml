@@ -1,0 +1,40 @@
+# Detection rules for provider `eway` (FR-DT-01, FR-DT-02).
+# Signatures come from the provider's official documentation (see `source`);
+# rules with needs_verification: true are disabled until confirmed (brief rule 8).
+target_type: provider
+target_id: eway
+source: https://eway.io/api-v3/
+rules:
+- id: provider.eway.network_host.1
+  version: 1
+  signal_type: network_host
+  pattern: api.ewaypayments.com
+  weight: 0.5
+  page_scope: checkout
+  enabled: true
+- id: provider.eway.network_host.2
+  version: 1
+  signal_type: network_host
+  pattern: api.sandbox.ewaypayments.com
+  weight: 0.2
+  page_scope: any
+  enabled: true
+  note: sandbox
+- id: provider.eway.script_src.1
+  version: 1
+  signal_type: script_src
+  pattern: secure.ewaypayments.com/scripts/eCrypt
+  weight: 0.6
+  page_scope: any
+  enabled: false
+  needs_verification: true
+  note: client-side encryption script path not confirmed
+- id: provider.eway.js_global.1
+  version: 1
+  signal_type: js_global
+  pattern: eCrypt
+  weight: 0.5
+  page_scope: any
+  enabled: false
+  needs_verification: true
+  note: global of the client-side encryption script not confirmed

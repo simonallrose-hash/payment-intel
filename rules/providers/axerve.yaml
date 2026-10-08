@@ -1,0 +1,43 @@
+# Detection rules for provider `axerve` (FR-DT-01, FR-DT-02).
+# Signatures come from the provider's official documentation (see `source`);
+# rules with needs_verification: true are disabled until confirmed (brief rule 8).
+target_type: provider
+target_id: axerve
+source: https://docs.axerve.com/ (not reachable; verify)
+rules:
+- id: provider.axerve.script_src.1
+  version: 1
+  signal_type: script_src
+  pattern: ecomm.sella.it/pagam/JavaScript/
+  weight: 0.7
+  page_scope: any
+  enabled: false
+  needs_verification: true
+  note: GestPay script path not confirmed
+- id: provider.axerve.js_global.1
+  version: 1
+  signal_type: js_global
+  pattern: GestPay
+  weight: 0.6
+  page_scope: any
+  enabled: false
+  needs_verification: true
+  note: global name not confirmed
+- id: provider.axerve.network_host.1
+  version: 1
+  signal_type: network_host
+  pattern: ecomm.sella.it
+  weight: 0.6
+  page_scope: checkout
+  enabled: false
+  needs_verification: true
+  note: host not confirmed
+- id: provider.axerve.network_host.2
+  version: 1
+  signal_type: network_host
+  pattern: sandbox.gestpay.net
+  weight: 0.2
+  page_scope: any
+  enabled: false
+  needs_verification: true
+  note: sandbox host not confirmed

@@ -1,0 +1,25 @@
+# Detection rules for provider `paysera` (FR-DT-01, FR-DT-02).
+# Signatures come from the provider's official documentation (see `source`);
+# rules with needs_verification: true are disabled until confirmed (brief rule 8).
+target_type: provider
+target_id: paysera
+source: https://docs.paysera.com/en/checkout/integration (not reachable; verify)
+rules:
+- id: provider.paysera.form_action.1
+  version: 1
+  signal_type: form_action
+  pattern: bank.paysera.com
+  weight: 0.7
+  page_scope: checkout
+  enabled: false
+  needs_verification: true
+  note: checkout form target not confirmed
+- id: provider.paysera.network_host.1
+  version: 1
+  signal_type: network_host
+  pattern: bank.paysera.com
+  weight: 0.6
+  page_scope: checkout
+  enabled: false
+  needs_verification: true
+  note: host not confirmed

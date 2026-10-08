@@ -1,0 +1,35 @@
+# Detection rules for provider `wompi` (FR-DT-01, FR-DT-02).
+# Signatures come from the provider's official documentation (see `source`);
+# rules with needs_verification: true are disabled until confirmed (brief rule 8).
+target_type: provider
+target_id: wompi
+source: https://docs.wompi.co/
+rules:
+- id: provider.wompi.script_src.1
+  version: 1
+  signal_type: script_src
+  pattern: checkout.wompi.co/widget.js
+  weight: 0.7
+  page_scope: any
+  enabled: true
+- id: provider.wompi.js_global.1
+  version: 1
+  signal_type: js_global
+  pattern: WidgetCheckout
+  weight: 0.5
+  page_scope: any
+  enabled: true
+- id: provider.wompi.network_host.1
+  version: 1
+  signal_type: network_host
+  pattern: checkout.wompi.co
+  weight: 0.6
+  page_scope: any
+  enabled: true
+- id: provider.wompi.network_host.2
+  version: 1
+  signal_type: network_host
+  pattern: production.wompi.co
+  weight: 0.6
+  page_scope: checkout
+  enabled: true

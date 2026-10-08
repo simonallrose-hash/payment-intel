@@ -1,0 +1,44 @@
+# Detection rules for provider `getnet` (FR-DT-01, FR-DT-02).
+# Signatures come from the provider's official documentation (see `source`);
+# rules with needs_verification: true are disabled until confirmed (brief rule 8).
+target_type: provider
+target_id: getnet
+source: https://docs.placetopay.dev/en/checkout/lightbox (Getnet Chile/Uruguay run PlacetoPay) and https://developers.getnet.com.br/
+rules:
+- id: provider.getnet.script_src.1
+  version: 1
+  signal_type: script_src
+  pattern: checkout.getnet.cl/lightbox.min.js
+  weight: 0.7
+  page_scope: any
+  enabled: true
+- id: provider.getnet.script_src.2
+  version: 1
+  signal_type: script_src
+  pattern: checkout.getnet.uy/lightbox.min.js
+  weight: 0.7
+  page_scope: any
+  enabled: true
+- id: provider.getnet.network_host.1
+  version: 1
+  signal_type: network_host
+  pattern: checkout.getnet.cl
+  weight: 0.6
+  page_scope: any
+  enabled: true
+- id: provider.getnet.network_host.2
+  version: 1
+  signal_type: network_host
+  pattern: checkout.getnet.uy
+  weight: 0.6
+  page_scope: any
+  enabled: true
+- id: provider.getnet.network_host.3
+  version: 1
+  signal_type: network_host
+  pattern: api.getnet.com.br
+  weight: 0.5
+  page_scope: checkout
+  enabled: false
+  needs_verification: true
+  note: Brazil API host not confirmed in the browser

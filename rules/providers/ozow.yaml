@@ -1,0 +1,25 @@
+# Detection rules for provider `ozow` (FR-DT-01, FR-DT-02).
+# Signatures come from the provider's official documentation (see `source`);
+# rules with needs_verification: true are disabled until confirmed (brief rule 8).
+target_type: provider
+target_id: ozow
+source: https://docs.ozow.com/ (not reachable; verify)
+rules:
+- id: provider.ozow.form_action.1
+  version: 1
+  signal_type: form_action
+  pattern: pay.ozow.com
+  weight: 0.7
+  page_scope: checkout
+  enabled: false
+  needs_verification: true
+  note: form target not confirmed
+- id: provider.ozow.network_host.1
+  version: 1
+  signal_type: network_host
+  pattern: pay.ozow.com
+  weight: 0.6
+  page_scope: checkout
+  enabled: false
+  needs_verification: true
+  note: host not confirmed

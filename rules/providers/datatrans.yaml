@@ -1,0 +1,38 @@
+# Detection rules for provider `datatrans` (FR-DT-01, FR-DT-02).
+# Signatures come from the provider's official documentation (see `source`);
+# rules with needs_verification: true are disabled until confirmed (brief rule 8).
+target_type: provider
+target_id: datatrans
+source: https://docs.datatrans.ch/v1.0.1/docs/integrations-payment-page-lightbox-mode
+rules:
+- id: provider.datatrans.script_src.1
+  version: 1
+  signal_type: script_src
+  pattern: /upp/payment/js/datatrans-
+  weight: 0.6
+  page_scope: any
+  enabled: true
+- id: provider.datatrans.js_global.1
+  version: 1
+  signal_type: js_global
+  pattern: Datatrans
+  weight: 0.5
+  page_scope: any
+  enabled: true
+- id: provider.datatrans.network_host.1
+  version: 1
+  signal_type: network_host
+  pattern: pay.sandbox.datatrans.com
+  weight: 0.2
+  page_scope: any
+  enabled: true
+  note: sandbox
+- id: provider.datatrans.network_host.2
+  version: 1
+  signal_type: network_host
+  pattern: pay.datatrans.com
+  weight: 0.6
+  page_scope: checkout
+  enabled: false
+  needs_verification: true
+  note: production host not shown in the lightbox docs

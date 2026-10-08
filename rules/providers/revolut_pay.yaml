@@ -1,0 +1,38 @@
+# Detection rules for provider `revolut_pay` (FR-DT-01, FR-DT-02).
+# Signatures come from the provider's official documentation (see `source`);
+# rules with needs_verification: true are disabled until confirmed (brief rule 8).
+target_type: provider
+target_id: revolut_pay
+source: https://developer.revolut.com/docs/guides/accept-payments/payment-methods/revolut-pay/web
+rules:
+- id: provider.revolut_pay.js_global.1
+  version: 1
+  signal_type: js_global
+  pattern: RevolutCheckout
+  weight: 0.6
+  page_scope: any
+  enabled: true
+- id: provider.revolut_pay.network_host.1
+  version: 1
+  signal_type: network_host
+  pattern: merchant.revolut.com
+  weight: 0.6
+  page_scope: checkout
+  enabled: true
+- id: provider.revolut_pay.network_host.2
+  version: 1
+  signal_type: network_host
+  pattern: sandbox-merchant.revolut.com
+  weight: 0.2
+  page_scope: any
+  enabled: true
+  note: sandbox
+- id: provider.revolut_pay.script_src.1
+  version: 1
+  signal_type: script_src
+  pattern: merchant.revolut.com/embed.js
+  weight: 0.7
+  page_scope: any
+  enabled: false
+  needs_verification: true
+  note: embed script URL not printed in the docs page

@@ -1,0 +1,39 @@
+# Detection rules for provider `airwallex` (FR-DT-01, FR-DT-02).
+# Signatures come from the provider's official documentation (see `source`);
+# rules with needs_verification: true are disabled until confirmed (brief rule 8).
+target_type: provider
+target_id: airwallex
+source: https://www.airwallex.com/docs/js/getting-started
+rules:
+- id: provider.airwallex.js_global.1
+  version: 1
+  signal_type: js_global
+  pattern: AirwallexComponentsSDK
+  weight: 0.6
+  page_scope: any
+  enabled: true
+- id: provider.airwallex.network_host.1
+  version: 1
+  signal_type: network_host
+  pattern: checkout.airwallex.com
+  weight: 0.6
+  page_scope: checkout
+  enabled: true
+- id: provider.airwallex.script_src.1
+  version: 1
+  signal_type: script_src
+  pattern: static.airwallex.com/components/sdk/
+  weight: 0.6
+  page_scope: any
+  enabled: false
+  needs_verification: true
+  note: script URL is not shown in the docs (npm only)
+- id: provider.airwallex.js_global.2
+  version: 1
+  signal_type: js_global
+  pattern: Airwallex
+  weight: 0.4
+  page_scope: any
+  enabled: false
+  needs_verification: true
+  note: legacy global name, not in current docs

@@ -1,0 +1,45 @@
+# Detection rules for provider `trustly` (FR-DT-01, FR-DT-02).
+# Signatures come from the provider's official documentation (see `source`);
+# rules with needs_verification: true are disabled until confirmed (brief rule 8).
+target_type: provider
+target_id: trustly
+source: https://amer.developers.trustly.com/sdks/javascript
+rules:
+- id: provider.trustly.script_src.1
+  version: 1
+  signal_type: script_src
+  pattern: trustly.one/start/scripts/trustly.js
+  weight: 0.7
+  page_scope: any
+  enabled: true
+- id: provider.trustly.js_global.1
+  version: 1
+  signal_type: js_global
+  pattern: Trustly
+  weight: 0.6
+  page_scope: any
+  enabled: true
+- id: provider.trustly.network_host.1
+  version: 1
+  signal_type: network_host
+  pattern: trustly.one
+  weight: 0.6
+  page_scope: any
+  enabled: true
+- id: provider.trustly.network_host.2
+  version: 1
+  signal_type: network_host
+  pattern: sandbox.trustly.one
+  weight: 0.2
+  page_scope: any
+  enabled: true
+  note: sandbox
+- id: provider.trustly.network_host.3
+  version: 1
+  signal_type: network_host
+  pattern: '*.trustly.com'
+  weight: 0.4
+  page_scope: checkout
+  enabled: false
+  needs_verification: true
+  note: European checkout hosts not in the AMER SDK docs

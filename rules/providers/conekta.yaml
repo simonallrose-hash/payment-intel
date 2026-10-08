@@ -1,0 +1,42 @@
+# Detection rules for provider `conekta` (FR-DT-01, FR-DT-02).
+# Signatures come from the provider's official documentation (see `source`);
+# rules with needs_verification: true are disabled until confirmed (brief rule 8).
+target_type: provider
+target_id: conekta
+source: https://developers.conekta.com/docs/component
+rules:
+- id: provider.conekta.script_src.1
+  version: 1
+  signal_type: script_src
+  pattern: pay.conekta.com/v1.0/js/conekta-checkout.min.js
+  weight: 0.7
+  page_scope: any
+  enabled: true
+- id: provider.conekta.js_global.1
+  version: 1
+  signal_type: js_global
+  pattern: ConektaCheckoutComponents
+  weight: 0.6
+  page_scope: any
+  enabled: true
+- id: provider.conekta.network_host.1
+  version: 1
+  signal_type: network_host
+  pattern: pay.conekta.com
+  weight: 0.6
+  page_scope: any
+  enabled: true
+- id: provider.conekta.network_host.2
+  version: 1
+  signal_type: network_host
+  pattern: api.conekta.io
+  weight: 0.5
+  page_scope: checkout
+  enabled: true
+- id: provider.conekta.network_host.3
+  version: 1
+  signal_type: network_host
+  pattern: pay.conekta.io
+  weight: 0.6
+  page_scope: checkout
+  enabled: true

@@ -1,0 +1,43 @@
+# Detection rules for provider `hyperpay` (FR-DT-01, FR-DT-02).
+# Signatures come from the provider's official documentation (see `source`);
+# rules with needs_verification: true are disabled until confirmed (brief rule 8).
+target_type: provider
+target_id: hyperpay
+source: https://docs.hyperpay.com/online-payments/integrations/copyandpay (not reachable; verify)
+rules:
+- id: provider.hyperpay.script_src.1
+  version: 1
+  signal_type: script_src
+  pattern: oppwa.com/v1/paymentWidgets.js
+  weight: 0.7
+  page_scope: any
+  enabled: false
+  needs_verification: true
+  note: COPYandPAY widget script not confirmed
+- id: provider.hyperpay.js_global.1
+  version: 1
+  signal_type: js_global
+  pattern: wpwl
+  weight: 0.6
+  page_scope: any
+  enabled: false
+  needs_verification: true
+  note: global name not confirmed
+- id: provider.hyperpay.js_global.2
+  version: 1
+  signal_type: js_global
+  pattern: wpwlOptions
+  weight: 0.4
+  page_scope: any
+  enabled: false
+  needs_verification: true
+  note: config global not confirmed
+- id: provider.hyperpay.network_host.1
+  version: 1
+  signal_type: network_host
+  pattern: '*.oppwa.com'
+  weight: 0.5
+  page_scope: checkout
+  enabled: false
+  needs_verification: true
+  note: OPPWA hosts not confirmed

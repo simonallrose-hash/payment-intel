@@ -1,0 +1,49 @@
+# Detection rules for provider `pagbank` (FR-DT-01, FR-DT-02).
+# Signatures come from the provider's official documentation (see `source`);
+# rules with needs_verification: true are disabled until confirmed (brief rule 8).
+target_type: provider
+target_id: pagbank
+source: https://developer.pagbank.com.br/docs/checkout-pagbank
+rules:
+- id: provider.pagbank.network_host.1
+  version: 1
+  signal_type: network_host
+  pattern: api.pagseguro.com
+  weight: 0.5
+  page_scope: checkout
+  enabled: true
+- id: provider.pagbank.network_host.2
+  version: 1
+  signal_type: network_host
+  pattern: sandbox.api.pagseguro.com
+  weight: 0.2
+  page_scope: any
+  enabled: true
+  note: sandbox
+- id: provider.pagbank.script_src.1
+  version: 1
+  signal_type: script_src
+  pattern: assets.pagseguro.com.br/checkout-sdk-js/
+  weight: 0.7
+  page_scope: any
+  enabled: false
+  needs_verification: true
+  note: SDK script not in the checkout docs page
+- id: provider.pagbank.js_global.1
+  version: 1
+  signal_type: js_global
+  pattern: PagSeguro
+  weight: 0.5
+  page_scope: any
+  enabled: false
+  needs_verification: true
+  note: global name not confirmed
+- id: provider.pagbank.network_host.3
+  version: 1
+  signal_type: network_host
+  pattern: '*.pagseguro.uol.com.br'
+  weight: 0.4
+  page_scope: checkout
+  enabled: false
+  needs_verification: true
+  note: hosted checkout host not confirmed

@@ -1,0 +1,34 @@
+# Detection rules for provider `paymob` (FR-DT-01, FR-DT-02).
+# Signatures come from the provider's official documentation (see `source`);
+# rules with needs_verification: true are disabled until confirmed (brief rule 8).
+target_type: provider
+target_id: paymob
+source: https://docs.paymob.com/docs/iframes (iframe URL not on the page; verify)
+rules:
+- id: provider.paymob.iframe_src.1
+  version: 1
+  signal_type: iframe_src
+  pattern: accept.paymob.com
+  weight: 0.7
+  page_scope: checkout
+  enabled: false
+  needs_verification: true
+  note: Accept iframe host not confirmed
+- id: provider.paymob.network_host.1
+  version: 1
+  signal_type: network_host
+  pattern: accept.paymob.com
+  weight: 0.6
+  page_scope: checkout
+  enabled: false
+  needs_verification: true
+  note: host not confirmed
+- id: provider.paymob.network_host.2
+  version: 1
+  signal_type: network_host
+  pattern: accept.paymobsolutions.com
+  weight: 0.5
+  page_scope: checkout
+  enabled: false
+  needs_verification: true
+  note: legacy host not confirmed

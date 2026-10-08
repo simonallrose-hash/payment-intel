@@ -1,0 +1,44 @@
+# Detection rules for provider `paytabs` (FR-DT-01, FR-DT-02).
+# Signatures come from the provider's official documentation (see `source`);
+# rules with needs_verification: true are disabled until confirmed (brief rule 8).
+target_type: provider
+target_id: paytabs
+source: https://docs.paytabs.com/PT2-API-Endpoints/Integration-Types-Manuals/Managed-Form/Managed-Form-Step-3-Initiating-Payment/Managed-Form-Initiating-Payment
+rules:
+- id: provider.paytabs.script_src.1
+  version: 1
+  signal_type: script_src
+  pattern: /payment/js/paylib.js
+  weight: 0.6
+  page_scope: any
+  enabled: true
+- id: provider.paytabs.js_global.1
+  version: 1
+  signal_type: js_global
+  pattern: paylib
+  weight: 0.5
+  page_scope: any
+  enabled: true
+- id: provider.paytabs.network_host.1
+  version: 1
+  signal_type: network_host
+  pattern: secure.paytabs.com
+  weight: 0.6
+  page_scope: any
+  enabled: true
+- id: provider.paytabs.network_host.2
+  version: 1
+  signal_type: network_host
+  pattern: secure.paytabs.sa
+  weight: 0.6
+  page_scope: any
+  enabled: true
+- id: provider.paytabs.network_host.3
+  version: 1
+  signal_type: network_host
+  pattern: '*.paytabs.com'
+  weight: 0.3
+  page_scope: checkout
+  enabled: false
+  needs_verification: true
+  note: other regional domains not listed

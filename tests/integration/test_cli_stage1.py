@@ -59,7 +59,7 @@ def test_cli_stage1_commands(
     try:
         steps = [
             (["migrate"], "postgres: migrated to head"),
-            (["seed"], "reference: +136"),
+            (["seed"], "reference: +226"),
             (
                 ["discovery", "import", str(SOURCES / "tranco_sample.csv"), "--source", "tranco"],
                 "tranco: batch tranco:",

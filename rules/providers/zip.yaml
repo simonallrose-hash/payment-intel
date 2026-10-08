@@ -1,0 +1,47 @@
+# Detection rules for provider `zip` (FR-DT-01, FR-DT-02).
+# Signatures come from the provider's official documentation (see `source`);
+# rules with needs_verification: true are disabled until confirmed (brief rule 8).
+target_type: provider
+target_id: zip
+source: https://docs.us.zip.co/docs/no-sdk-javascript-widgets
+rules:
+- id: provider.zip.network_host.1
+  version: 1
+  signal_type: network_host
+  pattern: components.us.zip.co
+  weight: 0.6
+  page_scope: any
+  enabled: true
+- id: provider.zip.iframe_src.1
+  version: 1
+  signal_type: iframe_src
+  pattern: components.us.zip.co
+  weight: 0.6
+  page_scope: checkout
+  enabled: true
+- id: provider.zip.network_host.2
+  version: 1
+  signal_type: network_host
+  pattern: components.sand.us.zip.co
+  weight: 0.2
+  page_scope: any
+  enabled: true
+  note: sandbox
+- id: provider.zip.script_src.1
+  version: 1
+  signal_type: script_src
+  pattern: static.zipmoney.com.au/lib/js/zm-widget-js
+  weight: 0.6
+  page_scope: any
+  enabled: false
+  needs_verification: true
+  note: AU widget script not in the US docs
+- id: provider.zip.network_host.3
+  version: 1
+  signal_type: network_host
+  pattern: '*.zipmoney.com.au'
+  weight: 0.4
+  page_scope: any
+  enabled: false
+  needs_verification: true
+  note: AU hosts not in the US docs

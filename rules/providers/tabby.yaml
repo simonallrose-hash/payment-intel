@@ -1,0 +1,34 @@
+# Detection rules for provider `tabby` (FR-DT-01, FR-DT-02).
+# Signatures come from the provider's official documentation (see `source`);
+# rules with needs_verification: true are disabled until confirmed (brief rule 8).
+target_type: provider
+target_id: tabby
+source: https://docs.tabby.ai/ (not reachable; verify)
+rules:
+- id: provider.tabby.script_src.1
+  version: 1
+  signal_type: script_src
+  pattern: checkout.tabby.ai/tabby-promo.js
+  weight: 0.7
+  page_scope: any
+  enabled: false
+  needs_verification: true
+  note: promo script path not confirmed
+- id: provider.tabby.js_global.1
+  version: 1
+  signal_type: js_global
+  pattern: TabbyPromo
+  weight: 0.6
+  page_scope: any
+  enabled: false
+  needs_verification: true
+  note: global name not confirmed
+- id: provider.tabby.network_host.1
+  version: 1
+  signal_type: network_host
+  pattern: checkout.tabby.ai
+  weight: 0.6
+  page_scope: checkout
+  enabled: false
+  needs_verification: true
+  note: checkout host not confirmed

@@ -1,0 +1,36 @@
+# Detection rules for provider `dlocal` (FR-DT-01, FR-DT-02).
+# Signatures come from the provider's official documentation (see `source`);
+# rules with needs_verification: true are disabled until confirmed (brief rule 8).
+target_type: provider
+target_id: dlocal
+source: https://docs.dlocal.com/docs/set-up-smart-fields
+rules:
+- id: provider.dlocal.script_src.1
+  version: 1
+  signal_type: script_src
+  pattern: js.dlocal.com/
+  weight: 0.6
+  page_scope: any
+  enabled: true
+- id: provider.dlocal.js_global.1
+  version: 1
+  signal_type: js_global
+  pattern: dlocal
+  weight: 0.5
+  page_scope: any
+  enabled: true
+- id: provider.dlocal.network_host.1
+  version: 1
+  signal_type: network_host
+  pattern: js.dlocal.com
+  weight: 0.5
+  page_scope: any
+  enabled: true
+- id: provider.dlocal.network_host.2
+  version: 1
+  signal_type: network_host
+  pattern: js-sandbox.dlocal.com
+  weight: 0.2
+  page_scope: any
+  enabled: true
+  note: sandbox

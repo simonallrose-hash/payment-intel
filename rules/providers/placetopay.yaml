@@ -1,0 +1,53 @@
+# Detection rules for provider `placetopay` (FR-DT-01, FR-DT-02).
+# Signatures come from the provider's official documentation (see `source`);
+# rules with needs_verification: true are disabled until confirmed (brief rule 8).
+target_type: provider
+target_id: placetopay
+source: https://docs.placetopay.dev/en/checkout/lightbox
+rules:
+- id: provider.placetopay.script_src.1
+  version: 1
+  signal_type: script_src
+  pattern: checkout.placetopay.com/lightbox.min.js
+  weight: 0.7
+  page_scope: any
+  enabled: true
+- id: provider.placetopay.script_src.2
+  version: 1
+  signal_type: script_src
+  pattern: checkout.placetopay.ec/lightbox.min.js
+  weight: 0.7
+  page_scope: any
+  enabled: true
+- id: provider.placetopay.network_host.1
+  version: 1
+  signal_type: network_host
+  pattern: checkout.placetopay.com
+  weight: 0.6
+  page_scope: any
+  enabled: true
+- id: provider.placetopay.network_host.2
+  version: 1
+  signal_type: network_host
+  pattern: '*.placetopay.com'
+  weight: 0.4
+  page_scope: checkout
+  enabled: true
+  note: CSP allow-list in the docs
+- id: provider.placetopay.network_host.3
+  version: 1
+  signal_type: network_host
+  pattern: '*.placetopay.ec'
+  weight: 0.4
+  page_scope: checkout
+  enabled: true
+  note: CSP allow-list in the docs
+- id: provider.placetopay.js_global.1
+  version: 1
+  signal_type: js_global
+  pattern: P
+  weight: 0.1
+  page_scope: any
+  enabled: false
+  needs_verification: true
+  note: single-letter global, too generic

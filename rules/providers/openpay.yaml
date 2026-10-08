@@ -1,0 +1,32 @@
+# Detection rules for provider `openpay` (FR-DT-01, FR-DT-02).
+# Signatures come from the provider's official documentation (see `source`);
+# rules with needs_verification: true are disabled until confirmed (brief rule 8).
+target_type: provider
+target_id: openpay
+source: https://docs.openpay.co/en/docs/openpayjs.html
+rules:
+- id: provider.openpay.js_global.1
+  version: 1
+  signal_type: js_global
+  pattern: OpenPay
+  weight: 0.6
+  page_scope: any
+  enabled: true
+- id: provider.openpay.script_src.1
+  version: 1
+  signal_type: script_src
+  pattern: openpay.js
+  weight: 0.3
+  page_scope: any
+  enabled: false
+  needs_verification: true
+  note: script tag stripped from the docs page
+- id: provider.openpay.network_host.1
+  version: 1
+  signal_type: network_host
+  pattern: api.openpay.mx
+  weight: 0.5
+  page_scope: checkout
+  enabled: false
+  needs_verification: true
+  note: runtime host not named in the docs

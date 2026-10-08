@@ -1,0 +1,44 @@
+# Detection rules for provider `paystack` (FR-DT-01, FR-DT-02).
+# Signatures come from the provider's official documentation (see `source`);
+# rules with needs_verification: true are disabled until confirmed (brief rule 8).
+target_type: provider
+target_id: paystack
+source: https://paystack.com/docs/payments/accept-payments/
+rules:
+- id: provider.paystack.script_src.1
+  version: 1
+  signal_type: script_src
+  pattern: js.paystack.co/v2/inline.js
+  weight: 0.7
+  page_scope: any
+  enabled: true
+- id: provider.paystack.js_global.1
+  version: 1
+  signal_type: js_global
+  pattern: PaystackPop
+  weight: 0.6
+  page_scope: any
+  enabled: true
+- id: provider.paystack.network_host.1
+  version: 1
+  signal_type: network_host
+  pattern: js.paystack.co
+  weight: 0.5
+  page_scope: any
+  enabled: true
+- id: provider.paystack.network_host.2
+  version: 1
+  signal_type: network_host
+  pattern: api.paystack.co
+  weight: 0.6
+  page_scope: checkout
+  enabled: true
+- id: provider.paystack.iframe_src.1
+  version: 1
+  signal_type: iframe_src
+  pattern: checkout.paystack.com
+  weight: 0.7
+  page_scope: checkout
+  enabled: false
+  needs_verification: true
+  note: popup iframe host not in the docs page

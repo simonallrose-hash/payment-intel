@@ -1,0 +1,37 @@
+# Detection rules for provider `trust_payments` (FR-DT-01, FR-DT-02).
+# Signatures come from the provider's official documentation (see `source`);
+# rules with needs_verification: true are disabled until confirmed (brief rule 8).
+target_type: provider
+target_id: trust_payments
+source: https://help.trustpayments.com/hc/en-us/articles/4402686988049-Library-configuration
+rules:
+- id: provider.trust_payments.script_src.1
+  version: 1
+  signal_type: script_src
+  pattern: cdn.eu.trustpayments.com/js/latest/st.js
+  weight: 0.7
+  page_scope: any
+  enabled: true
+- id: provider.trust_payments.js_global.1
+  version: 1
+  signal_type: js_global
+  pattern: SecureTrading
+  weight: 0.6
+  page_scope: any
+  enabled: true
+- id: provider.trust_payments.network_host.1
+  version: 1
+  signal_type: network_host
+  pattern: cdn.eu.trustpayments.com
+  weight: 0.6
+  page_scope: any
+  enabled: true
+- id: provider.trust_payments.network_host.2
+  version: 1
+  signal_type: network_host
+  pattern: payments.securetrading.net
+  weight: 0.6
+  page_scope: checkout
+  enabled: false
+  needs_verification: true
+  note: legacy hosted page host not in the library docs

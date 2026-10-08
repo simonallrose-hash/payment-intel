@@ -1,0 +1,25 @@
+# Detection rules for provider `paidy` (FR-DT-01, FR-DT-02).
+# Signatures come from the provider's official documentation (see `source`);
+# rules with needs_verification: true are disabled until confirmed (brief rule 8).
+target_type: provider
+target_id: paidy
+source: https://paidy.com/docs/en/checkout.html (not reachable; verify)
+rules:
+- id: provider.paidy.script_src.1
+  version: 1
+  signal_type: script_src
+  pattern: apps.paidy.com/
+  weight: 0.6
+  page_scope: any
+  enabled: false
+  needs_verification: true
+  note: checkout script host not confirmed
+- id: provider.paidy.js_global.1
+  version: 1
+  signal_type: js_global
+  pattern: Paidy
+  weight: 0.6
+  page_scope: any
+  enabled: false
+  needs_verification: true
+  note: global name not confirmed

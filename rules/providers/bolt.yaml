@@ -1,0 +1,54 @@
+# Detection rules for provider `bolt` (FR-DT-01, FR-DT-02).
+# Signatures come from the provider's official documentation (see `source`);
+# rules with needs_verification: true are disabled until confirmed (brief rule 8).
+target_type: provider
+target_id: bolt
+source: https://help.boltapp.com/add-ons/sso-commerce/embedded-shopper-accounts-editing/script/
+rules:
+- id: provider.bolt.script_src.1
+  version: 1
+  signal_type: script_src
+  pattern: connect.boltapp.com/embed
+  weight: 0.7
+  page_scope: any
+  enabled: true
+- id: provider.bolt.html_pattern.1
+  version: 1
+  signal_type: html_pattern
+  pattern: id=["']bolt-embed["']
+  weight: 0.5
+  page_scope: any
+  enabled: true
+- id: provider.bolt.network_host.1
+  version: 1
+  signal_type: network_host
+  pattern: connect.boltapp.com
+  weight: 0.6
+  page_scope: any
+  enabled: true
+- id: provider.bolt.network_host.2
+  version: 1
+  signal_type: network_host
+  pattern: connect-sandbox.boltapp.com
+  weight: 0.2
+  page_scope: any
+  enabled: true
+  note: sandbox
+- id: provider.bolt.js_global.1
+  version: 1
+  signal_type: js_global
+  pattern: Bolt
+  weight: 0.4
+  page_scope: any
+  enabled: false
+  needs_verification: true
+  note: global name not in the docs
+- id: provider.bolt.network_host.3
+  version: 1
+  signal_type: network_host
+  pattern: connect.bolt.com
+  weight: 0.5
+  page_scope: any
+  enabled: false
+  needs_verification: true
+  note: older embed host not in current docs

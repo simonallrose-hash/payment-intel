@@ -1,0 +1,44 @@
+# Detection rules for provider `peach_payments` (FR-DT-01, FR-DT-02).
+# Signatures come from the provider's official documentation (see `source`);
+# rules with needs_verification: true are disabled until confirmed (brief rule 8).
+target_type: provider
+target_id: peach_payments
+source: https://developer.peachpayments.com/docs/checkout-embedded
+rules:
+- id: provider.peach_payments.script_src.1
+  version: 1
+  signal_type: script_src
+  pattern: checkout.peachpayments.com/js/checkout.js
+  weight: 0.7
+  page_scope: any
+  enabled: true
+- id: provider.peach_payments.network_host.1
+  version: 1
+  signal_type: network_host
+  pattern: checkout.peachpayments.com
+  weight: 0.6
+  page_scope: any
+  enabled: true
+- id: provider.peach_payments.network_host.2
+  version: 1
+  signal_type: network_host
+  pattern: secure.peachpayments.com
+  weight: 0.6
+  page_scope: checkout
+  enabled: true
+- id: provider.peach_payments.network_host.3
+  version: 1
+  signal_type: network_host
+  pattern: sandbox-checkout.peachpayments.com
+  weight: 0.2
+  page_scope: any
+  enabled: true
+  note: sandbox
+- id: provider.peach_payments.network_host.4
+  version: 1
+  signal_type: network_host
+  pattern: testsecure.peachpayments.com
+  weight: 0.2
+  page_scope: any
+  enabled: true
+  note: sandbox

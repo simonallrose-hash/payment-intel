@@ -1,0 +1,34 @@
+# Detection rules for provider `network_international` (FR-DT-01, FR-DT-02).
+# Signatures come from the provider's official documentation (see `source`);
+# rules with needs_verification: true are disabled until confirmed (brief rule 8).
+target_type: provider
+target_id: network_international
+source: https://developer.network.ae/ (not reachable; verify)
+rules:
+- id: provider.network_international.network_host.1
+  version: 1
+  signal_type: network_host
+  pattern: paypage.ngenius-payments.com
+  weight: 0.6
+  page_scope: checkout
+  enabled: false
+  needs_verification: true
+  note: hosted page host not confirmed
+- id: provider.network_international.network_host.2
+  version: 1
+  signal_type: network_host
+  pattern: api-gateway.ngenius-payments.com
+  weight: 0.5
+  page_scope: checkout
+  enabled: false
+  needs_verification: true
+  note: API host not confirmed
+- id: provider.network_international.network_host.3
+  version: 1
+  signal_type: network_host
+  pattern: paypage.sandbox.ngenius-payments.com
+  weight: 0.2
+  page_scope: any
+  enabled: false
+  needs_verification: true
+  note: sandbox host not confirmed

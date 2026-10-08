@@ -1,0 +1,43 @@
+# Detection rules for provider `payfast` (FR-DT-01, FR-DT-02).
+# Signatures come from the provider's official documentation (see `source`);
+# rules with needs_verification: true are disabled until confirmed (brief rule 8).
+target_type: provider
+target_id: payfast
+source: https://developers.payfast.co.za/docs (JS-only docs site; verify)
+rules:
+- id: provider.payfast.script_src.1
+  version: 1
+  signal_type: script_src
+  pattern: www.payfast.co.za/onsite/engine.js
+  weight: 0.7
+  page_scope: any
+  enabled: false
+  needs_verification: true
+  note: onsite script path not confirmed
+- id: provider.payfast.js_global.1
+  version: 1
+  signal_type: js_global
+  pattern: payfast_do_onsite_payment
+  weight: 0.6
+  page_scope: any
+  enabled: false
+  needs_verification: true
+  note: global name not confirmed
+- id: provider.payfast.form_action.1
+  version: 1
+  signal_type: form_action
+  pattern: www.payfast.co.za
+  weight: 0.6
+  page_scope: checkout
+  enabled: false
+  needs_verification: true
+  note: redirect form target not confirmed
+- id: provider.payfast.network_host.1
+  version: 1
+  signal_type: network_host
+  pattern: sandbox.payfast.co.za
+  weight: 0.2
+  page_scope: any
+  enabled: false
+  needs_verification: true
+  note: sandbox host not confirmed

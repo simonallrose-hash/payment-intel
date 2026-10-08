@@ -1,0 +1,30 @@
+# Detection rules for provider `wallee` (FR-DT-01, FR-DT-02).
+# Signatures come from the provider's official documentation (see `source`);
+# rules with needs_verification: true are disabled until confirmed (brief rule 8).
+target_type: provider
+target_id: wallee
+source: https://app-wallee.com/en-us/doc/payment/lightbox
+rules:
+- id: provider.wallee.js_global.1
+  version: 1
+  signal_type: js_global
+  pattern: LightboxCheckoutHandler
+  weight: 0.6
+  page_scope: any
+  enabled: true
+- id: provider.wallee.network_host.1
+  version: 1
+  signal_type: network_host
+  pattern: app-wallee.com
+  weight: 0.6
+  page_scope: any
+  enabled: true
+- id: provider.wallee.script_src.1
+  version: 1
+  signal_type: script_src
+  pattern: app-wallee.com/assets/payment/
+  weight: 0.6
+  page_scope: any
+  enabled: false
+  needs_verification: true
+  note: script path comes from an API call, not fixed in docs

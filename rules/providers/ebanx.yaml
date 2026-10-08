@@ -1,0 +1,37 @@
+# Detection rules for provider `ebanx` (FR-DT-01, FR-DT-02).
+# Signatures come from the provider's official documentation (see `source`);
+# rules with needs_verification: true are disabled until confirmed (brief rule 8).
+target_type: provider
+target_id: ebanx
+source: https://docs.ebanx.com/docs/pay-in/features/ebanx-js
+rules:
+- id: provider.ebanx.script_src.1
+  version: 1
+  signal_type: script_src
+  pattern: ebanx-js.ebanx.com/latest/dist/ebanx.min.js
+  weight: 0.7
+  page_scope: any
+  enabled: true
+- id: provider.ebanx.js_global.1
+  version: 1
+  signal_type: js_global
+  pattern: EBANX
+  weight: 0.6
+  page_scope: any
+  enabled: true
+- id: provider.ebanx.network_host.1
+  version: 1
+  signal_type: network_host
+  pattern: ebanx-js.ebanx.com
+  weight: 0.6
+  page_scope: any
+  enabled: true
+- id: provider.ebanx.network_host.2
+  version: 1
+  signal_type: network_host
+  pattern: '*.ebanx.com'
+  weight: 0.3
+  page_scope: checkout
+  enabled: false
+  needs_verification: true
+  note: other runtime hosts not in the docs

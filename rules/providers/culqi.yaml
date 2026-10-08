@@ -1,0 +1,35 @@
+# Detection rules for provider `culqi` (FR-DT-01, FR-DT-02).
+# Signatures come from the provider's official documentation (see `source`);
+# rules with needs_verification: true are disabled until confirmed (brief rule 8).
+target_type: provider
+target_id: culqi
+source: https://docs.culqi.com/
+rules:
+- id: provider.culqi.script_src.1
+  version: 1
+  signal_type: script_src
+  pattern: checkout.culqi.com/js/v4
+  weight: 0.7
+  page_scope: any
+  enabled: true
+- id: provider.culqi.js_global.1
+  version: 1
+  signal_type: js_global
+  pattern: Culqi
+  weight: 0.5
+  page_scope: any
+  enabled: true
+- id: provider.culqi.network_host.1
+  version: 1
+  signal_type: network_host
+  pattern: checkout.culqi.com
+  weight: 0.6
+  page_scope: any
+  enabled: true
+- id: provider.culqi.network_host.2
+  version: 1
+  signal_type: network_host
+  pattern: static.culqi.com
+  weight: 0.4
+  page_scope: any
+  enabled: true

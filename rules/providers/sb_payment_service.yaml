@@ -1,0 +1,25 @@
+# Detection rules for provider `sb_payment_service` (FR-DT-01, FR-DT-02).
+# Signatures come from the provider's official documentation (see `source`);
+# rules with needs_verification: true are disabled until confirmed (brief rule 8).
+target_type: provider
+target_id: sb_payment_service
+source: https://www.sbpayment.jp/support/ec/link/ (not reachable; verify)
+rules:
+- id: provider.sb_payment_service.form_action.1
+  version: 1
+  signal_type: form_action
+  pattern: fep.sps-system.com
+  weight: 0.7
+  page_scope: checkout
+  enabled: false
+  needs_verification: true
+  note: link-type form target not confirmed
+- id: provider.sb_payment_service.network_host.1
+  version: 1
+  signal_type: network_host
+  pattern: '*.sps-system.com'
+  weight: 0.5
+  page_scope: checkout
+  enabled: false
+  needs_verification: true
+  note: hosts not confirmed

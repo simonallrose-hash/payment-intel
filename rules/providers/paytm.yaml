@@ -1,0 +1,43 @@
+# Detection rules for provider `paytm` (FR-DT-01, FR-DT-02).
+# Signatures come from the provider's official documentation (see `source`);
+# rules with needs_verification: true are disabled until confirmed (brief rule 8).
+target_type: provider
+target_id: paytm
+source: https://www.paytmpayments.com/docs/js-checkout (loader URL not on the page; verify)
+rules:
+- id: provider.paytm.script_src.1
+  version: 1
+  signal_type: script_src
+  pattern: securegw.paytm.in/merchantpgpui/checkoutjs/
+  weight: 0.7
+  page_scope: any
+  enabled: false
+  needs_verification: true
+  note: JS checkout loader path not confirmed
+- id: provider.paytm.js_global.1
+  version: 1
+  signal_type: js_global
+  pattern: Paytm.CheckoutJS
+  weight: 0.6
+  page_scope: any
+  enabled: false
+  needs_verification: true
+  note: global name not confirmed
+- id: provider.paytm.network_host.1
+  version: 1
+  signal_type: network_host
+  pattern: securegw.paytm.in
+  weight: 0.6
+  page_scope: checkout
+  enabled: false
+  needs_verification: true
+  note: host not confirmed
+- id: provider.paytm.network_host.2
+  version: 1
+  signal_type: network_host
+  pattern: securegw-stage.paytm.in
+  weight: 0.2
+  page_scope: any
+  enabled: false
+  needs_verification: true
+  note: staging host not confirmed

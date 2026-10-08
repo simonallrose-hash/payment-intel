@@ -1,0 +1,34 @@
+# Detection rules for provider `ccavenue` (FR-DT-01, FR-DT-02).
+# Signatures come from the provider's official documentation (see `source`);
+# rules with needs_verification: true are disabled until confirmed (brief rule 8).
+target_type: provider
+target_id: ccavenue
+source: https://www.ccavenue.com/ (integration kit is behind login; verify)
+rules:
+- id: provider.ccavenue.form_action.1
+  version: 1
+  signal_type: form_action
+  pattern: secure.ccavenue.com
+  weight: 0.7
+  page_scope: checkout
+  enabled: false
+  needs_verification: true
+  note: transaction form target not confirmed
+- id: provider.ccavenue.network_host.1
+  version: 1
+  signal_type: network_host
+  pattern: secure.ccavenue.com
+  weight: 0.6
+  page_scope: checkout
+  enabled: false
+  needs_verification: true
+  note: host not confirmed
+- id: provider.ccavenue.network_host.2
+  version: 1
+  signal_type: network_host
+  pattern: secure.ccavenue.ae
+  weight: 0.6
+  page_scope: checkout
+  enabled: false
+  needs_verification: true
+  note: UAE host not confirmed

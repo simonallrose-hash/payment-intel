@@ -1,0 +1,37 @@
+# Detection rules for provider `flutterwave` (FR-DT-01, FR-DT-02).
+# Signatures come from the provider's official documentation (see `source`);
+# rules with needs_verification: true are disabled until confirmed (brief rule 8).
+target_type: provider
+target_id: flutterwave
+source: https://developer.flutterwave.com/docs/inline
+rules:
+- id: provider.flutterwave.script_src.1
+  version: 1
+  signal_type: script_src
+  pattern: checkout.flutterwave.com/v3.js
+  weight: 0.7
+  page_scope: any
+  enabled: true
+- id: provider.flutterwave.js_global.1
+  version: 1
+  signal_type: js_global
+  pattern: FlutterwaveCheckout
+  weight: 0.6
+  page_scope: any
+  enabled: true
+- id: provider.flutterwave.network_host.1
+  version: 1
+  signal_type: network_host
+  pattern: checkout.flutterwave.com
+  weight: 0.6
+  page_scope: any
+  enabled: true
+- id: provider.flutterwave.network_host.2
+  version: 1
+  signal_type: network_host
+  pattern: api.flutterwave.com
+  weight: 0.5
+  page_scope: checkout
+  enabled: false
+  needs_verification: true
+  note: server API, may not appear in the browser

@@ -1,0 +1,34 @@
+# Detection rules for provider `kushki` (FR-DT-01, FR-DT-02).
+# Signatures come from the provider's official documentation (see `source`);
+# rules with needs_verification: true are disabled until confirmed (brief rule 8).
+target_type: provider
+target_id: kushki
+source: https://api-docs.kushkipagos.com/online-payments/libraries-sdks/web/kushki-js
+rules:
+- id: provider.kushki.js_global.1
+  version: 1
+  signal_type: js_global
+  pattern: Kushki
+  weight: 0.5
+  page_scope: any
+  enabled: false
+  needs_verification: true
+  note: entry point named in the docs, global exposure not confirmed
+- id: provider.kushki.script_src.1
+  version: 1
+  signal_type: script_src
+  pattern: cdn.kushkipagos.com/kushki
+  weight: 0.6
+  page_scope: any
+  enabled: false
+  needs_verification: true
+  note: script URL stripped from the docs page
+- id: provider.kushki.network_host.1
+  version: 1
+  signal_type: network_host
+  pattern: api.kushkipagos.com
+  weight: 0.5
+  page_scope: checkout
+  enabled: false
+  needs_verification: true
+  note: API host not confirmed

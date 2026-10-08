@@ -1,0 +1,52 @@
+# Detection rules for provider `opayo` (FR-DT-01, FR-DT-02).
+# Signatures come from the provider's official documentation (see `source`);
+# rules with needs_verification: true are disabled until confirmed (brief rule 8).
+target_type: provider
+target_id: opayo
+source: https://developer.elavon.com/products/opayo/ (JS-only docs site; verify)
+rules:
+- id: provider.opayo.script_src.1
+  version: 1
+  signal_type: script_src
+  pattern: pi-live.sagepay.com/api/v1/js/sagepay.js
+  weight: 0.7
+  page_scope: any
+  enabled: false
+  needs_verification: true
+  note: PI checkout script not confirmed
+- id: provider.opayo.js_global.1
+  version: 1
+  signal_type: js_global
+  pattern: sagepayCheckout
+  weight: 0.6
+  page_scope: any
+  enabled: false
+  needs_verification: true
+  note: global name not confirmed
+- id: provider.opayo.js_global.2
+  version: 1
+  signal_type: js_global
+  pattern: sagepayOwnForm
+  weight: 0.6
+  page_scope: any
+  enabled: false
+  needs_verification: true
+  note: global name not confirmed
+- id: provider.opayo.network_host.1
+  version: 1
+  signal_type: network_host
+  pattern: pi-live.sagepay.com
+  weight: 0.6
+  page_scope: checkout
+  enabled: false
+  needs_verification: true
+  note: host not confirmed
+- id: provider.opayo.network_host.2
+  version: 1
+  signal_type: network_host
+  pattern: live.sagepay.com
+  weight: 0.6
+  page_scope: checkout
+  enabled: false
+  needs_verification: true
+  note: legacy hosted form host not confirmed

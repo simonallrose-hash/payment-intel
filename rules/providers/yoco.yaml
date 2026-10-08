@@ -1,0 +1,34 @@
+# Detection rules for provider `yoco` (FR-DT-01, FR-DT-02).
+# Signatures come from the provider's official documentation (see `source`);
+# rules with needs_verification: true are disabled until confirmed (brief rule 8).
+target_type: provider
+target_id: yoco
+source: https://developer.yoco.com/ (blocked by robots.txt from here; verify)
+rules:
+- id: provider.yoco.script_src.1
+  version: 1
+  signal_type: script_src
+  pattern: js.yoco.com/sdk/v1/yoco-sdk-web.js
+  weight: 0.7
+  page_scope: any
+  enabled: false
+  needs_verification: true
+  note: script path not confirmed
+- id: provider.yoco.js_global.1
+  version: 1
+  signal_type: js_global
+  pattern: YocoSDK
+  weight: 0.6
+  page_scope: any
+  enabled: false
+  needs_verification: true
+  note: global name not confirmed
+- id: provider.yoco.network_host.1
+  version: 1
+  signal_type: network_host
+  pattern: '*.yoco.com'
+  weight: 0.3
+  page_scope: checkout
+  enabled: false
+  needs_verification: true
+  note: hosts not confirmed

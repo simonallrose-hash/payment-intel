@@ -1,0 +1,25 @@
+# Detection rules for provider `paymongo` (FR-DT-01, FR-DT-02).
+# Signatures come from the provider's official documentation (see `source`);
+# rules with needs_verification: true are disabled until confirmed (brief rule 8).
+target_type: provider
+target_id: paymongo
+source: https://developers.paymongo.com/docs/checkout-api (browser hosts not on the page; verify)
+rules:
+- id: provider.paymongo.network_host.1
+  version: 1
+  signal_type: network_host
+  pattern: checkout.paymongo.com
+  weight: 0.6
+  page_scope: checkout
+  enabled: false
+  needs_verification: true
+  note: hosted checkout host not confirmed
+- id: provider.paymongo.network_host.2
+  version: 1
+  signal_type: network_host
+  pattern: api.paymongo.com
+  weight: 0.5
+  page_scope: checkout
+  enabled: false
+  needs_verification: true
+  note: API host not confirmed

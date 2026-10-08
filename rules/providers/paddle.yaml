@@ -1,0 +1,45 @@
+# Detection rules for provider `paddle` (FR-DT-01, FR-DT-02).
+# Signatures come from the provider's official documentation (see `source`);
+# rules with needs_verification: true are disabled until confirmed (brief rule 8).
+target_type: provider
+target_id: paddle
+source: https://developer.paddle.com/paddlejs/include-paddlejs
+rules:
+- id: provider.paddle.script_src.1
+  version: 1
+  signal_type: script_src
+  pattern: cdn.paddle.com/paddle/v2/paddle.js
+  weight: 0.7
+  page_scope: any
+  enabled: true
+- id: provider.paddle.js_global.1
+  version: 1
+  signal_type: js_global
+  pattern: Paddle
+  weight: 0.5
+  page_scope: any
+  enabled: true
+- id: provider.paddle.network_host.1
+  version: 1
+  signal_type: network_host
+  pattern: cdn.paddle.com
+  weight: 0.5
+  page_scope: any
+  enabled: true
+- id: provider.paddle.network_host.2
+  version: 1
+  signal_type: network_host
+  pattern: sandbox-api.paddle.com
+  weight: 0.2
+  page_scope: any
+  enabled: true
+  note: sandbox
+- id: provider.paddle.iframe_src.1
+  version: 1
+  signal_type: iframe_src
+  pattern: buy.paddle.com
+  weight: 0.6
+  page_scope: checkout
+  enabled: false
+  needs_verification: true
+  note: checkout iframe host not in Paddle.js docs
