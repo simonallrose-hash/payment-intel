@@ -1,0 +1,232 @@
+# Country detection signals (FR-DT-09). Weights are votes per signal; the
+# winning ISO 3166-1 alpha-2 code and the vote margin give the confidence.
+version: 1
+weights:
+  cctld: 0.35
+  currency: 0.20
+  lang: 0.15
+  hreflang: 0.10
+  schema_address: 0.30
+  phone: 0.20
+  hosting_ip: 0.05
+cctld:
+  de: DE
+  at: AT
+  ch: CH
+  fr: FR
+  it: IT
+  es: ES
+  pt: PT
+  nl: NL
+  be: BE
+  lu: LU
+  ie: IE
+  uk: GB
+  dk: DK
+  se: SE
+  "no": "NO"
+  fi: FI
+  pl: PL
+  cz: CZ
+  sk: SK
+  hu: HU
+  ro: RO
+  bg: BG
+  gr: GR
+  hr: HR
+  si: SI
+  lt: LT
+  lv: LV
+  ee: EE
+  us: US
+  ca: CA
+  mx: MX
+  br: BR
+  au: AU
+  nz: NZ
+  jp: JP
+  in: IN
+  tr: TR
+  ua: UA
+  il: IL
+  ae: AE
+  sg: SG
+  za: ZA
+# Currency → candidate countries; the vote is split evenly among them.
+currency:
+  EUR: [DE, FR, IT, ES, NL, BE, AT, IE, PT, FI, GR, SK, SI, EE, LV, LT, LU, HR]
+  USD: [US]
+  GBP: [GB]
+  CHF: [CH]
+  PLN: [PL]
+  CZK: [CZ]
+  SEK: [SE]
+  NOK: ["NO"]
+  DKK: [DK]
+  HUF: [HU]
+  RON: [RO]
+  BGN: [BG]
+  CAD: [CA]
+  AUD: [AU]
+  NZD: [NZ]
+  JPY: [JP]
+  BRL: [BR]
+  MXN: [MX]
+  INR: [IN]
+  TRY: [TR]
+  UAH: [UA]
+  ILS: [IL]
+  AED: [AE]
+  SGD: [SG]
+  ZAR: [ZA]
+currency_symbols:
+  "€": EUR
+  "£": GBP
+  "zł": PLN
+  "Kč": CZK
+  "Ft": HUF
+  "lei": RON
+  "лв": BGN
+  "₺": TRY
+  "₴": UAH
+  "₪": ILS
+  "R$": BRL
+  "¥": JPY
+  "₹": INR
+# Language (from <html lang> or hreflang) → countries; region subtags win outright.
+lang:
+  de: [DE, AT, CH]
+  fr: [FR, BE, CH, CA]
+  it: [IT, CH]
+  es: [ES, MX]
+  pt: [PT, BR]
+  nl: [NL, BE]
+  en: [GB, US, IE, AU, CA, NZ]
+  da: [DK]
+  sv: [SE]
+  nb: ["NO"]
+  "no": ["NO"]
+  fi: [FI]
+  pl: [PL]
+  cs: [CZ]
+  sk: [SK]
+  hu: [HU]
+  ro: [RO]
+  bg: [BG]
+  el: [GR]
+  hr: [HR]
+  sl: [SI]
+  lt: [LT]
+  lv: [LV]
+  et: [EE]
+  tr: [TR]
+  uk: [UA]
+  he: [IL]
+  ja: [JP]
+  hi: [IN]
+# International dialling prefixes → country (longest prefix wins).
+phone:
+  "49": DE
+  "43": AT
+  "41": CH
+  "33": FR
+  "39": IT
+  "34": ES
+  "351": PT
+  "31": NL
+  "32": BE
+  "352": LU
+  "353": IE
+  "44": GB
+  "45": DK
+  "46": SE
+  "47": "NO"
+  "358": FI
+  "48": PL
+  "420": CZ
+  "421": SK
+  "36": HU
+  "40": RO
+  "359": BG
+  "30": GR
+  "385": HR
+  "386": SI
+  "370": LT
+  "371": LV
+  "372": EE
+  "1": US
+  "52": MX
+  "55": BR
+  "61": AU
+  "64": NZ
+  "81": JP
+  "91": IN
+  "90": TR
+  "380": UA
+  "972": IL
+  "971": AE
+  "65": SG
+  "27": ZA
+# Country names as they appear in schema.org addressCountry when not ISO.
+country_names:
+  germany: DE
+  deutschland: DE
+  austria: AT
+  österreich: AT
+  switzerland: CH
+  schweiz: CH
+  france: FR
+  italy: IT
+  italia: IT
+  spain: ES
+  españa: ES
+  portugal: PT
+  netherlands: NL
+  nederland: NL
+  belgium: BE
+  belgië: BE
+  belgique: BE
+  ireland: IE
+  united kingdom: GB
+  great britain: GB
+  denmark: DK
+  danmark: DK
+  sweden: SE
+  sverige: SE
+  norway: "NO"
+  norge: "NO"
+  finland: FI
+  suomi: FI
+  poland: PL
+  polska: PL
+  czech republic: CZ
+  czechia: CZ
+  česko: CZ
+  slovakia: SK
+  hungary: HU
+  magyarország: HU
+  romania: RO
+  bulgaria: BG
+  greece: GR
+  croatia: HR
+  slovenia: SI
+  lithuania: LT
+  latvia: LV
+  estonia: EE
+  united states: US
+  usa: US
+  canada: CA
+  mexico: MX
+  brazil: BR
+  brasil: BR
+  australia: AU
+  new zealand: NZ
+  japan: JP
+  india: IN
+  turkey: TR
+  türkiye: TR
+  ukraine: UA
+  israel: IL
+  united arab emirates: AE
+  singapore: SG
+  south africa: ZA
