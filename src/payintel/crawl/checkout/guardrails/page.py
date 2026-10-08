@@ -334,12 +334,24 @@ class GuardedPage:
                 url, wait_until="domcontentloaded", timeout=self.action_timeout_ms * 3
             )
         except PlaywrightTimeoutError as exc:
+            # `timeout` / `navigation_error` live under the navigation step of the taxonomy
+            # whatever the walk step; the coverage comes from the furthest step started.
             raise WalkStopped(
-                Stop(step, "timeout", f"navigation timeout: {url}", page_url=url)
+                Stop(
+                    WalkStep.NAVIGATION,
+                    "timeout",
+                    f"navigation timeout during {step.value}: {url}",
+                    page_url=url,
+                )
             ) from exc
         except PlaywrightError as exc:
             raise WalkStopped(
-                Stop(step, "navigation_error", str(exc).splitlines()[0][:300], page_url=url)
+                Stop(
+                    WalkStep.NAVIGATION,
+                    "navigation_error",
+                    f"during {step.value}: {str(exc).splitlines()[0][:280]}",
+                    page_url=url,
+                )
             ) from exc
 
     async def click(

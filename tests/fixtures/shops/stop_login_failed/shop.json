@@ -1,0 +1,6 @@
+{
+  "flavour": "generic",
+  "language": "en",
+  "guest": "none",
+  "stop": "login_failed"
+}

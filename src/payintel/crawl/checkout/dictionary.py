@@ -35,6 +35,13 @@ _LANG_SECTIONS = (
     "payment_words",
     "cart_words",
     "checkout_words",
+    "out_of_stock",
+    "price_on_request",
+    "min_order_value",
+    "email_verification",
+    "sms_verification",
+    "documents_required",
+    "login_wall",
 )
 
 

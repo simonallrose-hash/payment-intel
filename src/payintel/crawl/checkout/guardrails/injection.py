@@ -240,7 +240,8 @@ def route_handler(
             await route.abort("blockedbyclient")
             return
         if request.method.upper() in BLOCKED_METHODS:
-            low = url.lower()
+            parts = urlsplit(url)
+            low = (parts.path + ("?" + parts.query if parts.query else "")).lower()
             if any(m in low for m in markers):
                 stats.blocked_posts.append(url[:300])
                 await route.abort("blockedbyclient")

@@ -1,0 +1,6 @@
+{
+  "flavour": "generic",
+  "language": "en",
+  "stop": "payment_step_not_detected",
+  "multistep": 2
+}

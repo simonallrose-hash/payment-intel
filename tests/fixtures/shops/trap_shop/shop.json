@@ -1,0 +1,7 @@
+{
+  "flavour": "woocommerce",
+  "language": "de",
+  "trap": true,
+  "multistep": 1,
+  "variants": true
+}

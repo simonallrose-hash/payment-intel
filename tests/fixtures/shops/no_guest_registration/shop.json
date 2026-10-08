@@ -1,0 +1,7 @@
+{
+  "flavour": "shopware6",
+  "language": "de",
+  "guest": "none",
+  "registration": "ok",
+  "multistep": 1
+}

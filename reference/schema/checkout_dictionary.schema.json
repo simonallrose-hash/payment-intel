@@ -4,7 +4,9 @@
   "type": "object",
   "required": ["version", "languages", "final_actions", "final_brands", "final_markers", "order_form_markers",
                "step_actions", "add_to_cart", "guest_checkout", "login", "register", "forbidden_consents",
-               "required_consents", "shipping_words", "payment_words", "cart_words", "checkout_words"],
+               "required_consents", "shipping_words", "payment_words", "cart_words", "checkout_words",
+               "out_of_stock", "price_on_request", "min_order_value", "email_verification", "sms_verification",
+               "documents_required", "login_wall"],
   "additionalProperties": false,
   "$defs": {
     "phrases": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 2, "maxLength": 80 } },
@@ -32,6 +34,13 @@
     "shipping_words": { "$ref": "#/$defs/by_language" },
     "payment_words": { "$ref": "#/$defs/by_language" },
     "cart_words": { "$ref": "#/$defs/by_language" },
-    "checkout_words": { "$ref": "#/$defs/by_language" }
+    "checkout_words": { "$ref": "#/$defs/by_language" },
+    "out_of_stock": { "$ref": "#/$defs/by_language" },
+    "price_on_request": { "$ref": "#/$defs/by_language" },
+    "min_order_value": { "$ref": "#/$defs/by_language" },
+    "email_verification": { "$ref": "#/$defs/by_language" },
+    "sms_verification": { "$ref": "#/$defs/by_language" },
+    "documents_required": { "$ref": "#/$defs/by_language" },
+    "login_wall": { "$ref": "#/$defs/by_language" }
   }
 }

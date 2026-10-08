@@ -1,0 +1,6 @@
+{
+  "flavour": "magento2",
+  "language": "en",
+  "guest": "none",
+  "registration": "email_verification"
+}

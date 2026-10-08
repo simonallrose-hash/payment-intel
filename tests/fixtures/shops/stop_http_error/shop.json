@@ -1,0 +1,5 @@
+{
+  "flavour": "generic",
+  "language": "en",
+  "stop": "http_error"
+}
