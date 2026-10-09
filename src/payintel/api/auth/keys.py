@@ -109,6 +109,9 @@ def revoke_key(session: Session, key: ApiKey, *, actor: str, clock: Clock) -> No
         )
 
 
+LAST_USED_GRANULARITY = timedelta(seconds=60)
+
+
 def authenticate(
     session: Session, raw: str, *, pepper: str, prefix: str, now: datetime, ip: str | None
 ) -> Principal:
@@ -125,7 +128,12 @@ def authenticate(
         raise EntitlementDenied(DenialCode.KEY_EXPIRED, "API key expired")
     if not ip_allowed(ip, key.allowed_ips):
         raise EntitlementDenied(DenialCode.IP_NOT_ALLOWED, "caller IP is not allowed for this key")
-    key.last_used_at = now
+    # `last_used_at` is informational (the portal's key list); writing it on every
+    # request would hold the key's row lock for the whole request and serialise a
+    # client's concurrent calls behind its slowest one (NFR-P-03/04). Once a minute
+    # is enough; `usage_log` has the exact timestamps.
+    if key.last_used_at is None or now - key.last_used_at >= LAST_USED_GRANULARITY:
+        key.last_used_at = now
     return Principal(
         kind="api_key",
         org_id=key.org_id,

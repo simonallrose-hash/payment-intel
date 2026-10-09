@@ -318,8 +318,8 @@ def run_job(
         job.rows = len(rows)
         job.file_key = key
         job.status = ExportStatus.DONE
-        job.finished_at = now
-        job.expires_at = now + timedelta(hours=settings.retention.export_link_hours)
+        job.finished_at = clock.now()  # a 1M-row build takes minutes (NFR-P-06)
+        job.expires_at = job.finished_at + timedelta(hours=settings.retention.export_link_hours)
         job.canary_ids = [
             c.id
             for c in session.execute(
