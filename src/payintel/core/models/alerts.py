@@ -56,7 +56,12 @@ class WatchlistItem(Base):
 
 
 class AlertRule(Base):
-    """FR-AL-03: event types, provider, method, minimum confidence."""
+    """FR-AL-03: event types, provider, method, minimum confidence.
+
+    A rule without a watchlist is a segment subscription (FR-AL-05): it fires
+    for every store of the organisation's segment, optionally narrowed to
+    `countries` / `platforms`.
+    """
 
     __tablename__ = "alert_rule"
 
@@ -70,6 +75,20 @@ class AlertRule(Base):
     event_types: Mapped[list[str]] = mapped_column(ARRAY(String(48)), nullable=False)
     provider_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     method_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    countries: Mapped[list[str]] = mapped_column(
+        ARRAY(String(2)),
+        nullable=False,
+        default=list,
+        server_default="{}",
+        comment="Segment rules only: ISO-3166 alpha-2 filter, empty = whole segment",
+    )
+    platforms: Mapped[list[str]] = mapped_column(
+        ARRAY(String(64)),
+        nullable=False,
+        default=list,
+        server_default="{}",
+        comment="Segment rules only: platform_id filter, empty = whole segment",
+    )
     min_confidence: Mapped[str] = mapped_column(
         String(8), nullable=False, default="medium", server_default="medium"
     )
@@ -122,6 +141,11 @@ class Delivery(Base):
             unique=True,
             postgresql_where=text("change_event_id IS NOT NULL"),
         ),
+        Index(
+            "ix_delivery_held_by_alert_id",
+            "held_by_alert_id",
+            postgresql_where=text("held_by_alert_id IS NOT NULL"),
+        ),
     )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
@@ -141,6 +165,12 @@ class Delivery(Base):
     )
     next_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    held_by_alert_id: Mapped[int | None] = mapped_column(
+        BigInteger,
+        ForeignKey("quality_alert.id", ondelete="SET NULL"),
+        nullable=True,
+        comment="FR-QA-04: delivery waits for this anomaly alert to be confirmed",
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=text("now()")
     )

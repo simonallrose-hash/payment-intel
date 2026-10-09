@@ -58,6 +58,7 @@ from payintel.entitlements.check import require_staff
 from payintel.entitlements.model import STAFF_ROLES
 from payintel.exports import service as exports
 from payintel.history.read import read_store
+from payintel.quality import anomalies as anomalies_mod
 from payintel.quality import dashboard as dash_mod
 from payintel.quality import stops as stops_mod
 from payintel.quality.gold import gold_size
@@ -907,6 +908,11 @@ def quality(
             select(QualityAlert).order_by(QualityAlert.detected_at.desc()).limit(50)
         ).scalars()
     )
+    held = {
+        a.id: anomalies_mod.held_count(session, a.id)
+        for a in alerts
+        if a.kind == anomalies_mod.KIND_REMOVED_SPIKE
+    }
     return ui.render(
         request,
         "admin/quality.html",
@@ -914,6 +920,7 @@ def quality(
         dash=dash,
         review=review,
         alerts=alerts,
+        held=held,
         note=note,
         days=days,
         gold=gold_size(session),
@@ -925,22 +932,27 @@ def quality(
 def quality_ack(
     state: StateDep, session: SessionDep, ctx: ui.StaffDep, _csrf: ui.CsrfDep, alert_id: int
 ) -> Response:
-    alert = session.get(QualityAlert, alert_id)
-    if alert is None:
-        raise NotFoundError("alert not found")
-    alert.acknowledged_at = state.clock.now()
-    alert.acknowledged_by = ctx.principal.actor
-    session.flush()
-    audit.record(
-        session,
-        actor=ctx.principal.actor,
-        action="quality_alert.ack",
-        object_type="quality_alert",
-        object_id=str(alert.id),
-        ip=ctx.principal.ip,
-        clock=state.clock,
+    """Acknowledge; for FR-QA-04 spikes this confirms the removals and releases held alerts."""
+    released = anomalies_mod.confirm(
+        session, alert_id, actor=ctx.principal.actor, ip=ctx.principal.ip, clock=state.clock
     )
-    return ui.redirect("/admin/quality", msg="Alert acknowledged.")
+    msg = "Alert acknowledged."
+    if released:
+        msg = f"Alert confirmed; {released} held client alert(s) released."
+    return ui.redirect("/admin/quality", msg=msg)
+
+
+@router.post("/quality/alerts/{alert_id}/discard")
+def quality_discard(
+    state: StateDep, session: SessionDep, ctx: ui.StaffDep, _csrf: ui.CsrfDep, alert_id: int
+) -> Response:
+    """FR-QA-04: the spike was a detection artefact — held client alerts are not sent."""
+    dropped = anomalies_mod.discard(
+        session, alert_id, actor=ctx.principal.actor, ip=ctx.principal.ip, clock=state.clock
+    )
+    return ui.redirect(
+        "/admin/quality", msg=f"Alert discarded; {dropped} held client alert(s) dropped."
+    )
 
 
 # --- opt-out and DSAR (FR-OO-02/03) ---------------------------------------------------------

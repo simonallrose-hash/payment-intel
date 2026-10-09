@@ -11,7 +11,7 @@
 <tr><td>{{ r.id }}</td><td>{{ r.event_types|join(", ") }}</td>
 <td>{% if r.provider_id %}provider {{ r.provider_id }} {% endif %}{% if r.method_id %}method {{ r.method_id }} {% endif %}≥ {{ r.min_confidence }}</td>
 <td>{{ r.channel }}{% if r.webhook_id %} #{{ r.webhook_id }}{% endif %}{% if r.telegram_chat_id %} {{ r.telegram_chat_id }}{% endif %}</td>
-<td>{{ r.digest }}</td><td>{{ r.watchlist_id or "segment" }}</td><td>{{ "yes" if r.enabled else "no" }}</td>
+<td>{{ r.digest }}</td><td>{% if r.watchlist_id %}{{ r.watchlist_id }}{% else %}segment{% if r.countries %} {{ r.countries|join("/") }}{% endif %}{% if r.platforms %} {{ r.platforms|join("/") }}{% endif %}{% endif %}</td><td>{{ "yes" if r.enabled else "no" }}</td>
 <td><form method="post" action="/portal/alerts/rules/{{ r.id }}/toggle" class="inline">{{ csrf(ui) }}<button class="link" type="submit">{{ "disable" if r.enabled else "enable" }}</button></form>
 <form method="post" action="/portal/alerts/rules/{{ r.id }}/delete" class="inline">{{ csrf(ui) }}<button class="link danger" type="submit">delete</button></form></td></tr>
 {% else %}<tr><td colspan="8" class="muted">No rules yet.</td></tr>{% endfor %}
@@ -19,6 +19,8 @@
 <form method="post" action="/portal/alerts/rules" class="card">{{ csrf(ui) }}
 <label>Event types (comma-separated: {{ event_types|join(", ") }}) <input name="event_types" required placeholder="provider_added, provider_removed"></label>
 <label>Watchlist <select name="watchlist_id"><option value="">whole segment</option>{% for w in lists %}<option value="{{ w.id }}">{{ w.name }}</option>{% endfor %}</select></label>
+<label>Countries (segment rules only, optional; your segment: {{ segment_countries|join(", ") }}) <input name="countries" placeholder="DE, AT"></label>
+<label>Platforms (segment rules only, optional; your segment: {{ segment_platforms|join(", ") }}) <input name="platforms" placeholder="shopify"></label>
 <label>Provider (optional) <input name="provider_id"></label>
 <label>Payment method (optional) <input name="method_id"></label>
 <label>Minimum confidence <select name="min_confidence">{% for c in ["low","medium","high"] %}<option value="{{ c }}" {% if c=="medium" %}selected{% endif %}>{{ c }}</option>{% endfor %}</select></label>
@@ -45,7 +47,7 @@
 <h2>Recent deliveries</h2>
 <table class="grid"><thead><tr><th>When</th><th>Rule</th><th>Channel</th><th>Status</th><th>Attempts</th><th>Error</th></tr></thead><tbody>
 {% for d, r in deliveries %}
-<tr><td>{{ d.created_at|dt }}</td><td>#{{ r.id }}</td><td>{{ d.channel }}</td><td>{{ d.status.value }}</td><td>{{ d.attempts }}</td><td class="muted">{{ (d.last_error or "")[:80] }}</td></tr>
+<tr><td>{{ d.created_at|dt }}</td><td>#{{ r.id }}</td><td>{{ d.channel }}</td><td>{{ d.status.value }}{% if d.held_by_alert_id and d.status.value == "pending" and not d.next_attempt_at %} (held for review){% endif %}</td><td>{{ d.attempts }}</td><td class="muted">{{ (d.last_error or "")[:80] }}</td></tr>
 {% else %}<tr><td colspan="6" class="muted">Nothing delivered yet.</td></tr>{% endfor %}
 </tbody></table>
 </div>

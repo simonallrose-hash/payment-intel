@@ -561,6 +561,8 @@ def alerts(request: Request, session: SessionDep, ctx: ui.OrgDep) -> HTMLRespons
         event_types=[e.value for e in ChangeEventType],
         channels=sorted(rules_mod.CHANNELS),
         digests=sorted(rules_mod.DIGESTS),
+        segment_countries=sorted(grant.countries) or ["all"],
+        segment_platforms=sorted(grant.platforms) or ["all"],
     )
 
 
@@ -580,6 +582,8 @@ def rule_create(
     webhook_id: Annotated[str | None, Form()] = None,
     telegram_chat_id: Annotated[str | None, Form()] = None,
     event_types: Annotated[str | None, Form()] = None,
+    countries: Annotated[str | None, Form()] = None,
+    platforms: Annotated[str | None, Form()] = None,
 ) -> Response:
     grant = ui.require_grant(ctx)
     require_role(ctx.principal, Role.ORG_ANALYST)
@@ -597,6 +601,9 @@ def rule_create(
         digest=digest,
         actor=ctx.principal.actor,
         clock=state.clock,
+        countries=ui.parse_list(countries),
+        platforms=ui.parse_list(platforms),
+        grant=grant,
     )
     return ui.redirect("/portal/alerts", msg="Alert rule created.")
 

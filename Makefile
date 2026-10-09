@@ -3,7 +3,7 @@ SHELL := /bin/bash
 UV ?= uv
 COMPOSE_DEV := docker compose -f docker-compose.dev.yml
 
-.PHONY: help install dev dev-down lint typecheck test test-unit test-stage3 eval migrate seed cov check-coverage clean bench-light worker-light api notifier exporter
+.PHONY: help install dev dev-down lint typecheck test test-unit test-stage3 test-stage4 eval migrate seed cov check-coverage clean bench-light worker-light api notifier exporter
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}'
@@ -60,6 +60,9 @@ test-e2e: ## Checkout e2e walks on the shop simulator (set PAYINTEL_TEST_TRAP_RU
 
 test-stage3: ## API, portal, exports, alerts, compliance, reports and OpenAPI contract tests
 	$(UV) run pytest tests/stage3 tests/unit/test_stage3_helpers.py
+
+test-stage4: ## Stage-4 extensions: segment alerts, anomalies, review, verticals, re-detect, anti-abuse
+	$(UV) run pytest tests/stage4
 
 api: ## Run the API + portal + admin against the dev environment (http://127.0.0.1:8000)
 	$(UV) run payintel api serve

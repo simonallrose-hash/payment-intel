@@ -14,12 +14,14 @@ from payintel.alerts.telegram import TelegramClient
 from payintel.core.clock import Clock
 from payintel.core.crypto import SecretBox
 from payintel.core.settings import Settings
+from payintel.quality import anomalies
 
 
 @dataclass(frozen=True)
 class CycleResult:
     matched: matcher.MatchResult
     dispatched: dl.DispatchResult
+    anomalies: int = 0
 
 
 def build_senders(
@@ -61,6 +63,11 @@ def run_cycle(
 ) -> CycleResult:
     session = session_factory()
     try:
+        # FR-QA-04: spikes are detected before matching so the holds apply at once
+        spikes = anomalies.detect(
+            session, now=clock.now(), multiplier=settings.quality.anomaly_removed_multiplier
+        )
+        session.commit()
         matched = matcher.match_new_events(session, settings=settings, clock=clock)
         session.commit()
         dispatched = dl.dispatch(
@@ -77,4 +84,4 @@ def run_cycle(
         raise
     finally:
         session.close()
-    return CycleResult(matched, dispatched)
+    return CycleResult(matched, dispatched, len(spikes))

@@ -33,7 +33,7 @@
 <table class="grid"><thead><tr><th>Detected</th><th>Kind</th><th>Subject</th><th>Message</th><th>Ack</th></tr></thead><tbody>
 {% for a in alerts %}
 <tr><td>{{ a.detected_at|dt }}</td><td>{{ a.kind }}</td><td>{{ a.subject }}</td><td>{{ a.message }}</td>
-<td>{% if a.acknowledged_at %}{{ a.acknowledged_by }} {{ a.acknowledged_at|dt }}{% else %}<form method="post" action="/admin/quality/alerts/{{ a.id }}/ack" class="inline">{{ csrf(ui) }}<button type="submit" class="link">acknowledge</button></form>{% endif %}</td></tr>
+<td>{% if a.acknowledged_at %}{{ a.acknowledged_by }} {{ a.acknowledged_at|dt }}{% else %}<form method="post" action="/admin/quality/alerts/{{ a.id }}/ack" class="inline">{{ csrf(ui) }}<button type="submit" class="link">{{ "confirm" if a.id in held else "acknowledge" }}</button></form>{% if a.id in held %} <form method="post" action="/admin/quality/alerts/{{ a.id }}/discard" class="inline">{{ csrf(ui) }}<button type="submit" class="link danger">discard</button></form> <span class="muted">{{ held[a.id] }} held</span>{% endif %}{% endif %}</td></tr>
 {% else %}<tr><td colspan="5" class="muted">No alerts.</td></tr>{% endfor %}
 </tbody></table>
 {% endblock %}

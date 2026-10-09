@@ -1,8 +1,9 @@
 """Match new change events to alert rules and create deliveries (FR-AL-01…04, AC-09).
 
 A rule fires for an event when:
-* the store's domain is in the rule's watchlist (or in any watchlist of the
-  organisation when the rule has none);
+* the store's domain is in the rule's watchlist, or — for a segment rule
+  without a watchlist (FR-AL-05) — the store is in the rule's `countries` /
+  `platforms` filter (empty = the whole entitlement segment);
 * the event type is in the rule;
 * the provider / method filter (if any) equals the event entity;
 * the entity's current confidence is at least `min_confidence` (for removals
@@ -11,7 +12,10 @@ A rule fires for an event when:
   (lineage guard: opted-out or CZDS-only stores never produce alerts).
 
 Deliveries are idempotent per (rule, event); the cursor table records the
-last processed event id.
+last processed event id. While a `provider_removed_spike` quality alert is
+open for a provider (FR-QA-04), deliveries about that provider are created
+*held* (`held_by_alert_id`, no `next_attempt_at`) and go out only once an
+analyst confirms the alert.
 """
 
 from __future__ import annotations
@@ -35,6 +39,7 @@ from payintel.core.settings import Settings
 from payintel.entitlements.check import EntitlementDenied, resolve_grant
 from payintel.entitlements.lineage_guard import c1_visible_clause
 from payintel.entitlements.segment import in_segment
+from payintel.quality import anomalies
 
 CURSOR_KEY = "alerts.last_change_event_id"
 _RANK = {"low": 1, "medium": 2, "high": 3}
@@ -45,6 +50,7 @@ class MatchResult:
     events_seen: int
     deliveries_created: int
     last_event_id: int
+    deliveries_held: int = 0
 
 
 def _cursor(session: Session) -> int:
@@ -136,12 +142,11 @@ def match_new_events(
     for d, wl_id, org_id in members:
         by_domain.setdefault(d, set()).add((wl_id, org_id))
 
-    created = 0
+    holds = anomalies.open_spike_alerts(session)
+    created = held = 0
     for event, etld1, profile in events:
         lists = by_domain.get(etld1, set())
-        if not lists:
-            continue
-        confidence = _confidence_of(session, event)
+        confidence: str | None = None
         for rule in rules:
             if event.detected_at < rule.created_at:
                 continue  # rules do not replay history that predates them
@@ -150,8 +155,15 @@ def match_new_events(
             if rule.watchlist_id is not None:
                 if (rule.watchlist_id, rule.org_id) not in lists:
                     continue
-            elif rule.org_id not in {org for _, org in lists}:
-                continue
+            else:  # FR-AL-05: segment subscription, optional country/platform narrowing
+                country = (profile.country if profile else None) or ""
+                platform = (profile.platform_id if profile else None) or ""
+                if rule.countries and country.upper() not in rule.countries:
+                    continue
+                if rule.platforms and platform not in rule.platforms:
+                    continue
+            if confidence is None:
+                confidence = _confidence_of(session, event)
             if rule.provider_id and not (
                 event.entity_type == "provider" and event.entity_id == rule.provider_id
             ):
@@ -183,6 +195,7 @@ def match_new_events(
             ).first()
             if exists:
                 continue
+            hold_id = holds.get(event.entity_id) if event.entity_type == "provider" else None
             session.add(
                 Delivery(
                     alert_rule_id=rule.id,
@@ -190,11 +203,13 @@ def match_new_events(
                     channel=rule.channel,
                     payload=payload_for(event, etld1, profile),
                     status=DeliveryStatus.PENDING,
-                    next_attempt_at=now,
+                    next_attempt_at=None if hold_id is not None else now,
+                    held_by_alert_id=hold_id,
                     created_at=now,
                 )
             )
             created += 1
+            held += hold_id is not None
     session.flush()
     _set_cursor(session, max_id, now)
-    return MatchResult(len(events), created, max_id)
+    return MatchResult(len(events), created, max_id, held)

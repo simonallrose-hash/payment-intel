@@ -500,6 +500,24 @@ def quality_stop_alerts() -> None:
     typer.echo(f"{len(created)} new alert(s)")
 
 
+@quality_app.command("anomalies")
+def quality_anomalies() -> None:
+    """FR-QA-04: alert on provider_removed spikes (>3x the 7-day mean per provider)."""
+    from payintel.quality import anomalies as an
+
+    settings = get_settings()
+    with session_scope(get_engine()) as session:
+        created = an.detect(
+            session,
+            now=SYSTEM_CLOCK.now(),
+            multiplier=settings.quality.anomaly_removed_multiplier,
+        )
+        for a in created:
+            typer.echo(f"{a.kind} {a.subject}: {a.message}")
+        open_now = an.open_spike_alerts(session)
+    typer.echo(f"{len(created)} new alert(s), {len(open_now)} provider(s) on hold")
+
+
 # --- stage 2: checkout worker ---------------------------------------------------
 
 
@@ -625,7 +643,8 @@ def alerts_dispatch(
             force_digests=force_digests,
         )
         typer.echo(
-            f"events={r.matched.events_seen} new deliveries={r.matched.deliveries_created}; "
+            f"events={r.matched.events_seen} new deliveries={r.matched.deliveries_created} "
+            f"held={r.matched.deliveries_held} anomalies={r.anomalies}; "
             f"attempted={r.dispatched.attempted} delivered={r.dispatched.delivered} "
             f"failed={r.dispatched.failed}"
         )
