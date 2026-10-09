@@ -36,6 +36,13 @@ from tests.stage3.conftest import World, auth
 pytestmark = pytest.mark.integration
 
 
+def _sample(name: str, labels: dict[str, str]) -> float:
+    from prometheus_client import REGISTRY
+
+    value = REGISTRY.get_sample_value(name, labels)
+    return 0.0 if value is None else float(value)
+
+
 class Receiver:
     """Fake webhook endpoint: records requests, answers with a configurable status."""
 
@@ -156,6 +163,7 @@ def test_psp_change_needs_two_scans_then_signed_webhook(
     )
     assert r.matched.deliveries_created == 0 and receiver.requests == []
     # scan 2: confirmed → provider_added → one delivery → webhook with valid signature
+    before = _sample("payintel_alert_latency_seconds_count", {"channel": "webhook"})
     fixed_clock.advance(days=1)
     _scan(db_session, host.id, ["adyen", "stripe"], fixed_clock.now())
     events = list(
@@ -175,6 +183,10 @@ def test_psp_change_needs_two_scans_then_signed_webhook(
     )
     assert r.matched.deliveries_created == 1 and r.dispatched.delivered == 1
     assert len(receiver.requests) == 1
+    # NFR-P-07: scan → delivery latency observed per channel; nothing left pending
+    assert _sample("payintel_alert_latency_seconds_count", {"channel": "webhook"}) == before + 1
+    assert _sample("payintel_alert_latency_seconds_sum", {"channel": "webhook"}) < 6 * 3600
+    assert _sample("payintel_alert_backlog_age_seconds", {}) == 0.0
     req = receiver.requests[0]
     header = req.headers[app_state.settings.alerts.signature_header]
     assert header.startswith("t=") and ",v1=" in header

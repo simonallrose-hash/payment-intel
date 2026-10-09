@@ -9,21 +9,24 @@ after `retry_delays_hours[attempt-1]`; the fifth failure marks the delivery
 from __future__ import annotations
 
 import json
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any
 
 import httpx
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from payintel.alerts import telegram as tg
 from payintel.alerts import webhook as wh
+from payintel.core import metrics
 from payintel.core.clock import Clock
 from payintel.core.crypto import SecretBox
 from payintel.core.models.alerts import AlertRule, Delivery, Webhook
 from payintel.core.models.base import DeliveryStatus
+from payintel.core.models.scans import ScanRun
+from payintel.core.models.store import ChangeEvent
 from payintel.core.settings import Settings
 
 Sender = Callable[[Delivery, AlertRule], None]
@@ -116,6 +119,7 @@ def dispatch(
 ) -> DispatchResult:
     now = clock.now()
     attempted = delivered = failed = 0
+    done: list[tuple[Delivery, str]] = []
     rows = session.execute(_due_query(now).limit(limit)).all()
     # Group digest deliveries per rule into one message; immediate ones go alone.
     groups: dict[int, list[Delivery]] = {}
@@ -145,6 +149,9 @@ def dispatch(
             except Exception as exc:
                 for d in batch:
                     _schedule_retry(d, str(exc)[:500], now, settings)
+                    metrics.ALERT_DELIVERIES_TOTAL.labels(
+                        rule.channel, "failed" if d.status == DeliveryStatus.FAILED else "retry"
+                    ).inc()
                 failed += len(batch)
             else:
                 for d in batch:
@@ -152,9 +159,51 @@ def dispatch(
                     d.attempts += 1
                     d.delivered_at = now
                     d.last_error = None
+                    metrics.ALERT_DELIVERIES_TOTAL.labels(rule.channel, "delivered").inc()
                 delivered += len(batch)
+                done.extend((d, rule.channel) for d in batch)
     session.flush()
+    observe_latency(session, done, now)
+    observe_backlog(session, now)
     return DispatchResult(attempted, delivered, failed)
+
+
+def scan_to_alert_seconds(
+    session: Session, deliveries: Sequence[Delivery], now: datetime
+) -> dict[int, float]:
+    """Seconds from the scan that produced the event (its `finished_at`, else the
+    event's `detected_at`) to `now`, per delivery id (NFR-P-07)."""
+    ids = [d.id for d in deliveries if d.change_event_id is not None]
+    if not ids:
+        return {}
+    origin = func.coalesce(ScanRun.finished_at, ChangeEvent.detected_at)
+    rows = session.execute(
+        select(Delivery.id, origin)
+        .join(ChangeEvent, ChangeEvent.id == Delivery.change_event_id)
+        .outerjoin(ScanRun, ScanRun.id == ChangeEvent.scan_run_id)
+        .where(Delivery.id.in_(ids))
+    ).all()
+    return {
+        int(delivery_id): max(0.0, (now - started).total_seconds()) for delivery_id, started in rows
+    }
+
+
+def observe_latency(session: Session, done: Sequence[tuple[Delivery, str]], now: datetime) -> None:
+    seconds = scan_to_alert_seconds(session, [d for d, _ in done], now)
+    for d, channel in done:
+        if d.id in seconds:
+            metrics.ALERT_LATENCY_SECONDS.labels(channel).observe(seconds[d.id])
+
+
+def observe_backlog(session: Session, now: datetime) -> None:
+    """Gauge: age of the oldest event still waiting for delivery (0 when none)."""
+    oldest = session.execute(
+        select(func.min(ChangeEvent.detected_at))
+        .join(Delivery, Delivery.change_event_id == ChangeEvent.id)
+        .where(Delivery.status == DeliveryStatus.PENDING)
+    ).scalar_one_or_none()
+    age = max(0.0, (now - oldest).total_seconds()) if oldest is not None else 0.0
+    metrics.ALERT_BACKLOG_AGE_SECONDS.set(age)
 
 
 def _schedule_retry(d: Delivery, error: str, now: datetime, settings: Settings) -> None:

@@ -11,6 +11,7 @@ Middleware: request id (NFR-M-05), security headers (NFR-S-05: CSP without
 
 from __future__ import annotations
 
+import hmac
 import time
 import uuid
 from collections.abc import Awaitable, Callable, MutableMapping
@@ -27,6 +28,7 @@ from payintel.api.deps import AppState, client_ip
 from payintel.api.schemas.common import Problem
 from payintel.api.usage import log_usage
 from payintel.api.v1 import changes, exports, reference, stats, stores, usage, watchlists, webhooks
+from payintel.core import metrics
 from payintel.core.logging import get_logger, log_context
 
 log = get_logger(__name__)
@@ -126,6 +128,16 @@ def create_app(state: AppState) -> FastAPI:
     def healthz() -> dict[str, str]:
         return {"status": "ok"}
 
+    @app.get("/metrics", include_in_schema=False)
+    def metrics_endpoint(request: Request) -> Response:
+        """Prometheus exposition (NFR-P-07), only for the configured scrape token."""
+        token = state.settings.secrets.metrics_token.get_secret_value()
+        presented = request.headers.get("authorization", "")
+        if not token or not hmac.compare_digest(presented, f"Bearer {token}"):
+            return Response(status_code=404)
+        body, content_type = metrics.render()
+        return Response(content=body, media_type=content_type)
+
     @app.middleware("http")
     async def _request_context(
         request: Request, call_next: Callable[[Request], Awaitable[Response]]
@@ -136,7 +148,13 @@ def create_app(state: AppState) -> FastAPI:
         started = time.perf_counter()
         with log_context(request_id=request_id):
             response = await call_next(request)
-        duration_ms = int((time.perf_counter() - started) * 1000)
+        elapsed = time.perf_counter() - started
+        duration_ms = int(elapsed * 1000)
+        route = request.scope.get("route")
+        if request.url.path.startswith("/v1/") and route is not None:
+            metrics.API_REQUEST_SECONDS.labels(
+                getattr(route, "path", request.url.path), request.method, str(response.status_code)
+            ).observe(elapsed)
         if response.status_code == 405:
             response.headers["Allow"] = ", ".join(_allowed_methods(app, request.scope))
         response.headers["X-Request-Id"] = request_id

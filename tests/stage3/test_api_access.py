@@ -340,3 +340,22 @@ def test_usage_journal_rows(client: TestClient, db_session: Session, world: Worl
     usage = client.get("/v1/usage", headers=auth(world.api_key)).json()
     assert usage["day_records"] == 2 and usage["daily_limit"] == 50_000
     assert db_session.execute(select(func.count(UsageLog.id))).scalar_one() >= 3
+
+
+def test_metrics_endpoint_needs_scrape_token_and_counts_requests(
+    client: TestClient, world: World, app_state: AppState
+) -> None:
+    """NFR-P-07: Prometheus exposition behind `secrets.metrics_token`; API latency histogram."""
+    from pydantic import SecretStr
+
+    assert client.get("/metrics").status_code == 404  # no token configured → not there
+    app_state.settings.secrets.metrics_token = SecretStr("scrape-me")
+    assert client.get("/metrics").status_code == 404
+    assert client.get("/metrics", headers={"Authorization": "Bearer wrong"}).status_code == 404
+    client.get("/v1/stores/alpha-shop.de", headers=auth(world.api_key))
+    r = client.get("/metrics", headers={"Authorization": "Bearer scrape-me"})
+    assert r.status_code == 200 and r.headers["content-type"].startswith("text/plain")
+    body = r.text
+    assert 'payintel_api_request_seconds_count{method="GET",route="/v1/stores/{domain}"' in body
+    assert "payintel_alert_latency_seconds" in body and "payintel_alert_backlog_age_seconds" in body
+    assert "pik_" not in body  # never a key or a domain in the exposition

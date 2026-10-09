@@ -67,6 +67,11 @@ class SecretsSettings(BaseModel):
     opensanctions_api_key: SecretStr = Field(
         default=SecretStr(""), description="FR-KYC-03: OpenSanctions API key (commercial licence)."
     )
+    metrics_token: SecretStr = Field(
+        default=SecretStr(""),
+        description="Bearer token Prometheus presents to `GET /metrics`; empty disables the "
+        "endpoint (NFR-P-07).",
+    )
 
 
 class IdentitySettings(BaseModel):
