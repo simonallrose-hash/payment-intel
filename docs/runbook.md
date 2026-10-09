@@ -1,7 +1,7 @@
-# Runbook (этапы 0–1)
+# Runbook (этапы 0–3)
 
-Эксплуатационные процедуры для того, что уже существует. Разделы для
-сканера чекаута, API и алертов добавляются на этапах 2–3.
+Эксплуатационные процедуры для всего, что существует: хранилища, discovery,
+сканеры, API/портал, алерты, экспорты, отчёты, compliance.
 
 ## 1. Серверы и раскладка (AS-17)
 
@@ -9,8 +9,8 @@
 
 | Профиль | Сервер | Сервисы |
 | --- | --- | --- |
-| `app-1` | приложение | Caddy (80/443), Postgres 16, Redis 7, `migrate` (одноразовый), далее api/portal (этап 3) |
-| `crawl-1` | сканер | Unbound, `worker-light` (масштабируется `--scale worker-light=N`), воркер checkout (этап 2) |
+| `app-1` | приложение | Caddy (80/443), Postgres 16, Redis 7, `migrate` (одноразовый), `api` (API + портал + админка), `notifier` (алерты), `exporter` (экспорты, opt-out) |
+| `crawl-1` | сканер | Unbound, `worker-light` (масштабируется `--scale worker-light=N`), `worker-checkout` |
 | `data-1` | данные | ClickHouse 24.8, MinIO |
 
 Запуск на сервере: `docker compose --profile app-1 up -d` (и аналогично для
@@ -209,3 +209,86 @@ payintel TO S3(...)` еженедельно. MinIO: версионировани
    статический HTML) и регрессионный тест в `tests/e2e/test_checkout_walk.py`.
 6. После релиза сканера (`scanner_version`) или правил сравнение «до/после»
    смотрится в `payintel quality stops` (блок `release …`) через 2–3 дня.
+
+## 14. API, портал и админка (FR-API-*, FR-UI-*, FR-ADM-*)
+
+- Сервис `api` (`payintel api serve`, uvicorn, 2 воркера) обслуживает
+  `/v1/*`, `/portal/*`, `/admin/*`, публичные `/bot`, `/optout`, `/dsar`,
+  `/healthz`, `/openapi.json`. Caddy проксирует всё на `api:8000` и ставит
+  `X-Forwarded-For` — по нему считаются IP-списки и аудит.
+- Обязательные секреты: `PAYINTEL_SECRETS__ENCRYPTION_KEY` (TOTP, секреты
+  webhook), `PAYINTEL_SECRETS__API_KEY_PEPPER`; при их смене старые ключи и
+  TOTP перестают работать — ротация только с перевыпуском.
+- Первый staff-пользователь: `payintel users create --email … --staff
+  --role staff_admin` (пароль запрашивается, TOTP включается при первом
+  входе). Остальных создаёт `staff_admin` в `/admin/users`.
+- Организация: `/admin/orgs` → создать → досье KYC (цель, бенефициары с
+  долями, документы в S3, санкции, видеозвонок) → решение `approved` →
+  статус `approved` → контракт (номер, продукт, срок, цели, файл) →
+  entitlement (профиль, страны/платформы, лимиты, IP) → статус `active`.
+  Без одобренного досье переход в `approved`/`active` невозможен (409).
+  То же из CLI: `payintel orgs create`, `payintel keys issue`.
+- Ключи API выдаёт `org_admin` в `/portal/keys` (или `payintel keys issue
+  --org <id>`); ключ виден один раз. Отзыв — там же, действует сразу.
+- Блокировка входа: 10 неудач → 15 минут; `staff_admin` может сбросить
+  пароль в `/admin/users`. Сессии — 12 ч без активности, выход отзывает.
+- Диагностика: каждый ответ несёт `X-Request-Id`; логи structlog с ним же;
+  `usage_log` — что и сколько отдал клиенту; `audit_log` — все действия
+  staff и клиентов в портале (`/admin/audit?verify=1` проверяет хэш-цепочку,
+  `payintel audit verify` — то же из CLI).
+- Правила детекции: `/admin/rules` — список текущих версий, правка создаёт
+  новую версию, предпросмотр на gold set до сохранения, выключение —
+  версия с `enabled=false`; воркеры подхватывают при перезапуске
+  (`docker compose restart worker-light worker-checkout`). ADR-0020.
+- Feature flags: `/admin/flags` (только `staff_admin`), `feature_c2_enabled`
+  остаётся выключенным.
+
+## 15. Алерты (FR-AL-*)
+
+- Сервис `notifier` = `payintel alerts dispatch` каждые 30 с: матчинг новых
+  `change_event` по правилам → `alert_delivery` → отправка (webhook с
+  подписью, Telegram). Ретраи 1/3/7/13 ч, после 5 неудач `failed`.
+- Неисправный webhook клиента виден в `/portal/alerts` (последняя ошибка,
+  попытки); перевыпуск секрета — удалить и создать webhook заново.
+- Дайджесты уходят в `alerts.digest_hour_utc` (07:00 UTC); вручную —
+  `payintel alerts dispatch --once --force-digests`.
+- Telegram: токен бота в `PAYINTEL_SECRETS__TELEGRAM_BOT_TOKEN`; клиент
+  указывает chat id в правиле. Egress только на `api.telegram.org` и URL
+  webhook клиента (приватные адреса запрещены).
+
+## 16. Экспорты и отчёты (FR-EX-*, FR-RP-*)
+
+- Сервис `exporter` = `payintel exports run` раз в 60 с: ставит
+  периодические экспорты по `export_schedule`, строит `pending` задания в
+  S3 (`exports/<org>/<job>.<fmt>`), ссылки на 72 ч. Полные снимки ждут
+  одобрения в `/admin/exports` (`staff_compliance`).
+- Утечка файла: по метаданным или порядку строк →
+  `payintel exports identify <файл>` не входит в этап 3; используйте
+  `exports.watermark.order_matches` из Python-сессии с `watermark_id`
+  кандидатов из `export_job`. Канареечные домены — таблица `canary`:
+  DNS/HTTP-обращение к `c-*.<canary zone>` указывает на экспорт.
+- Отчёты C (XLSX + CSV zip, лист «Методология»): `/admin/reports`
+  (`staff_analyst`) или `payintel report build --country DE --out ./out`.
+  Ячейки < 30 магазинов скрываются, редкие провайдеры → `other`; сводка
+  `min_published` в задании должна быть ≥ 30. Клиент получает отчёт в
+  `/portal/reports`, если задание привязано к его организации.
+
+## 17. Opt-out и DSAR (FR-OO-*, FR-DS-09, LR-06)
+
+- Владелец домена подаёт заявку на `/optout`, получает токен и публикует
+  `payintel-optout=<token>` как TXT у apex или в
+  `https://<домен>/.well-known/payintel-optout.txt`.
+- `payintel optout verify-pending` (в `exporter`, раз в час) проверяет
+  доказательства; при успехе домен сразу исчезает из API/экспортов
+  (lineage guard) и `apply` снимает планы сканирования (в пределах 72 ч,
+  FR-OO-02). Ручное подтверждение (письмо): `/admin/optout`.
+- DSAR (`/dsar`) создаёт заявку; `staff_compliance` берёт и закрывает её в
+  `/admin/dsar` в срок 30 дней; `payintel dsar list` для контроля.
+
+## 18. Бэкапы и восстановление ключей
+
+К п. 7 добавляются таблицы `portal_session`, `api_key`, `export_job`,
+`canary`, `audit_log` (цепочка хэшей проверяется после восстановления:
+`payintel audit verify`). Файлы экспортов и отчётов — в бакете
+`PAYINTEL_S3__BUCKET_EXPORTS`, KYC-документы и контракты — там же под
+`kyc/` и `contracts/`.

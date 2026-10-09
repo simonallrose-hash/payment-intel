@@ -17,3 +17,8 @@
 - [ADR-0013](0013-checkout-guardrails-architecture.md) — Архитектура guardrails чекаута (FR-CW-04, AC-04)
 - [ADR-0014](0014-checkout-walk-decisions.md) — Решения по проходу до чекаута (FR-CW-02…14)
 - [ADR-0015](0015-checkout-state-and-change-detection.md) — Текущее состояние по чекауту и детекция изменений (FR-DT-05/06/11, FR-HI-02…04)
+- [ADR-0016](0016-api-entitlements-and-suppression.md) — API /v1: entitlements, сегменты, 403 vs 404, подавление малых ячеек
+- [ADR-0017](0017-portal-security.md) — Портал и админка: серверные сессии, CSP без inline, без HTMX/Tailwind с CDN
+- [ADR-0018](0018-exports-watermark-canaries.md) — Экспорты: водяной знак, канарейки, лимиты и формат
+- [ADR-0019](0019-alerts-delivery.md) — Алерты: доставка, подпись, ретраи, дайджесты
+- [ADR-0020](0020-admin-rule-versions-and-preview.md) — Правила детекции в админке: версии, наложение, предпросмотр

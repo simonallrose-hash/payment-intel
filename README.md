@@ -72,11 +72,14 @@ make bench-light                                             # NFR-P-01 на л�
 | `make worker-light` / `make worker-checkout` | цикл лёгкого сканера / сканера чекаута против dev-окружения |
 | `make test-e2e` | e2e-проходы Chromium по симулятору магазинов (`PAYINTEL_TEST_TRAP_RUNS=1000` для AC-04) |
 | `make bench-light` | нагрузочный прогон NFR-P-01 (`BENCH_DOMAINS`, `BENCH_CONCURRENCY`), не в CI |
+| `make api` | API + портал + админка на http://127.0.0.1:8000 против dev-окружения |
+| `make notifier` / `make exporter` | один цикл алертов / экспортов (`--once`) против dev-окружения |
+| `make test-stage3` | тесты API, портала, экспортов, алертов, compliance, отчётов и контракта OpenAPI |
 
 ## Структура
 
 ```text
-alembic/            миграции Postgres (0001 схема, 0002 discovery/DNS/JS-ассеты, 0003 хосты чекаута/алерты качества)
+alembic/            миграции Postgres (0001 схема … 0005 отчёты по организациям)
 clickhouse/         нумерованные идемпотентные SQL-миграции ClickHouse (раздел 5.2 ТЗ)
 docker/             Dockerfile приложения, конфиги Unbound и Caddy
 docs/               runbook, methodology, api, capacity, adr/, legal/
@@ -93,9 +96,19 @@ src/payintel/
   history/          буфер наблюдений ClickHouse, материализация store_*, differ «два подряд», read (FR-HI-*)
   quality/          gold set, импорт находок, eval, дашборд (FR-QA-03), разбор стопов (FR-QA-06)
   c2/               пустой пакет фазы 2, импорт только при feature_c2_enabled
-  api/ entitlements/ exports/ alerts/ reports/ compliance/   пакеты этапов 2–3 (пока без кода)
+  entitlements/     Principal/Grant, resolve_grant, сегменты, lineage guard, rate limit и квоты (FR-API-06/07)
+  api/              FastAPI: v1/ (stores, changes, stats, watchlists, webhooks, exports, usage), auth/ (ключи,
+                    пароли argon2id, TOTP, сессии, CSRF), schemas/ (c1_basic, c1_full, internal), portal/, admin/,
+                    public/ (bot, optout, dsar), templates/ (Jinja2), static/app.css, problems (RFC 9457)
+  compliance/       KYC-досье и решения, жизненный цикл организации, контракты/entitlements, opt-out, DSAR
+  exports/          задания, builder (Parquet/CSV/агрегаты), watermark, canary, worker (FR-EX-*)
+  alerts/           watchlists, правила, matcher, webhook (HMAC) и telegram, delivery с ретраями, worker (FR-AL-*)
+  reports/          агрегаты с подавлением ячеек, Уилсон, XLSX/CSV с листом методологии (FR-RP-*)
+  detect/admin.py   версии правил из админки, overlay на YAML, предпросмотр на gold set (FR-ADM-02)
+  c2/               пустой пакет фазы 2, импорт только при feature_c2_enabled
 scripts/            check_coverage.py, bench_light.py (NFR-P-01)
-tests/              unit/ (без контейнеров), integration/ (testcontainers), e2e/ (Chromium + симулятор магазинов)
+tests/              unit/ (без контейнеров), integration/ (testcontainers), e2e/ (Chromium + симулятор магазинов),
+                    stage3/ (API, портал, экспорты, алерты, compliance, отчёты, контракт OpenAPI)
 tests/fixtures/shops/   37 конфигураций симулятора: адаптеры, ловушка, блокировки, каждый stop_step
 ```
 
@@ -125,6 +138,10 @@ tests/fixtures/shops/   37 конфигураций симулятора: ада
   на него через перехват `context.route`, DNS не нужен). Конфигурации в
   `tests/fixtures/shops/*/shop.json`. Магазин-ловушка: `PAYINTEL_TEST_TRAP_RUNS` (100 по
   умолчанию, 1000 для AC-04), `PAYINTEL_TEST_TRAP_CONCURRENCY` (8).
+- `tests/stage3` — приложение FastAPI поднимается в транзакции теста (TestClient, без сети);
+  TOTP проходится `pyotp` по виртуальным часам, webhook-получатель — `httpx.MockTransport`,
+  DNS/HTTP-доказательства opt-out — фейки. Контрактные тесты — schemathesis по `/openapi.json`
+  (derandomize, без интернета).
 - Время — через `core/clock.py` (`FixedClock` в тестах), случайность не используется.
 
 ## Правила безопасности (неизменяемые)
@@ -135,12 +152,16 @@ tests/fixtures/shops/   37 конфигураций симулятора: ада
 `reference/test_payment_values.yaml` (ADR-0003) и только когда шаг оплаты не
 раскрыл способы сам; каждое действие прохода идёт через `GuardedPage`
 (ADR-0013), проверено на магазине-ловушке ×1 000 (AC-04). Поля C1 (AS-23) не
-попадают в клиентские ответы и выгрузки. Подробно: `docs/methodology.md`,
-`docs/adr/`.
+попадают в клиентские ответы и выгрузки (отдельные схемы на профиль, AC-07).
+Клиентский доступ: только по одобренному KYC и контракту в сроке, ключи
+показываются один раз (HMAC + pepper в БД), обязательный TOTP, CSP без
+inline, CSRF, lockout; экспорты с водяным знаком и канарейками; агрегаты
+только по ячейкам ≥ 30 магазинов. Подробно: `docs/methodology.md`,
+`docs/api.md`, `docs/adr/`.
 
 ## Документация
 
 `docs/runbook.md` (эксплуатация), `docs/methodology.md` (как считаются
-находки и качество), `docs/api.md` (контракт API, этап 3), `docs/capacity.md`
+находки и качество), `docs/api.md` (контракт API), `docs/capacity.md`
 (ёмкость и серверы), `docs/adr/` (решения по неясностям ТЗ), `docs/legal/`
 (каркасы LIA и RoPA для юриста).
