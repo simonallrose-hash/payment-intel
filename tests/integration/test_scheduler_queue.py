@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 from datetime import timedelta
 
 import pytest
@@ -21,6 +20,7 @@ from payintel.discovery.sources import SourceRecord
 from payintel.scheduler import planner, queue
 from payintel.scheduler.politeness import RedisRateLimiter
 from payintel.scheduler.priority import MANUAL_PRIORITY
+from tests.aio import run_sync
 from tests.conftest import FIXED_NOW
 
 pytestmark = pytest.mark.integration
@@ -221,6 +221,6 @@ def test_redis_rate_limiter(redis_url: str) -> None:
         await r.aclose()
         return waits, a, b, c
 
-    waits, a, b, c = asyncio.run(run())
+    waits, a, b, c = run_sync(run())
     assert waits[0] == 0.0 and 0.9 < waits[1] <= 1.0 and 1.9 < waits[2] <= 2.0
     assert (a, b, c) == (True, False, True)

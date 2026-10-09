@@ -13,12 +13,14 @@ developer with `make dev` running) through:
 
 from __future__ import annotations
 
+import asyncio
 import os
 from collections.abc import Iterator
 from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
+import pytest_asyncio
 from alembic import command as alembic_command
 from alembic.config import Config as AlembicConfig
 from clickhouse_connect.driver.client import Client
@@ -37,6 +39,25 @@ CH_IMAGE = os.environ.get("PAYINTEL_TEST_CH_IMAGE", "clickhouse/clickhouse-serve
 S3_IMAGE = os.environ.get("PAYINTEL_TEST_S3_IMAGE", "minio/minio:RELEASE.2024-12-18T13-15-44Z")
 
 FIXED_NOW = datetime(2026, 10, 8, 12, 0, 0, tzinfo=UTC)
+
+
+@pytest_asyncio.fixture(scope="session", loop_scope="session", autouse=True)
+async def session_loop() -> asyncio.AbstractEventLoop:
+    """The pytest-asyncio session loop shared by the browser tests."""
+    return asyncio.get_running_loop()
+
+
+@pytest.fixture(autouse=True)
+def _restore_session_loop(session_loop: asyncio.AbstractEventLoop) -> Iterator[None]:
+    """Keep the session loop current.
+
+    ``asyncio.run`` (used by the CLI commands under test) clears the current
+    event loop on exit; without this, every ``loop_scope="session"`` test that
+    runs after such a test fails with "There is no current event loop".
+    """
+    if not session_loop.is_closed():
+        asyncio.set_event_loop(session_loop)
+    yield
 
 
 @pytest.fixture

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -19,6 +18,7 @@ from payintel.scheduler.priority import (
     rank_score,
     staleness,
 )
+from tests.aio import run_sync
 
 S = ScanSettings()
 
@@ -85,7 +85,7 @@ def test_memory_rate_limiter_token_bucket() -> None:
         waits.append(await lim.acquire(ip_key("192.0.2.1"), rate=5.0, burst=5))
         return waits
 
-    waits = asyncio.run(run())
+    waits = run_sync(run())
     assert waits[0] == 0.0 and waits[1] == pytest.approx(1.0) and waits[2] == pytest.approx(2.0)
     assert waits[3] == 0.0  # bucket paid its debt back after 3 s at 1 rps
     assert waits[4] == 0.0
@@ -101,4 +101,4 @@ def test_memory_slots_per_etld1() -> None:
         c = await lim.take_slot(etld1_key("brand.de"), 1, 60)
         return a, b, c
 
-    assert asyncio.run(run()) == (True, False, True)
+    assert run_sync(run()) == (True, False, True)

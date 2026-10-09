@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
-
 import pytest
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -14,6 +12,7 @@ from payintel.core.models.domains import Domain, Host
 from payintel.discovery.dns import DnsRecord, StaticResolver, hosts_due, resolve_hosts
 from payintel.discovery.ingest import ingest
 from payintel.discovery.sources import SourceRecord
+from tests.aio import run_sync
 
 pytestmark = pytest.mark.integration
 
@@ -48,7 +47,7 @@ def test_resolve_marks_statuses(db_session: Session, fixed_clock: FixedClock) ->
     )
     due = hosts_due(db_session, clock=fixed_clock, recheck_days=30, limit=100)
     assert len(due) == 5
-    result = asyncio.run(resolve_hosts(db_session, due, resolver, clock=fixed_clock))
+    result = run_sync(resolve_hosts(db_session, due, resolver, clock=fixed_clock))
     assert (result.checked, result.ok, result.no_dns, result.errors, result.parked) == (
         5,
         3,
@@ -78,6 +77,6 @@ def test_resolve_marks_statuses(db_session: Session, fixed_clock: FixedClock) ->
     # recovery: dead.de now resolves → back to candidate
     resolver.records["dead.de"] = DnsRecord("dead.de", a=("192.0.2.30",))
     dead = db_session.execute(select(Host).where(Host.hostname == "dead.de")).scalar_one()
-    asyncio.run(resolve_hosts(db_session, [dead], resolver, clock=fixed_clock))
+    run_sync(resolve_hosts(db_session, [dead], resolver, clock=fixed_clock))
     d = db_session.execute(select(Domain).where(Domain.etld1 == "dead.de")).scalar_one()
     assert d.status == DomainStatus.CANDIDATE and d.status_reason == "dns_recovered"

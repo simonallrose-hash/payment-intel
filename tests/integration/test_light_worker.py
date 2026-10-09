@@ -9,7 +9,6 @@ sleeping.
 
 from __future__ import annotations
 
-import asyncio
 import gzip
 import json
 import threading
@@ -49,6 +48,7 @@ from payintel.discovery.ingest import ingest
 from payintel.discovery.sources import SourceRecord
 from payintel.scheduler import planner, queue
 from payintel.scheduler.politeness import MemoryRateLimiter
+from tests.aio import run_sync
 from tests.conftest import alembic_config_for
 
 pytestmark = pytest.mark.integration
@@ -218,7 +218,7 @@ def scanner(
         base_scheme="http",
     )
     yield LightScanner(ctx), vt
-    asyncio.run(ctx.fetcher.aclose())
+    run_sync(ctx.fetcher.aclose())
 
 
 def _plan_for(session: Session, clock: FixedClock, hostname: str) -> ScanPlan:
@@ -243,7 +243,7 @@ def _plan_for(session: Session, clock: FixedClock, hostname: str) -> ScanPlan:
 
 
 def _scan(scanner: LightScanner, session: Session, plan: ScanPlan) -> LightScanOutcome:
-    return asyncio.run(scanner.scan(session, plan))
+    return run_sync(scanner.scan(session, plan))
 
 
 def test_woocommerce_shop_full_slice(
@@ -376,7 +376,7 @@ def test_artifacts_are_sanitised(
             LightScanner(ctx), db_session, _plan_for(db_session, fixed_clock, "pii-shop.com")
         )
     finally:
-        asyncio.run(ctx.fetcher.aclose())
+        run_sync(ctx.fetcher.aclose())
     assert out.status == ScanStatus.OK
     bucket = settings.s3.bucket_artifacts
     manifest = json.loads(object_store.get_bytes(bucket, f"{out.artifact_prefix}manifest.json"))
@@ -437,7 +437,7 @@ def test_errors_blocked_timeout_and_egress(
             LightScanner(prod_ctx), db_session, _plan_for(db_session, fixed_clock, "bounce.de")
         )
     finally:
-        asyncio.run(prod_ctx.fetcher.aclose())
+        run_sync(prod_ctx.fetcher.aclose())
     assert out.status == ScanStatus.ERROR and out.stop_reason is not None
     assert out.stop_reason.startswith("egress_blocked")
     assert ("bounce.de", "/") in shop_server.requests
@@ -480,7 +480,7 @@ def test_run_batch_commits_and_flushes_to_clickhouse(
             )
             planner.ensure_plans(setup, ScanType.LIGHT, s=Settings().scan, clock=fixed_clock)
             setup.commit()
-        outcomes = asyncio.run(run_batch(factory, LightScanner(ctx), limit=10, concurrency=3))
+        outcomes = run_sync(run_batch(factory, LightScanner(ctx), limit=10, concurrency=3))
         assert {o.etld1: o.status for o in outcomes} == {
             "woo-shop.de": ScanStatus.OK,
             "parked.de": ScanStatus.OK,
@@ -502,5 +502,5 @@ def test_run_batch_commits_and_flushes_to_clickhouse(
             plans = check.execute(select(ScanPlan).join(Host).where(Host.hostname.in_(names)))
             assert all(p.locked_until is None for p in plans.scalars().all())
     finally:
-        asyncio.run(ctx.fetcher.aclose())
+        run_sync(ctx.fetcher.aclose())
         engine.dispose()

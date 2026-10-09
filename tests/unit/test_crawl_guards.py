@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 from pathlib import Path
 
 import pytest
@@ -10,6 +9,7 @@ import pytest
 from payintel.crawl.egress import EgressBlocked, EgressGuard, is_forbidden_ip
 from payintel.crawl.light.robots import agent_token, parse_robots
 from payintel.crawl.sanitize import EMAIL_MASK, PHONE_MASK, sanitize_headers, sanitize_text
+from tests.aio import run_sync
 
 SHOPS = Path(__file__).resolve().parents[1] / "fixtures" / "shops"
 
@@ -73,9 +73,9 @@ def test_guard_blocks_private_resolution_and_bad_schemes() -> None:
             with pytest.raises(EgressBlocked):
                 await guard.check(bad)
 
-    asyncio.run(run())
+    run_sync(run())
     lab = EgressGuard(resolve, allow_private=True)
-    assert asyncio.run(lab.check("http://127.0.0.1:8765/")).addresses == ("127.0.0.1",)
+    assert run_sync(lab.check("http://127.0.0.1:8765/")).addresses == ("127.0.0.1",)
 
 
 def test_sanitize_removes_pii_and_keeps_numbers() -> None:
