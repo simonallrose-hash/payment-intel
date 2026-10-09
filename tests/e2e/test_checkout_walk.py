@@ -24,6 +24,7 @@ PLATFORM_OF = {
     "magento2": "magento2",
     "shopware6": "shopware6",
     "prestashop": "prestashop",
+    "shopify": "shopify",
     "generic": None,
 }
 TRAP_RUNS = int(os.environ.get("PAYINTEL_TEST_TRAP_RUNS", "100"))  # AC-04 run: 1000
@@ -68,7 +69,9 @@ def _assert_clean(sim: SimServer, shop: str, r: WalkResult) -> None:
 
 
 @pytest.mark.asyncio(loop_scope="session")
-@pytest.mark.parametrize("shop", ["woo-de", "magento-en", "shopware-de", "presta-fr", "generic-en"])
+@pytest.mark.parametrize(
+    "shop", ["woo-de", "magento-en", "shopware-de", "presta-fr", "shopify-de", "generic-en"]
+)
 async def test_each_adapter_reaches_the_payment_step(
     browser_pool: BrowserPool, sim: SimServer, shop: str
 ) -> None:

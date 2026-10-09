@@ -6,7 +6,7 @@ Two kinds of fixtures live here:
   `tests/integration/test_light_worker.py` for the light scanner (stage 1);
 - directories with a `shop.json` served by the checkout simulator
   `tests/e2e/shopsim.py` (stage 2). The JSON selects the markup *flavour*
-  (`woocommerce`, `magento2`, `shopware6`, `prestashop`, `generic`) and the
+  (`woocommerce`, `magento2`, `shopware6`, `prestashop`, `shopify`, `generic`) and the
   behaviours: `trap` (order decoys on every page), `multistep`, `guest`
   (`available` | `wall_with_guest` | `none` | `none_closed`), `registration`
   (`ok` | `email_verification` | `captcha` | `sms` | `documents` | `payment`),

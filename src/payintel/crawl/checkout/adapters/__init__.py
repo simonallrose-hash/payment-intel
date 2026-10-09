@@ -5,10 +5,11 @@ from __future__ import annotations
 from payintel.crawl.checkout.adapters.base import HEURISTIC, AdapterHints, merged
 from payintel.crawl.checkout.adapters.magento2 import MAGENTO2
 from payintel.crawl.checkout.adapters.prestashop import PRESTASHOP
+from payintel.crawl.checkout.adapters.shopify import SHOPIFY
 from payintel.crawl.checkout.adapters.shopware6 import SHOPWARE6
 from payintel.crawl.checkout.adapters.woocommerce import WOOCOMMERCE
 
-ADAPTERS: tuple[AdapterHints, ...] = (WOOCOMMERCE, MAGENTO2, SHOPWARE6, PRESTASHOP)
+ADAPTERS: tuple[AdapterHints, ...] = (WOOCOMMERCE, MAGENTO2, SHOPWARE6, PRESTASHOP, SHOPIFY)
 
 
 def adapter_for(platform_id: str | None) -> AdapterHints:
