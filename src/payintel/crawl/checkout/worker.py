@@ -192,6 +192,7 @@ class _Lease:
     profile_country: str | None
     profile_platform: str | None
     on_watchlist: bool
+    trace: bool = False  # FR-QA-06: record a Playwright trace of this walk
 
 
 class CheckoutScanner:
@@ -242,6 +243,7 @@ class CheckoutScanner:
             profile_country=profile.country if profile else None,
             profile_platform=profile.platform_id if profile else None,
             on_watchlist=on_watchlist,
+            trace=plan.trace_requested,
         )
 
     # --- entry points -------------------------------------------------------------------
@@ -341,6 +343,7 @@ class CheckoutScanner:
             platform_detect=self._platform_from_homepage,
             proxy=geo.proxy.as_playwright() if geo.proxy else None,
             geo=geo.as_log(),
+            trace=lease.trace,
         )
         async with self._lock_for(etld1):
             walk = await self.ctx.walker.walk(inp)
@@ -492,6 +495,7 @@ class CheckoutScanner:
                     worker_id=self.ctx.worker_id,
                     ruleset_version=self.ctx.ruleset.version,
                     artifact_prefix=o.artifact_prefix,
+                    trace_key=trace_key_for(o),
                 )
             )
             session.flush()
@@ -644,6 +648,10 @@ class CheckoutScanner:
                 if walk.dom:
                     w.put_html(dom_key, walk.dom)
                     manifest["stop_dom_key"] = dom_key
+        trace_key = trace_key_for(o)
+        if trace_key is not None and o.walk is not None and o.walk.trace:
+            w.put_bytes(trace_key, o.walk.trace, content_type="application/zip")
+            manifest["trace_key"] = trace_key
         w.put_json(f"{prefix}manifest.json", manifest)
 
     # --- observations (5.2) ---------------------------------------------------------------------
@@ -900,6 +908,8 @@ class CheckoutScanner:
         now: datetime,
     ) -> None:
         s = self.ctx.settings.scan
+        plan.trace_requested = False  # a manual re-run (FR-QA-06) is consumed by this scan
+        plan.requested_by = None
         cycle = interval_for(ScanType.CHECKOUT, domain.status, on_watchlist=lease.on_watchlist, s=s)
         if o.status == ScanStatus.BLOCKED:
             queue.complete(
@@ -922,6 +932,13 @@ class CheckoutScanner:
         else:
             queue.complete(session, plan, next_scan_at=now + cycle, clock=self.ctx.clock)
             plan.last_error = None
+
+
+def trace_key_for(o: CheckoutOutcome) -> str | None:
+    """Artefact key of the Playwright trace, when the walk recorded one (FR-QA-06)."""
+    if o.walk is None or not o.walk.trace:
+        return None
+    return f"{o.artifact_prefix}trace.zip"
 
 
 def scrub_har(raw: bytes) -> bytes | None:

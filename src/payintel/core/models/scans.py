@@ -59,6 +59,16 @@ class ScanPlan(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=text("now()")
     )
+    trace_requested: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default=text("false"),
+        comment="FR-QA-06: record a Playwright trace on the next checkout walk",
+    )
+    requested_by: Mapped[str | None] = mapped_column(
+        String(128), nullable=True, comment="Actor of the manual re-run request"
+    )
 
 
 class ScanRun(Base):
@@ -94,6 +104,9 @@ class ScanRun(Base):
     worker_id: Mapped[str] = mapped_column(String(128), nullable=False)
     ruleset_version: Mapped[str] = mapped_column(String(64), nullable=False)
     artifact_prefix: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    trace_key: Mapped[str | None] = mapped_column(
+        String(512), nullable=True, comment="FR-QA-06: Playwright trace zip in the artefact bucket"
+    )
 
 
 class StoreAccount(Base):

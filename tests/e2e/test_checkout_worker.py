@@ -270,6 +270,42 @@ async def test_reached_payment_step_persists_everything(
 
 
 @pytest.mark.asyncio(loop_scope="session")
+async def test_requested_trace_is_recorded_once_and_stored(
+    db_session: Session,
+    fixed_clock: FixedClock,
+    scanner: CheckoutScanner,
+    sim: SimServer,
+    object_store: ObjectStore,
+    s3_settings: S3Settings,
+) -> None:
+    """FR-QA-06: a manual re-run with `trace_requested` stores trace.zip and clears the flag."""
+    sim.reset("shopify-de")
+    _prepare(db_session, fixed_clock, ["shopify-de.de"])
+    host = db_session.execute(select(Host).where(Host.hostname == "shopify-de.de")).scalar_one()
+    plan = db_session.execute(
+        select(ScanPlan).where(ScanPlan.host_id == host.id, ScanPlan.scan_type == ScanType.CHECKOUT)
+    ).scalar_one()
+    plan.trace_requested = True
+    plan.requested_by = "analyst@payintel.test"
+    db_session.flush()
+    plan = _lease(db_session, fixed_clock, "shopify-de.de")
+    out = await _scan(scanner, db_session, plan)
+    assert out.status == ScanStatus.REACHED_PAYMENT_STEP and out.walk is not None
+    assert out.walk.trace is not None and out.walk.trace.startswith(b"PK")
+    assert any(e["kind"] == "trace" for e in out.walk.journal.as_list())
+    run = db_session.get(ScanRun, out.scan_run_id)
+    assert run is not None and run.trace_key == f"{out.artifact_prefix}trace.zip"
+    keys = _keys(object_store, s3_settings.bucket_artifacts, out.artifact_prefix)
+    assert run.trace_key in keys
+    manifest = json.loads(
+        object_store.get_bytes(s3_settings.bucket_artifacts, f"{out.artifact_prefix}manifest.json")
+    )
+    assert manifest["trace_key"] == run.trace_key
+    db_session.refresh(plan)
+    assert plan.trace_requested is False and plan.requested_by is None
+
+
+@pytest.mark.asyncio(loop_scope="session")
 async def test_two_scans_confirm_state_and_emit_events(
     db_session: Session, fixed_clock: FixedClock, scanner: CheckoutScanner, sim: SimServer
 ) -> None:

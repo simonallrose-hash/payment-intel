@@ -206,8 +206,13 @@ def prioritize_manual(
     actor: str,
     s: ScanSettings,
     clock: Clock = SYSTEM_CLOCK,
+    trace: bool = False,
 ) -> int:
-    """FR-SC-07: put the domains' hosts at the front of the queue, audited."""
+    """FR-SC-07: put the domains' hosts at the front of the queue, audited.
+
+    With `trace=True` (checkout only, FR-QA-06) the next walk records a Playwright
+    trace that the admin domain page offers for download once the run is stored.
+    """
     now = clock.now()
     wanted = [e.lower() for e in etld1s]
     pairs = session.execute(
@@ -235,6 +240,11 @@ def prioritize_manual(
         plan.next_scan_at = now
         plan.fail_count = 0
         plan.updated_at = now
+        plan.locked_until = None  # a stale lease must not delay the manual run
+        plan.locked_by = None
+        if trace and scan_type == ScanType.CHECKOUT:
+            plan.trace_requested = True
+        plan.requested_by = actor
         audit.record(
             session,
             actor=actor,
@@ -242,7 +252,11 @@ def prioritize_manual(
             object_type="host",
             object_id=host.hostname,
             before=before,
-            after={"priority": MANUAL_PRIORITY, "scan_type": scan_type.value},
+            after={
+                "priority": MANUAL_PRIORITY,
+                "scan_type": scan_type.value,
+                "trace": bool(plan.trace_requested),
+            },
             clock=clock,
         )
         count += 1

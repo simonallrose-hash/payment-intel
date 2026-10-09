@@ -403,14 +403,23 @@ def scheduler_prioritize(
     domains: Annotated[list[str], typer.Argument(help="eTLD+1 names")],
     scan_type: Annotated[str, typer.Option(help="light | checkout")] = "light",
     actor: Annotated[str, typer.Option(help="Audited actor")] = "cli",
+    trace: Annotated[
+        bool, typer.Option("--trace", help="checkout: record a Playwright trace (FR-QA-06)")
+    ] = False,
 ) -> None:
     """Move the domains to the front of the queue (FR-SC-07, audited)."""
     settings = get_settings()
     with session_scope(get_engine()) as session:
         n = planner.prioritize_manual(
-            session, domains, scan_type=ScanType(scan_type), actor=actor, s=settings.scan
+            session,
+            domains,
+            scan_type=ScanType(scan_type),
+            actor=actor,
+            s=settings.scan,
+            trace=trace,
         )
-    typer.echo(f"{scan_type}: {n} plans prioritised (audited as {actor})")
+    suffix = " with trace" if trace else ""
+    typer.echo(f"{scan_type}: {n} plans prioritised{suffix} (audited as {actor})")
 
 
 # --- stage 1: light worker ----------------------------------------------------

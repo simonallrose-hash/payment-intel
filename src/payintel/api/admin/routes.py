@@ -71,6 +71,7 @@ from payintel.quality import stops as stops_mod
 from payintel.quality.gold import gold_size
 from payintel.reports import aggregates
 from payintel.reports import service as reports
+from payintel.scheduler import planner
 
 router = APIRouter(prefix="/admin", tags=["admin"], include_in_schema=False)
 
@@ -883,8 +884,71 @@ def domains(request: Request, session: SessionDep, ctx: Analyst, q: str | None =
         exact = next((d for d in results if d.etld1 == needle), None)
         if exact is not None:
             store = _internal(session, exact)
+    checkout_plan = None
+    if store is not None:
+        checkout_plan = session.execute(
+            select(ScanPlan).where(
+                ScanPlan.host_id == store.host_id, ScanPlan.scan_type == ScanType.CHECKOUT
+            )
+        ).scalar_one_or_none()
     return ui.render(
-        request, "admin/domains.html", ctx=ctx, q=q or "", results=results, store=store
+        request,
+        "admin/domains.html",
+        ctx=ctx,
+        q=q or "",
+        results=results,
+        store=store,
+        checkout_plan=checkout_plan,
+    )
+
+
+@router.post("/domains/{host_id}/rerun")
+def domain_rerun(
+    state: StateDep,
+    session: SessionDep,
+    ctx: Analyst,
+    _csrf: ui.CsrfDep,
+    host_id: int,
+    trace: Annotated[str | None, Form()] = None,
+) -> Response:
+    """FR-QA-06: re-run the checkout walk now, optionally with a Playwright trace (audited)."""
+    host = session.get(Host, host_id)
+    domain = session.get(Domain, host.domain_id) if host is not None else None
+    if host is None or domain is None:
+        raise NotFoundError("host not found")
+    n = planner.prioritize_manual(
+        session,
+        [domain.etld1],
+        scan_type=ScanType.CHECKOUT,
+        actor=ctx.principal.actor,
+        s=state.settings.scan,
+        clock=state.clock,
+        trace=trace == "1",
+    )
+    if n == 0:
+        return ui.redirect(
+            f"/admin/domains?q={domain.etld1}",
+            msg="Not queued: the domain is opted out or excluded from heavy scans.",
+        )
+    what = "with Playwright trace" if trace == "1" else "without trace"
+    return ui.redirect(f"/admin/domains?q={domain.etld1}", msg=f"Checkout walk queued ({what}).")
+
+
+@router.get("/domains/{host_id}/runs/{run_id}/trace")
+def domain_run_trace(
+    state: StateDep, session: SessionDep, ctx: Analyst, host_id: int, run_id: uuid.UUID
+) -> Response:
+    """Download the Playwright trace of a run (open it with `playwright show-trace`)."""
+    run = session.get(ScanRun, run_id)
+    if run is None or run.host_id != host_id or not run.trace_key:
+        raise NotFoundError("no trace for this run")
+    if state.store is None:
+        raise ConfigurationError("object store is not configured")
+    data = state.store.get_bytes(state.settings.s3.bucket_artifacts, run.trace_key)
+    return Response(
+        data,
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="trace-{run.id.hex[:8]}.zip"'},
     )
 
 
@@ -928,6 +992,7 @@ def _internal(session: Session, domain: Domain) -> StoreInternal | None:
             "worker": r.worker_id,
             "ruleset": r.ruleset_version,
             "artifacts": r.artifact_prefix,
+            "trace_key": r.trace_key,
         }
         for r in session.execute(
             select(ScanRun)

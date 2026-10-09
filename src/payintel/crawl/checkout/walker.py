@@ -22,11 +22,15 @@ Decisions made here (documented in ADR-0014):
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import hashlib
+import os
 import re
+import tempfile
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 from urllib.parse import urljoin, urlsplit
 
@@ -194,6 +198,8 @@ class WalkInput:
     # FR-CW-11: geolocation proxy for this walk (Playwright proxy dict) and why it was chosen
     proxy: dict[str, str] | None = None
     geo: dict[str, str | None] = field(default_factory=dict)
+    # FR-QA-06: record a Playwright trace (screenshots + DOM snapshots) of this walk
+    trace: bool = False
 
 
 @dataclass
@@ -230,6 +236,7 @@ class WalkResult:
     product_url: str = ""
     checkout_url: str = ""
     checkout_entry_index: int = -1  # index into recorder.entries where the checkout began
+    trace: bytes | None = None  # Playwright trace zip when the walk was requested with one
 
     @property
     def reached_payment(self) -> bool:
@@ -304,6 +311,16 @@ class CheckoutWalker:
                 proxy=inp.proxy,
             )
         )
+        tracing = False
+        if inp.trace:
+            try:
+                await wc.context.tracing.start(
+                    screenshots=True, snapshots=True, sources=False, title=inp.etld1
+                )
+                tracing = True
+                journal.add("trace", state="started")
+            except PlaywrightError as exc:
+                journal.add("trace", state="unavailable", text=str(exc)[:200])
         page = await wc.new_page()
         recorder = NetworkRecorder(page)
         gp = GuardedPage(
@@ -349,6 +366,7 @@ class CheckoutWalker:
             dom_blocked = []
         cookie_names = await wc.cookie_names()
         final_url = _safe_url(page)
+        trace = await self._stop_trace(wc) if tracing else None
         har = await wc.close()
         return WalkResult(
             adapter=run.adapter.name,
@@ -375,7 +393,24 @@ class CheckoutWalker:
             product_url=run.product_url,
             checkout_url=run.checkout_url,
             checkout_entry_index=run.checkout_entry_index,
+            trace=trace,
         )
+
+    async def _stop_trace(self, wc: WalkContext) -> bytes | None:
+        """Finish the Playwright trace into a zip; a failure here never fails the walk."""
+        fd, name = tempfile.mkstemp(prefix="trace-", suffix=".zip")
+        os.close(fd)
+        path = Path(name)
+        try:
+            await asyncio.wait_for(
+                wc.context.tracing.stop(path=str(path)), timeout=EVIDENCE_TIMEOUT_S
+            )
+            return path.read_bytes()
+        except Exception:
+            return None
+        finally:
+            with contextlib.suppress(OSError):
+                path.unlink()
 
     async def _evidence(self, page: Page) -> tuple[bytes, str]:
         """Screenshot + DOM of the stop page; bounded so a hanging navigation cannot stall it."""

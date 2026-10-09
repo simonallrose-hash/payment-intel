@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_macros.html" import csrf %}
 {% block title %}Domain lookup{% endblock %}
 {% block content %}
 <h1>Internal domain lookup</h1>
@@ -10,6 +11,7 @@
 {% if store %}
 <h2>{{ store.domain }} <span class="tag">{{ store.status }}</span>{% if store.optout %} <span class="tag">opt-out</span>{% endif %}{% if store.czds_only %} <span class="tag">CZDS-only: never in C1</span>{% endif %}</h2>
 <p class="muted">host {{ store.hostname }} (#{{ store.host_id }}) · sources {{ store.sources|join(", ") or "—" }}</p>
+<form method="post" action="/admin/domains/{{ store.host_id }}/rerun" class="inline">{{ csrf(ui) }}<label><input type="checkbox" name="trace" value="1" checked> with Playwright trace</label> <button type="submit">Re-run checkout walk</button>{% if checkout_plan %} <span class="muted">checkout plan: next {{ checkout_plan.next_scan_at|dt }}, priority {{ "%.0f"|format(checkout_plan.priority) }}{% if checkout_plan.trace_requested %}, trace requested by {{ checkout_plan.requested_by }}{% endif %}{% if checkout_plan.last_error %}, last error: {{ checkout_plan.last_error }}{% endif %}</span>{% endif %}</form>
 <div class="cols">
 <div>
 <table class="kv">{% for k, v in store.profile.items() %}<tr><th>{{ k }}</th><td>{{ v if v is not none else "—" }}</td></tr>{% endfor %}</table>
@@ -33,7 +35,7 @@
 </tbody></table>
 <h3>Scan runs</h3>
 <table class="grid"><thead><tr><th>Started</th><th>Type</th><th>Status</th><th>Stop</th><th>Worker</th><th>Ruleset</th><th>Artefacts</th></tr></thead><tbody>
-{% for r in store.runs %}<tr><td>{{ r.started_at }}</td><td>{{ r.type }}</td><td>{{ r.status }}</td><td>{{ r.stop }}</td><td>{{ r.worker }}</td><td>{{ r.ruleset }}</td><td class="muted">{{ r.artifacts or "" }}</td></tr>{% endfor %}
+{% for r in store.runs %}<tr><td>{{ r.started_at }}</td><td>{{ r.type }}</td><td>{{ r.status }}</td><td>{{ r.stop }}</td><td>{{ r.worker }}</td><td>{{ r.ruleset }}</td><td class="muted">{{ r.artifacts or "" }}{% if r.trace_key %} <a href="/admin/domains/{{ store.host_id }}/runs/{{ r.id }}/trace">trace</a>{% endif %}</td></tr>{% endfor %}
 </tbody></table>
 </div>
 </div>
