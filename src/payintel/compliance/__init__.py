@@ -1,1 +1,1 @@
-"""Stage 1–3 package (see docs/plan in the project thread); intentionally empty at stage 0."""
+"""KYC, organisation lifecycle, contracts and entitlements, opt-out, DSAR, bot page (4.14, 4.18)."""
