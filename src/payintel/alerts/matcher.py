@@ -113,7 +113,11 @@ def match_new_events(
             .join(Host, Host.id == ChangeEvent.host_id)
             .join(Domain, Domain.id == Host.domain_id)
             .outerjoin(StoreProfile, StoreProfile.host_id == ChangeEvent.host_id)
-            .where(ChangeEvent.id > last, ChangeEvent.suppressed.is_(False), c1_visible_clause())
+            .where(
+                ChangeEvent.id > last,
+                ChangeEvent.suppressed.is_(False),
+                c1_visible_clause(events=True),
+            )
             .order_by(ChangeEvent.id)
             .limit(limit)
         ).all()

@@ -18,10 +18,11 @@ from sqlalchemy.orm import Session
 
 from payintel.core.clock import SYSTEM_CLOCK, Clock
 from payintel.core.errors import ConfigurationError
-from payintel.core.models.base import DomainStatus, ScanType
+from payintel.core.models.base import ScanType
 from payintel.core.models.domains import Domain, Host
 from payintel.core.models.scans import ScanPlan
 from payintel.core.settings import ScanSettings
+from payintel.history import availability
 from payintel.scheduler.backoff import retry_delay
 from payintel.scheduler.priority import MANUAL_PRIORITY
 
@@ -107,10 +108,12 @@ def fail(
     cycle: timedelta,
     s: ScanSettings,
     clock: Clock = SYSTEM_CLOCK,
+    scan_run_id: uuid.UUID | None = None,
 ) -> bool:
     """Failed run: backoff 1/6/24/72 h; after the budget → host unreachable (FR-SC-05).
 
-    Returns True when the host was marked unreachable.
+    Returns True when the host was marked unreachable. With `scan_run_id` an
+    e-commerce store that becomes unreachable also gets a `store_offline` event.
     """
     now = clock.now()
     plan.locked_until = None
@@ -128,10 +131,8 @@ def fail(
     host = session.get(Host, plan.host_id)
     if host is not None and host.is_primary:
         domain = session.get(Domain, host.domain_id)
-        if domain is not None and domain.status not in {DomainStatus.OPTOUT}:
-            domain.status = DomainStatus.UNREACHABLE
-            domain.status_reason = "retry_budget_exhausted"
-            domain.status_changed_at = now
+        if domain is not None:
+            availability.mark_offline(session, host, domain, scan_run_id=scan_run_id, now=now)
     session.flush()
     return True
 

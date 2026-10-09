@@ -29,10 +29,18 @@ def non_czds_lineage_clause() -> ColumnElement[bool]:
     )
 
 
-def c1_visible_clause() -> ColumnElement[bool]:
-    """Domain rows a C1 client may see. Join `Domain` before applying."""
+def c1_visible_clause(*, events: bool = False) -> ColumnElement[bool]:
+    """Domain rows a C1 client may see. Join `Domain` before applying.
+
+    With `events=True` (change feeds, alerts) a store that went `unreachable`
+    stays visible so its `store_offline` event reaches the client; listings and
+    exports keep showing `ecommerce` domains only.
+    """
+    statuses = [DomainStatus.ECOMMERCE]
+    if events:
+        statuses.append(DomainStatus.UNREACHABLE)
     return and_(
-        Domain.status == DomainStatus.ECOMMERCE,
+        Domain.status.in_(statuses),
         not_(optout_clause()),
         non_czds_lineage_clause(),
     )

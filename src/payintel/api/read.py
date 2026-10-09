@@ -508,7 +508,9 @@ def changes(
         .join(StoreProfile, StoreProfile.host_id == ChangeEvent.host_id)
         .join(Host, Host.id == ChangeEvent.host_id)
         .join(Domain, Domain.id == Host.domain_id)
-        .where(ChangeEvent.suppressed.is_(False), c1_visible_clause(), segment_clause(grant))
+        .where(
+            ChangeEvent.suppressed.is_(False), c1_visible_clause(events=True), segment_clause(grant)
+        )
         .order_by(ChangeEvent.id.desc())
     )
     cs = countries_in_segment(grant, countries)

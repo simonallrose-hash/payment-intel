@@ -50,6 +50,7 @@ from payintel.discovery.classify import Classification, ClassifierInput, Ecommer
 from payintel.discovery.ingest import ingest
 from payintel.discovery.parking import ParkingDetector
 from payintel.discovery.sources.base import SourceRecord
+from payintel.history import availability
 from payintel.history.materialize import (
     ProfileUpdate,
     ProviderObservation,
@@ -682,9 +683,12 @@ class LightScanner:
         else:
             return
         if domain.status != new_status:
+            was = domain.status
             domain.status = new_status
             domain.status_reason = reason
             domain.status_changed_at = now
+            if was == DomainStatus.UNREACHABLE and new_status == DomainStatus.ECOMMERCE:
+                availability.mark_online(session, host, domain, scan_run_id=o.scan_run_id, now=now)
         o.domain_status = domain.status
 
     def _feed_links(self, session: Session, host: Host, o: LightScanOutcome) -> int:
@@ -729,6 +733,7 @@ class LightScanner:
                 cycle=cycle,
                 s=s,
                 clock=self.ctx.clock,
+                scan_run_id=o.scan_run_id,
             )
 
 

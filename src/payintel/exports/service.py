@@ -88,7 +88,11 @@ def estimate_rows(session: Session, grant: Grant, spec: ExportSpec) -> int:
             .join(StoreProfile, StoreProfile.host_id == ChangeEvent.host_id)
             .join(Host, Host.id == ChangeEvent.host_id)
             .join(Domain, Domain.id == Host.domain_id)
-            .where(ChangeEvent.suppressed.is_(False), c1_visible_clause(), segment_clause(grant))
+            .where(
+                ChangeEvent.suppressed.is_(False),
+                c1_visible_clause(events=True),
+                segment_clause(grant),
+            )
         )
         if spec.since:
             q = q.where(

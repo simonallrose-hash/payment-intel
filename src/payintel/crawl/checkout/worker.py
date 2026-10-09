@@ -904,6 +904,7 @@ class CheckoutScanner:
                 cycle=cycle,
                 s=s,
                 clock=self.ctx.clock,
+                scan_run_id=o.scan_run_id,
             )
         else:
             queue.complete(session, plan, next_scan_at=now + cycle, clock=self.ctx.clock)
