@@ -107,7 +107,7 @@ packages = ["payintel"]
 plugins = ["pydantic.mypy"]
 
 [[tool.mypy.overrides]]
-module = ["clickhouse_connect.*", "testcontainers.*", "jsonschema.*", "publicsuffixlist.*"]
+module = ["clickhouse_connect.*", "testcontainers.*", "jsonschema.*", "publicsuffixlist.*", "pyarrow.*"]
 ignore_missing_imports = true
 
 [tool.pydantic-mypy]
