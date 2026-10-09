@@ -114,7 +114,7 @@ scripts/            check_coverage.py, bench_light.py (NFR-P-01)
 tests/              unit/ (без контейнеров), integration/ (testcontainers), e2e/ (Chromium + симулятор магазинов),
                     stage3/ (API, портал, экспорты, алерты, compliance, отчёты, контракт OpenAPI),
                     stage4/ (сегментные алерты, ревью, анти-абьюз, re-KYC/скрининг, ASN-лимиты, PDF)
-tests/fixtures/shops/   38 конфигураций симулятора: адаптеры (включая shopify), ловушка, блокировки, каждый stop_step
+tests/fixtures/shops/   43 конфигурации симулятора: адаптеры (10 платформ), ловушка, блокировки, каждый stop_step
 ```
 
 ## Конфигурация

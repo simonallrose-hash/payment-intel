@@ -480,7 +480,7 @@ add_to_cart:
   da: [læg i kurv, læg i kurven, tilføj til kurv, læg i indkøbskurv]
 guest_checkout:
   en: [checkout as guest, guest checkout, continue as guest, proceed as guest, check out as guest]
-  de: [als gast bestellen, als gast fortfahren, als gast weiter, ohne registrierung, gastbestellung, ohne kundenkonto]
+  de: [als gast bestellen, als gast fortfahren, als gast weiter, ohne registrierung, gastbestellung, ohne kundenkonto, kein kundenkonto erstellen, kein kundenkonto anlegen]
   fr: [commander en tant qu'invité, continuer en tant qu'invité, commande invité, sans créer de compte, commander sans compte]
   nl: [afrekenen als gast, doorgaan als gast, verder als gast, zonder account, bestellen zonder account]
   es: [comprar como invitado, continuar como invitado, sin registrarse, sin cuenta]

@@ -1,4 +1,4 @@
-"""FR-CW-03 adapter registry: platform selectors first, heuristic after; Shopify (stage 4)."""
+"""FR-CW-03 adapter registry: platform selectors first, heuristic after; ten adapters."""
 
 from __future__ import annotations
 
@@ -7,14 +7,23 @@ from payintel.crawl.checkout.adapters.shopify import SHOPIFY
 from payintel.crawl.checkout.guardrails.page import BuyerField
 
 
-def test_registry_covers_the_five_platforms_and_falls_back_to_heuristic() -> None:
+def test_registry_covers_ten_platforms_and_falls_back_to_heuristic() -> None:
     assert {a.name for a in ADAPTERS} == {
         "woocommerce",
         "magento2",
         "shopware6",
         "prestashop",
         "shopify",
+        "opencart",
+        "oxid",
+        "shopware5",
+        "magento1",
+        "bigcommerce",
     }
+    for a in ADAPTERS:
+        assert a.platform_ids and a.add_to_cart, a.name
+        assert a.cart_path or a.cart_links, a.name
+        assert a.checkout_path or a.checkout_links, a.name
     assert adapter_for(None) is HEURISTIC and adapter_for("bigcartel") is HEURISTIC
     assert adapter_for("SHOPWARE").name == "shopware6"
 

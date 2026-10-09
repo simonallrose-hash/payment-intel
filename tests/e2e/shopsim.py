@@ -220,6 +220,9 @@ class Flavour:
     guest_control: str  # "" = tab/button text based
     form_action: str = ""  # where step forms post; defaults to checkout_path
     form_class: str = "checkout"  # class of the checkout form
+    product_item_class: str = "product product-item product-box"  # listing item wrapper
+    cart_item_attrs: str = ""  # attributes of a cart row ({i} = index); default class=…
+    checkout_link_attrs: str = ""  # extra attributes on the cart → checkout link
 
 
 FLAVOURS: dict[str, Flavour] = {
@@ -350,6 +353,141 @@ FLAVOURS: dict[str, Flavour] = {
         final_button='<button type="submit" class="button button--primary" id="checkout-pay-button">{final}</button>',
         guest_control="",
     ),
+    "opencart": Flavour(
+        product_path="/{slug}",
+        product_link_class="",
+        product_item_class="product-thumb",
+        add_button='<button type="submit" id="button-cart" class="btn btn-primary btn-lg btn-block">{add}</button>',
+        cart_path="/index.php?route=checkout/cart",
+        cart_item_class="",
+        checkout_path="/index.php?route=checkout/checkout",
+        checkout_link_class="btn btn-primary",
+        fields={
+            "first": 'name="firstname" id="input-firstname"',
+            "last": 'name="lastname" id="input-lastname"',
+            "street": 'name="payment_address_1" id="input-payment-address-1"',
+            "postcode": 'name="payment_postcode" id="input-payment-postcode"',
+            "city": 'name="payment_city" id="input-payment-city"',
+            "phone": 'name="telephone" id="input-telephone" type="tel"',
+            "email": 'name="email" id="input-email" type="email"',
+            "country": 'name="payment_country_id" id="input-payment-country"',
+        },
+        shipping_name="shipping_method",
+        step_button='<button type="submit" id="button-shipping-method" class="btn btn-primary">{cont}</button>',
+        payment_block='<div id="collapse-payment-method"><form id="form-payment-method">{methods}</form></div>{final}',
+        payment_radio_name="payment_method",
+        final_button='<form action="/order/submit" method="post"><button type="submit" id="button-confirm" class="btn btn-primary">{final}</button></form>',
+        guest_control="",
+    ),
+    "oxid": Flavour(
+        product_path="/Kleidung/{slug}.html",
+        product_link_class="title",
+        product_item_class="",
+        add_button='<button id="toBasket" type="submit" class="btn btn-primary submitButton">{add}</button>',
+        cart_path="/index.php?cl=basket",
+        cart_item_class="",
+        cart_item_attrs='id="list_cartItem_{i}"',
+        checkout_path="/index.php?cl=user",
+        checkout_link_class="btn btn-primary submitButton largeButton nextStep",
+        fields={
+            "first": 'id="invadr_oxuser__oxfname" name="invadr[oxuser__oxfname]" autocomplete="billing given-name"',
+            "last": 'id="invadr_oxuser__oxlname" name="invadr[oxuser__oxlname]" autocomplete="billing family-name"',
+            "street": 'id="invadr_oxuser__oxstreet" name="invadr[oxuser__oxstreet]" autocomplete="billing street-address"',
+            "postcode": 'id="invadr_oxuser__oxzip" name="invadr[oxuser__oxzip]" autocomplete="billing postal-code"',
+            "city": 'id="invadr_oxuser__oxcity" name="invadr[oxuser__oxcity]" autocomplete="billing locality"',
+            "phone": 'id="invadr_oxuser__oxfon" name="invadr[oxuser__oxfon]" type="tel"',
+            "email": 'id="userLoginName" name="lgn_usr" type="email"',
+            "country": 'id="invCountrySelect" name="invadr[oxuser__oxcountryid]"',
+        },
+        shipping_name="sShipSet",
+        step_button='<button type="submit" class="btn btn-primary submitButton nextStep">{cont}</button>',
+        payment_block='<form id="payment" name="order"><dl>{methods}</dl></form>{final}',
+        payment_radio_name="paymentid",
+        final_button='<form action="/order/submit" method="post"><button type="submit" id="orderConfirmAgbBottom" class="btn btn-primary submitButton largeButton">{final}</button></form>',
+        guest_control="",
+    ),
+    "shopware5": Flavour(
+        product_path="/kleidung/10/{slug}",
+        product_link_class="product--title",
+        product_item_class="product--box box--basic",
+        add_button='<button class="buybox--button block btn is--primary is--icon-right is--center is--large" name="In den Warenkorb">{add}</button>',
+        cart_path="/checkout/cart",
+        cart_item_class="table--tr block-group row--product",
+        checkout_path="/checkout/confirm",
+        checkout_link_class="btn btn--checkout-proceed is--primary right is--icon-right is--large",
+        fields={
+            "first": 'id="firstname" name="register[personal][firstname]" autocomplete="section-personal given-name"',
+            "last": 'id="lastname" name="register[personal][lastname]" autocomplete="section-personal family-name"',
+            "street": 'id="street" name="register[billing][street]" autocomplete="section-billing billing street-address"',
+            "postcode": 'id="zipcode" name="register[billing][zipcode]" autocomplete="section-billing billing postal-code"',
+            "city": 'id="city" name="register[billing][city]" autocomplete="section-billing billing address-level2"',
+            "phone": 'id="phone" name="register[personal][phone]" type="tel"',
+            "email": 'id="register_personal_email" name="register[personal][email]" type="email"',
+            "country": 'id="country" name="register[billing][country]" class="select--country"',
+        },
+        shipping_name="sDispatch",
+        step_button='<button type="submit" class="btn is--primary is--large right is--icon-right">{cont}</button>',
+        payment_block='<div class="payment--method-list panel has--border is--rounded block"><div class="panel--body is--wide block-group">{methods}</div></div>{final}',
+        payment_radio_name="payment",
+        final_button='<form id="confirm--form" action="/order/submit" method="post"><button type="submit" class="btn is--primary is--large right is--icon-right">{final}</button></form>',
+        guest_control='<div class="register--check"><input type="checkbox" value="1" id="register_personal_skipLogin" name="register[personal][accountmode]" class="register--checkbox chkbox"><label for="register_personal_skipLogin" class="chklabel is--bold">Kein Kundenkonto erstellen</label></div>',
+        form_action="/register",
+        form_class="register--form",
+    ),
+    "magento1": Flavour(
+        product_path="/{slug}-m1.html",
+        product_link_class="product-image",
+        product_item_class="item",
+        add_button='<button type="button" title="{add}" class="button btn-cart" id="product-addtocart-button" onclick="this.form.submit()"><span><span>{add}</span></span></button>',
+        cart_path="/checkout/cart/",
+        cart_item_class="",
+        checkout_path="/checkout/onepage/",
+        checkout_link_class="button btn-proceed-checkout btn-checkout",
+        fields={
+            "first": 'id="billing:firstname" name="billing[firstname]"',
+            "last": 'id="billing:lastname" name="billing[lastname]"',
+            "street": 'id="billing:street1" name="billing[street][]"',
+            "postcode": 'id="billing:postcode" name="billing[postcode]"',
+            "city": 'id="billing:city" name="billing[city]"',
+            "phone": 'id="billing:telephone" name="billing[telephone]" type="tel"',
+            "email": 'id="billing:email" name="billing[email]" type="email"',
+            "country": 'id="billing:country_id" name="billing[country_id]"',
+        },
+        shipping_name="shipping_method",
+        step_button='<button type="submit" class="button" title="{cont}"><span><span>{cont}</span></span></button>',
+        payment_block='<div id="checkout-step-payment" class="step"><dl id="payment-methods">{methods}</dl></div>{final}',
+        payment_radio_name="payment[method]",
+        final_button='<form action="/order/submit" method="post"><button type="submit" class="button btn-checkout" title="{final}"><span><span>{final}</span></span></button></form>',
+        guest_control="",
+    ),
+    "bigcommerce": Flavour(
+        product_path="/{slug}-bc/",
+        product_link_class="card-figure__link",
+        product_item_class="card",
+        add_button='<input id="form-action-addToCart" class="button button--primary" type="submit" value="{add}">',
+        cart_path="/cart.php",
+        cart_item_class="",
+        cart_item_attrs='class="cart-item" data-item-row',
+        checkout_path="/checkout",
+        checkout_link_class="button button--primary",
+        checkout_link_attrs="data-primary-checkout-now-action",
+        fields={
+            "first": 'autocomplete="given-name" name="firstName" id="firstNameInput"',
+            "last": 'autocomplete="family-name" name="lastName" id="lastNameInput"',
+            "street": 'autocomplete="address-line1" name="address1" id="address1Input"',
+            "postcode": 'autocomplete="postal-code" name="postalCode" id="postCodeInput"',
+            "city": 'autocomplete="address-level2" name="city" id="cityInput"',
+            "phone": 'autocomplete="tel" name="phone" id="phoneInput" type="tel"',
+            "email": 'autocomplete="email" name="email" id="email" type="email"',
+            "country": 'autocomplete="country" name="countryCode" id="countryCodeInput"',
+        },
+        shipping_name="shippingOptionIds",
+        step_button='<button type="submit" id="checkout-shipping-continue" class="button button--primary">{cont}</button>',
+        payment_block='<div id="checkout-payment" class="checkout-form"><div class="form-checklist">{methods}</div></div>{final}',
+        payment_radio_name="paymentProviderRadio",
+        final_button='<form action="/order/submit" method="post"><button type="submit" id="checkout-payment-continue" class="button button--primary">{final}</button></form>',
+        guest_control="",
+    ),
     "generic": Flavour(
         product_path="/item/{slug}",
         product_link_class="tile-link",
@@ -378,6 +516,15 @@ FLAVOURS: dict[str, Flavour] = {
 }
 
 PRODUCTS = [("Testprodukt Alpha", "alpha", "29,90 €"), ("Testprodukt Beta", "beta", "49,00 €")]
+
+
+def _is(target: str, path: str, query: dict[str, list[str]]) -> bool:
+    """`path`+`query` address `target` (a path, optionally with a query such as `?cl=basket`)."""
+    t = urlsplit(target)
+    want = "/" + t.path.lstrip("/")
+    if path != want:
+        return False
+    return all(query.get(k) == v for k, v in parse_qs(t.query).items())
 
 
 def _trap_decoys(t: dict[str, str], flavour: str) -> str:
@@ -592,11 +739,13 @@ class Sim:
             if cfg.stop != "cart_empty":
                 sess["cart"].append(body.get("pid", ["alpha"])[0])
             return 302, {"Location": fl.cart_path}, "", sid
-        if path == fl.cart_path.split("?")[0] and (
-            "?" not in fl.cart_path or query.get("action") == ["show"]
-        ):
+        if _is(fl.cart_path, path, query):
             return 200, {}, self.cart(cfg, fl, t, sess), sid
-        if path == fl.checkout_path or path in {"/checkout/register", "/checkout/"}:
+        if (
+            _is(fl.checkout_path, path, query)
+            or (fl.form_action and _is(fl.form_action, path, query))
+            or path in {"/checkout/register", "/checkout/"}
+        ):
             return self._checkout(cfg, fl, t, st, sess, sid, method, body, query)
         if path == "/login" and method == "POST":
             return self._login(cfg, fl, t, st, sess, sid, body)
@@ -622,7 +771,7 @@ class Sim:
             body = f'<h1>{cfg.name}</h1><ul class="products"><li class="product"><a class="{fl.product_link_class}" href="http://dead.{cfg.name}.test/product/alpha/">Alpha</a></li></ul>'
             return _layout(cfg.name, body, t, cfg, fl)
         items = "".join(
-            f'<li class="product product-item product-box"><a class="{fl.product_link_class}" href="{fl.product_path.format(slug=slug)}">{name}</a> <span class="price">{price}</span></li>'
+            f'<li class="{fl.product_item_class}"><a class="{fl.product_link_class}" href="{fl.product_path.format(slug=slug)}">{name}</a> <span class="price">{price}</span></li>'
             for name, slug, price in PRODUCTS
         )
         body = f'<h1>{t["shop"]}</h1><ul class="products">{items}</ul>'
@@ -660,7 +809,7 @@ class Sim:
                 t["cart"], f"<h1>{t['cart']}</h1><p class='cart-empty'>{t['empty']}</p>", t, cfg, fl
             )
         rows = "".join(
-            f'<tr class="{fl.cart_item_class}"><td>{slug}</td><td><input type="number" name="cart[{i}][qty]" value="1"></td></tr>'
+            f'<tr {fl.cart_item_attrs.format(i=i) or f"class={chr(34)}{fl.cart_item_class}{chr(34)}"}><td>{slug}</td><td><input type="number" name="cart[{i}][qty]" value="1"></td></tr>'
             for i, slug in enumerate(sess["cart"])
         )
         if cfg.stop == "min_order":
@@ -674,7 +823,7 @@ class Sim:
         link = (
             ""
             if cfg.stop == "checkout_not_found"
-            else f'<a href="{fl.checkout_path}" class="{fl.checkout_link_class}">{t["checkout"]}</a>'
+            else f'<a href="{fl.checkout_path}" class="{fl.checkout_link_class}" {fl.checkout_link_attrs}>{t["checkout"]}</a>'
         )
         body = f'<h1>{t["cart"]}</h1><form class="woocommerce-cart-form" action="{fl.cart_path}" method="post"><table id="shopping-cart-table">{rows}</table></form>{link}'
         return _layout(t["cart"], body, t, cfg, fl)
@@ -827,9 +976,7 @@ class Sim:
         if cfg.stop == "payment_step_not_detected":
             total = 99
         err = f'<p class="error">{error}</p>' if error else ""
-        guest_box = (
-            fl.guest_control if cfg.guest == "available" and cfg.flavour == "shopware6" else ""
-        )
+        guest_box = fl.guest_control if cfg.guest == "available" and fl.guest_control else ""
         unmapped = (
             '<input type="text" name="xyz_code" id="xyz_code" required placeholder="Kundennummer">'
             if cfg.stop == "required_field_unmapped"

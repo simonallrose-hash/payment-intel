@@ -40,7 +40,11 @@ PRIVATE_SUFFIXES = (".local", ".internal", ".localhost", ".localdomain", ".home.
 DESCRIBE_CONTROL_JS = r"""
 (el) => {
   const attr = (e, n) => (e && e.getAttribute && e.getAttribute(n)) || "";
-  const txt = (el.innerText || el.textContent || "").trim().slice(0, 300);
+  let txt = (el.innerText || el.textContent || "").trim().slice(0, 300);
+  if (!txt && el.labels && el.labels.length) {
+    // a checkbox / radio carries no text of its own: its <label> is what the buyer reads
+    txt = Array.from(el.labels).map((l) => l.innerText || l.textContent || "").join(" ").trim().slice(0, 300);
+  }
   const form = el.closest ? el.closest("form") : null;
   const data = [];
   if (el.attributes) {
