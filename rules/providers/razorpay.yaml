@@ -40,3 +40,11 @@ rules:
   weight: 0.3
   page_scope: any
   enabled: true
+- id: provider.razorpay.network_host.4
+  version: 1
+  signal_type: network_host
+  pattern: rzp.io
+  weight: 0.8
+  page_scope: checkout
+  enabled: true
+  note: "hosted checkout page (ADR-0032): Payment Links short_url; https://razorpay.com/docs/api/payments/payment-links/create-standard/"

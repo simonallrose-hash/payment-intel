@@ -1,0 +1,176 @@
+# Hosted checkout pages of payment providers (ADR-0032). A shop that sends the
+# buyer to one of these hosts for the whole checkout has no checkout of its own
+# on its eTLD+1: the walk never navigates there (ADR-0014 p. 9) but recognises
+# the host — in a cart → checkout link or as the landing host after a redirect —
+# and stops with `checkout/hosted_checkout_external`, attributing the provider.
+#
+# Every `verified` entry cites the official page that names the host. Hosts
+# that could not be confirmed stay `needs_verification` and are ignored by the
+# matcher (same discipline as detection rules, brief rule 8). `path_prefix`
+# narrows the match when the host also serves other things (an API host).
+# Only hosts of *providers* (reference/providers.yaml) belong here; Shopify's
+# checkout has run on the shop's own domain since 2017-07-20
+# (https://shopify.dev/changelog/checkouts-will-occur-at-the-shop-domain-instead-of-checkout-shopify-com),
+# so it is a platform adapter case, not a hosted checkout.
+version: 1
+hosts:
+  - host: checkout.stripe.com
+    provider_id: stripe
+    status: verified
+    source: https://docs.stripe.com/api/checkout/sessions/object
+    note: "Checkout Session `url` uses checkout.stripe.com unless a custom domain is set"
+  - host: buy.stripe.com
+    provider_id: stripe
+    status: verified
+    source: https://docs.stripe.com/api/payment-link/object
+    note: "Payment Links (`submit_type` pay/subscribe)"
+  - host: book.stripe.com
+    provider_id: stripe
+    status: verified
+    source: https://docs.stripe.com/api/payment-link/object
+    note: "Payment Links (`submit_type` book)"
+  - host: donate.stripe.com
+    provider_id: stripe
+    status: verified
+    source: https://docs.stripe.com/api/payment-link/object
+    note: "Payment Links (`submit_type` donate)"
+  - host: www.paypal.com
+    path_prefix: /cgi-bin/webscr
+    provider_id: paypal
+    status: verified
+    source: https://developer.paypal.com/api/nvp-soap/paypal-payments-standard/integration-guide/formbasics/
+    note: "PayPal Payments Standard form action"
+  - host: www.paypal.com
+    path_prefix: /checkoutnow
+    provider_id: paypal
+    status: verified
+    source: https://developer.paypal.com/docs/api/orders/v2/
+    note: "Orders v2 `payer-action` link"
+  - host: payment-links.mollie.com
+    provider_id: mollie
+    status: verified
+    source: https://docs.mollie.com/reference/create-payment-link
+    note: "Payment Links `_links.paymentLink`"
+  - host: www.mollie.com
+    path_prefix: /checkout/
+    provider_id: mollie
+    status: needs_verification
+    source: https://docs.mollie.com/reference/create-payment
+    note: "the `_links.checkout` example only shows `https://...`; host not confirmed"
+  - host: square.link
+    provider_id: square
+    status: verified
+    source: https://developer.squareup.com/reference/square/checkout-api/create-payment-link
+    note: "payment link `url`"
+  - host: checkout.square.site
+    provider_id: square
+    status: verified
+    source: https://developer.squareup.com/reference/square/checkout-api/create-payment-link
+    note: "payment link `long_url`"
+  - host: checkout.paystack.com
+    provider_id: paystack
+    status: verified
+    source: https://paystack.com/docs/payments/accept-payments/
+    note: "Initialize Transaction `authorization_url`"
+  - host: api.flutterwave.com
+    path_prefix: /v3/hosted/pay/
+    provider_id: flutterwave
+    status: verified
+    source: https://developer.flutterwave.com/docs/collecting-payments/standard
+    note: "Standard flow `data.link`"
+  - host: rzp.io
+    provider_id: razorpay
+    status: verified
+    source: https://razorpay.com/docs/api/payments/payment-links/create-standard/
+    note: "Payment Links `short_url`"
+  - host: www.mercadopago.com
+    path_prefix: /checkout/
+    provider_id: mercado_pago
+    status: needs_verification
+    source: https://www.mercadopago.com/developers/en/reference/preferences/_checkout_preferences/post
+    note: "documented `init_point` is `www.mercadopago.com/mla/checkout/start` (country segment before /checkout/); country-TLD variants unconfirmed"
+  - host: www.mercadopago.com
+    path_prefix: /mla/checkout/
+    provider_id: mercado_pago
+    status: verified
+    source: https://www.mercadopago.com/developers/en/reference/preferences/_checkout_preferences/post
+    note: "Checkout Pro `init_point` example"
+  - host: www.vivapayments.com
+    path_prefix: /web/checkout
+    provider_id: viva_wallet
+    status: verified
+    source: https://developer.viva.com/smart-checkout/smart-checkout-integration/
+    note: "Smart Checkout redirect (production)"
+  - host: demo.vivapayments.com
+    path_prefix: /web/checkout
+    provider_id: viva_wallet
+    status: verified
+    source: https://developer.viva.com/smart-checkout/smart-checkout-integration/
+    note: "Smart Checkout redirect (demo)"
+  - host: test.checkout.dibspayment.eu
+    path_prefix: /hostedpaymentpage/
+    provider_id: nexi
+    status: verified
+    source: https://developer.nexigroup.com/nexi-checkout/en-EU/docs/web-integration/integrate-checkout-on-your-website-hosted/
+    note: "`hostedPaymentPageUrl` example (test environment)"
+  - host: checkout.dibspayment.eu
+    path_prefix: /hostedpaymentpage/
+    provider_id: nexi
+    status: needs_verification
+    source: https://developer.nexigroup.com/nexi-checkout/en-EU/docs/web-integration/integrate-checkout-on-your-website-hosted/
+    note: "production host inferred from the test host; not named in the docs read"
+  - host: testpayv2.multisafepay.com
+    path_prefix: /connect/
+    provider_id: multisafepay
+    status: verified
+    source: https://docs.multisafepay.com/docs/payment-pages
+    note: "payment page link example (test environment)"
+  - host: payv2.multisafepay.com
+    path_prefix: /connect/
+    provider_id: multisafepay
+    status: needs_verification
+    source: https://docs.multisafepay.com/docs/payment-pages
+    note: "production host inferred from the test host; not named in the docs read"
+  - host: pay.checkout.com
+    provider_id: checkout_com
+    status: needs_verification
+    source: https://www.checkout.com/docs/payments/accept-payments/accept-a-payment-on-a-hosted-payments-page
+    note: "Hosted Payments Page docs could not be fetched (JS-only site)"
+  - host: pay.klarna.com
+    provider_id: klarna
+    status: needs_verification
+    source: https://docs.klarna.com/hosted-payment-page/
+    note: "HPP docs read do not name the host"
+  - host: pay.adyen.com
+    provider_id: adyen
+    status: needs_verification
+    source: https://docs.adyen.com/unified-commerce/pay-by-link/
+    note: "Pay by Link docs read do not name the host"
+  - host: secure.payu.com
+    provider_id: payu
+    status: needs_verification
+    source: https://developers.payu.com/en/restapi.html
+    note: "REST API page read does not show a `redirectUri` example"
+  - host: secure.przelewy24.pl
+    path_prefix: /trnRequest/
+    provider_id: przelewy24
+    status: needs_verification
+    source: https://developers.przelewy24.pl/
+    note: "documentation is a JS application; host not confirmed"
+  - host: checkout.buckaroo.nl
+    provider_id: buckaroo
+    status: needs_verification
+    source: https://docs.buckaroo.io/docs/hosted-payment-page
+    note: "page could not be fetched"
+  - host: services.paytrail.com
+    path_prefix: /pay/
+    provider_id: paytrail
+    status: needs_verification
+    source: https://docs.paytrail.com/
+    note: "documentation is a JS application; host not confirmed"
+  - host: www.saferpay.com
+    path_prefix: /vt2/
+    provider_id: worldline
+    status: needs_verification
+    source: https://docs.saferpay.com/home/integration-guide/licences-and-interfaces/payment-page
+    note: "Payment Page docs read do not show a `RedirectUrl` example"

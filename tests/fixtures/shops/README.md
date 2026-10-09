@@ -13,7 +13,10 @@ Two kinds of fixtures live here:
   (`ok` | `email_verification` | `captcha` | `sms` | `documents` | `payment`),
   `protection` (`cloudflare` | `403` | `429` | `captcha` | `geo` | `age`),
   `stop` (forced stop scenario), `payment_fields_required`, `variants`,
-  `slow_seconds`. The browser reaches a shop as `http://<dir>.test/`.
+  `slow_seconds`, `external_checkout` (the cart's checkout link points at a
+  provider's hosted page) and `checkout_redirect` (the checkout path sends the
+  browser to a hosted or foreign host; ADR-0032). The browser reaches a shop
+  as `http://<dir>.test/`.
 
 The simulator counts every forbidden action (order submissions, newsletter
 subscriptions, CAPTCHA solves, foreign logins, registrations while guest

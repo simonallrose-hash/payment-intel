@@ -174,8 +174,17 @@ payintel TO S3(...)` еженедельно. MinIO: версионировани
   пишется в манифест (`geo.reason`, хост прокси без учётных данных).
   Прокси никогда не включается в ответ на блокировку (LR-03).
 - Адаптеры (FR-CW-03): woocommerce, magento2, shopware6, prestashop,
-  shopify (этап 4, ADR-0029); остальные платформы — эвристика. Лимиты по
-  ASN (п. 21) действуют и на проходы чекаута.
+  shopify (ADR-0029), opencart, oxid, shopware5, magento1, bigcommerce
+  (ADR-0030); остальные платформы (в т. ч. plentymarkets, JTL) — эвристика.
+  Лимиты по ASN (п. 21) действуют и на проходы чекаута.
+- Хостед-чекауты (ADR-0032): проход не покидает eTLD+1 магазина. Ссылка из
+  корзины на хост из `reference/hosted_checkouts.yaml` или редирект на него
+  → стоп `checkout/hosted_checkout_external` (`stop_detail` = `<provider>:
+  <host> (link|redirect)`), провайдер пишется в `obs_provider`
+  (`active_on_checkout`, `high`), хост — в `obs_checkout_host`. Редирект на
+  любой другой чужой хост → `navigation/navigation_error` («left <etld1>»).
+  Новый хост добавляется в справочник только со ссылкой на официальную
+  страницу провайдера, иначе остаётся `needs_verification` и не матчится.
 - Артефакты: `s3://<bucket>/checkout/<etld1>/<scan_run_id>/manifest.json`
   (журнал действий, шаги, запросы, находки, стоп), `payment_step.html.gz`,
   `payment_block.html.gz`, `screenshot.jpg` (≤300 КБ), `har.json.gz` (без
@@ -194,6 +203,15 @@ payintel TO S3(...)` еженедельно. MinIO: версионировани
 - Диагностика: `scan_run.stop_step`/`stop_reason`, `plan.last_error`, логи
   JSON с `scan_run_id`; выборка стопов со скриншотами —
   `payintel quality stop-sample <step> <reason> [--platform …] [--csv file]`.
+- Повторный проход с трейсом (FR-QA-06, ADR-0031): в админке на странице
+  домена форма «Re-run checkout walk» (чекбокс трейса включён по умолчанию)
+  или `payintel scheduler prioritize <host> --scan-type checkout --trace`.
+  План получает `trace_requested`/`requested_by` и `next_scan_at = now`;
+  воркер пишет `trace.zip` рядом с манифестом (`scan_run.trace_key`) и
+  сбрасывает флаг. Скачать: ссылка `trace` в таблице прогонов
+  (`GET /admin/domains/{host}/runs/{run_id}/trace`, роль `staff_analyst`);
+  смотреть: `uv run playwright show-trace trace.zip`. Для opt-out и доменов
+  вне тяжёлого скана перезапуск не ставится.
 - Проверка guardrails (AC-04): `PAYINTEL_TEST_TRAP_RUNS=1000 uv run pytest
   tests/e2e/test_checkout_walk.py -k trap_shop` (≈15 мин на 4 vCPU;
   в CI — еженедельный job `trap-1000`, в `make test` — 100 прогонов).
@@ -208,7 +226,9 @@ payintel TO S3(...)` еженедельно. MinIO: версионировани
    свежесть, события в сутки с всплесками (FR-QA-03).
 2. Для каждой из топ-5 причин: `payintel quality stop-sample <step> <reason>
    --platform <id> --csv stops.csv` → до 20 доменов со скриншотом
-   (`screenshot_key`) и DOM (`dom_key`) в S3.
+   (`screenshot_key`) и DOM (`dom_key`) в S3. Если скриншота и DOM мало —
+   повторный проход с трейсом из админки (п. 12, ADR-0031) и
+   `playwright show-trace`.
 3. По каждой причине заводится задача: адаптер (селекторы), эвристика или
    словарь (`reference/checkout_dictionary.yaml`: `step_actions`,
    `guest_words` …). Никогда — ослабление политики кликов (ADR-0013).

@@ -71,7 +71,7 @@ from payintel.crawl.light.robots import RobotsRules, agent_token, parse_robots
 from payintel.crawl.sanitize import sanitize_headers
 from payintel.detect.country import CountryDetector, CountryResult
 from payintel.detect.engine import Finding, PageSignals, match_page
-from payintel.detect.hosts import HostCategorizer
+from payintel.detect.hosts import HostCategorizer, etld1_of
 from payintel.detect.rules import RuleSet
 from payintel.detect.scoring import TargetScore, aggregate, best_platform
 from payintel.history.differ import (
@@ -344,6 +344,7 @@ class CheckoutScanner:
             proxy=geo.proxy.as_playwright() if geo.proxy else None,
             geo=geo.as_log(),
             trace=lease.trace,
+            hosted=self.ctx.reference.hosted_checkouts.match,
         )
         async with self._lock_for(etld1):
             walk = await self.ctx.walker.walk(inp)
@@ -397,6 +398,29 @@ class CheckoutScanner:
                     raw_text=cap.body_text,
                     hosting_country=lease.hosting_country,
                 )
+        elif walk is not None and walk.hosted_checkout is not None:
+            # ADR-0032: the provider's hosted page is the checkout; its host is the signal
+            hit = walk.hosted_checkout
+            findings = match_page(
+                self.ctx.ruleset,
+                PageSignals(
+                    page_type="checkout",
+                    url=walk.checkout_url or walk.final_url,
+                    form_actions=[hit.url],
+                    network_hosts={hit.host},
+                ),
+            )
+            hosts = [
+                ThirdPartyHost(
+                    host=hit.host,
+                    etld1=etld1_of(hit.host),
+                    category="psp",
+                    provider_id=hit.provider_id,
+                    request_count=1 if hit.via == "redirect" else 0,
+                    resource_type="document",
+                    initiator="hosted_checkout",
+                )
+            ]
         scores = aggregate(findings)
         platform = best_platform(scores)
         status = walk.status if walk is not None else (stop.status if stop else ScanStatus.ERROR)
@@ -581,6 +605,9 @@ class CheckoutScanner:
                     "final_url": walk.final_url,
                     "product_url": walk.product_url,
                     "checkout_url": walk.checkout_url,
+                    "hosted_checkout": (
+                        walk.hosted_checkout.__dict__ if walk.hosted_checkout else None
+                    ),
                     "steps": [{"name": s.name, "duration_ms": s.duration_ms} for s in walk.steps],
                     "journal": walk.journal.as_list(),
                     "network": network_rows(rec),

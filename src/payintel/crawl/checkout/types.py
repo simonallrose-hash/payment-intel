@@ -59,6 +59,7 @@ STATUS_FOR_REASON: dict[str, ScanStatus] = {
     "login_failed": ScanStatus.LOGIN_REQUIRED,
     "guest_unavailable_registration_disabled": ScanStatus.LOGIN_REQUIRED,
     "checkout_not_found": ScanStatus.REACHED_CART,
+    "hosted_checkout_external": ScanStatus.REACHED_CART,  # ADR-0032: the shop has no own checkout
     "cart_empty_after_add": ScanStatus.ADD_TO_CART_FAILED,
     "min_order_value": ScanStatus.REACHED_CART,
 }

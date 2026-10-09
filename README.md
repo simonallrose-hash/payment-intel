@@ -32,7 +32,7 @@ make test                     # полный прогон: unit + integration (t
 | 1 | `uv sync --all-groups --frozen` | `.venv` с закреплёнными версиями из `uv.lock` |
 | 2 | `docker compose -f docker-compose.dev.yml up -d --wait` | Postgres 16 `:5432`, ClickHouse 24.8 `:8123`, Redis 7 `:6379`, MinIO `:9002` (консоль `:9001`), Unbound `:5335`, Caddy `:8080` |
 | 3 | `payintel migrate` | Alembic → head (35 таблиц, партиции `usage_log`, append-only триггер `audit_log`); ClickHouse `0001…0007` |
-| 4 | `payintel seed` | 135 PSP, 50 способов оплаты, 21 платформа, 20 вертикалей, 700 правил детекции |
+| 4 | `payintel seed` | 135 PSP, 50 способов оплаты, 21 платформа, 20 вертикалей, 708 правил детекции |
 
 Проверка руками:
 
@@ -114,7 +114,7 @@ scripts/            check_coverage.py, bench_light.py (NFR-P-01)
 tests/              unit/ (без контейнеров), integration/ (testcontainers), e2e/ (Chromium + симулятор магазинов),
                     stage3/ (API, портал, экспорты, алерты, compliance, отчёты, контракт OpenAPI),
                     stage4/ (сегментные алерты, ревью, анти-абьюз, re-KYC/скрининг, ASN-лимиты, PDF)
-tests/fixtures/shops/   43 конфигурации симулятора: адаптеры (10 платформ), ловушка, блокировки, каждый stop_step
+tests/fixtures/shops/   46 конфигураций симулятора: адаптеры (10 платформ), ловушка, блокировки, хостед-чекауты, каждый stop_step
 ```
 
 ## Конфигурация

@@ -47,3 +47,11 @@ rules:
   weight: 0.6
   page_scope: checkout
   enabled: true
+- id: provider.mollie.network_host.4
+  version: 1
+  signal_type: network_host
+  pattern: payment-links.mollie.com
+  weight: 0.8
+  page_scope: checkout
+  enabled: true
+  note: "hosted checkout page (ADR-0032): Payment Links; https://docs.mollie.com/reference/create-payment-link"

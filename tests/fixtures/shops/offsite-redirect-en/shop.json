@@ -1,0 +1,5 @@
+{
+  "flavour": "magento2",
+  "language": "en",
+  "checkout_redirect": "https://other-shop.example/checkout"
+}

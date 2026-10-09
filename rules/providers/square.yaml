@@ -48,3 +48,19 @@ rules:
   weight: 0.3
   page_scope: any
   enabled: true
+- id: provider.square.network_host.4
+  version: 1
+  signal_type: network_host
+  pattern: square.link
+  weight: 0.8
+  page_scope: checkout
+  enabled: true
+  note: "hosted checkout page (ADR-0032): Checkout payment links; https://developer.squareup.com/reference/square/checkout-api/create-payment-link"
+- id: provider.square.network_host.5
+  version: 1
+  signal_type: network_host
+  pattern: checkout.square.site
+  weight: 0.8
+  page_scope: checkout
+  enabled: true
+  note: "hosted checkout page (ADR-0032): Checkout payment links (long_url); https://developer.squareup.com/reference/square/checkout-api/create-payment-link"

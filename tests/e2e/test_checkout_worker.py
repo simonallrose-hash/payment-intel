@@ -510,3 +510,57 @@ def test_scrub_har_drops_cookies_auth_and_bodies() -> None:
     assert e["request"]["cookies"] == [] and e["response"]["cookies"] == []
     assert "postData" not in e["request"] and "text" not in e["response"]["content"]
     assert scrub_har(b"not json") is None
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_hosted_checkout_is_attributed_to_the_provider(
+    db_session: Session,
+    fixed_clock: FixedClock,
+    scanner: CheckoutScanner,
+    sim: SimServer,
+    ch_client: Client,
+    object_store: ObjectStore,
+    s3_settings: S3Settings,
+) -> None:
+    """ADR-0032: a shop whose checkout is Stripe's hosted page ends with
+    `checkout/hosted_checkout_external`, a high-confidence Stripe observation from the
+    hosted host and the host itself under `obs_checkout_host`."""
+    sim.reset("hosted-redirect-de")
+    _prepare(db_session, fixed_clock, ["hosted-redirect-de.de"])
+    plan = _lease(db_session, fixed_clock, "hosted-redirect-de.de")
+    out = await _scan(scanner, db_session, plan)
+    assert out.status == ScanStatus.REACHED_CART and out.coverage == Coverage.CART
+    assert out.stop is not None and out.stop.reason == "hosted_checkout_external"
+    assert out.walk is not None and out.walk.hosted_checkout is not None
+    assert [p.target_id for p in out.providers] == ["stripe"]
+    assert out.providers[0].active_on_checkout and out.providers[0].confidence.value == "high"
+    assert [(h.host, h.category, h.provider_id) for h in out.hosts] == [
+        ("checkout.stripe.com", "psp", "stripe")
+    ]
+    run = db_session.get(ScanRun, out.scan_run_id)
+    assert run is not None and (run.stop_step, run.stop_reason) == (
+        "checkout",
+        "hosted_checkout_external",
+    )
+    manifest = json.loads(
+        object_store.get_bytes(s3_settings.bucket_artifacts, f"{out.artifact_prefix}manifest.json")
+    )
+    assert manifest["hosted_checkout"]["provider_id"] == "stripe"
+    assert manifest["hosted_checkout"]["via"] == "redirect"
+    assert manifest["stop"]["reason"] == "hosted_checkout_external"
+    scanner.ctx.buffer.flush()
+    prov = ch_client.query(
+        "SELECT DISTINCT provider_id, active_on_checkout, confidence, page_type "
+        "FROM obs_provider WHERE etld1 = 'hosted-redirect-de.de'"
+    ).result_rows
+    assert prov == [("stripe", 1, "high", "checkout")]
+    hosts = ch_client.query(
+        "SELECT third_party_host, third_party_etld1, category FROM obs_checkout_host "
+        "WHERE host_id = %(h)s",
+        parameters={"h": out.host_id},
+    ).result_rows
+    assert hosts == [("checkout.stripe.com", "stripe.com", "psp")]
+    stops = ch_client.query(
+        "SELECT stop_step, stop_reason FROM obs_scan_stop WHERE etld1 = 'hosted-redirect-de.de'"
+    ).result_rows
+    assert stops == [("checkout", "hosted_checkout_external")]

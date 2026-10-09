@@ -55,6 +55,11 @@ class ShopConfig:
     methods: list[str] = field(default_factory=lambda: ["card", "paypal", "klarna"])
     tokenizer: str = "stripe"
     slow_seconds: float = 0.0
+    external_checkout: str = ""  # cart → checkout link points at a provider's hosted page
+    # GET of the checkout path sends the browser to this (hosted or foreign) URL. A script
+    # redirect, not a 302: the test rewrite hook resolves server redirects inside
+    # `route.fetch`, so only a browser-side navigation changes the page URL under test.
+    checkout_redirect: str = ""
 
     @classmethod
     def load(cls, path: Path) -> ShopConfig:
@@ -674,6 +679,8 @@ class Sim:
                 "window.Stripe = function(){};",
                 "",
             )
+        with self.server.lock:  # every request, foreign hosts included (ADR-0032 tests)
+            self.server.requests.append((method, shop, path))
         if st is None:
             return 404, {}, "no such shop", ""
         cfg, fl, t = st.config, FLAVOURS[st.config.flavour], L[st.config.language]
@@ -681,8 +688,6 @@ class Sim:
         c = st.counters
         if cfg.slow_seconds and path.startswith(fl.checkout_path.rstrip("/") or "/checkout"):
             time.sleep(cfg.slow_seconds)
-        with self.server.lock:
-            self.server.requests.append((method, shop, path))
         # --- forbidden endpoints -------------------------------------------------------
         if method == "POST" and (
             any(path == p.split("?")[0] for p in ORDER_PATHS)
@@ -823,7 +828,7 @@ class Sim:
         link = (
             ""
             if cfg.stop == "checkout_not_found"
-            else f'<a href="{fl.checkout_path}" class="{fl.checkout_link_class}" {fl.checkout_link_attrs}>{t["checkout"]}</a>'
+            else f'<a href="{cfg.external_checkout or fl.checkout_path}" class="{fl.checkout_link_class}" {fl.checkout_link_attrs}>{t["checkout"]}</a>'
         )
         body = f'<h1>{t["cart"]}</h1><form class="woocommerce-cart-form" action="{fl.cart_path}" method="post"><table id="shopping-cart-table">{rows}</table></form>{link}'
         return _layout(t["cart"], body, t, cfg, fl)
@@ -949,6 +954,10 @@ class Sim:
     ) -> tuple[int, dict[str, str], str, str]:
         if not sess["cart"]:
             return 302, {"Location": fl.cart_path}, "", sid
+        if cfg.checkout_redirect and method == "GET":
+            target = json.dumps(cfg.checkout_redirect)
+            body = f"<p>Redirecting…</p><script>location.replace({target});</script>"
+            return 200, {}, _layout(t["checkout"], body, t, cfg, fl), sid
         if query.get("guest") == ["1"] or body.get("guest"):
             sess["guest"] = True
         logged_in = sess["user"] is not None or sess["guest"]

@@ -31,3 +31,6 @@
 - [ADR-0027](0027-pdf-reports-fpdf2.md) — PDF-отчёты: fpdf2 вместо WeasyPrint + matplotlib
 - [ADR-0028](0028-public-summaries.md) — Публичные сводки без доменов
 - [ADR-0029](0029-shopify-adapter.md) — Адаптер Shopify: документированная витрина, чекаут эвристикой
+- [ADR-0030](0030-adapters-from-open-sources.md) — Адаптеры OpenCart, OXID, Shopware 5, Magento 1, BigCommerce только из открытых исходников; plentymarkets/JTL — эвристика
+- [ADR-0031](0031-trace-rerun.md) — Повторный проход с трассировкой Playwright из админки (FR-QA-06)
+- [ADR-0032](0032-hosted-checkouts.md) — Хостед-чекауты провайдеров: распознаём и атрибутируем, но не проходим; Shopify — не хостед-чекаут

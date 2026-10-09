@@ -18,7 +18,8 @@ from payintel.crawl.checkout.walker import WalkInput, WalkResult
 from tests.e2e.conftest import IDENTITIES, make_walker
 from tests.e2e.shopsim import SimServer
 
-TAX = load_reference().stop_reasons
+REFERENCE = load_reference()
+TAX = REFERENCE.stop_reasons
 PLATFORM_OF = {
     "woocommerce": "woocommerce",
     "magento2": "magento2",
@@ -54,6 +55,7 @@ def _input(
         url_check=lambda url: None,
         platform_id=PLATFORM_OF[cfg.flavour],
         credentials=credentials,
+        hosted=REFERENCE.hosted_checkouts.match,
     )
 
 
@@ -443,3 +445,74 @@ async def test_walk_deadline_is_a_timeout_stop(browser_pool: BrowserPool, sim: S
     assert "checkout" in r.stop.detail
     assert r.coverage == Coverage.CART  # furthest step started was checkout
     assert r.duration_ms < 4_000 + 2 * 3_000 + 2_000  # deadline + bounded evidence capture
+
+
+# --- hosted checkouts (ADR-0032) -------------------------------------------------------
+def _hits(sim: SimServer, start: int, host: str) -> list[tuple[str, str, str]]:
+    return [r for r in sim.requests[start:] if r[1] == host]
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_hosted_checkout_link_is_recognised_without_leaving_the_shop(
+    browser_pool: BrowserPool, sim: SimServer
+) -> None:
+    """The cart's only checkout link is a Stripe payment link: the walk names the provider
+    and stops at the cart; the hosted page is never requested (ADR-0014 p. 9)."""
+    shop = "hosted-link-en"
+    sim.reset(shop)
+    start = len(sim.requests)
+    r = await make_walker(browser_pool, sim).walk(_input(sim, shop))
+    assert r.stop is not None
+    assert (r.stop.step, r.stop.reason) == (WalkStep.CHECKOUT, "hosted_checkout_external"), r.stop
+    assert r.stop.detail == "stripe: buy.stripe.com (link)"
+    assert TAX.is_valid(r.stop.step.value, r.stop.reason, r.stop.detail)
+    assert normalise_stop(r.stop, TAX, detail_max_chars=500).reason == "hosted_checkout_external"
+    assert r.status == ScanStatus.REACHED_CART and r.coverage == Coverage.CART
+    assert r.hosted_checkout is not None
+    assert (r.hosted_checkout.provider_id, r.hosted_checkout.via) == ("stripe", "link")
+    assert r.hosted_checkout.url.startswith("https://buy.stripe.com/")
+    assert r.journal.of("hosted_checkout")
+    assert _hits(sim, start, "buy.stripe.com") == []
+    assert r.final_url.startswith(f"http://{shop}.test/")
+    _assert_clean(sim, shop, r)
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_hosted_checkout_redirect_stops_on_landing(
+    browser_pool: BrowserPool, sim: SimServer
+) -> None:
+    """The shop's checkout URL 302s to Stripe Checkout: the landing host is recognised after
+    the one navigation the redirect forces; nothing is read, clicked or typed there."""
+    shop = "hosted-redirect-de"
+    sim.reset(shop)
+    start = len(sim.requests)
+    r = await make_walker(browser_pool, sim).walk(_input(sim, shop))
+    assert r.stop is not None
+    assert (r.stop.step, r.stop.reason) == (WalkStep.CHECKOUT, "hosted_checkout_external"), r.stop
+    assert r.stop.detail == "stripe: checkout.stripe.com (redirect)"
+    assert r.hosted_checkout is not None and r.hosted_checkout.via == "redirect"
+    assert r.hosted_checkout.host == "checkout.stripe.com"
+    hits = _hits(sim, start, "checkout.stripe.com")
+    assert hits and {m for m, _, _ in hits} == {"GET"}, hits  # the redirect's navigation only
+    assert not r.journal.of("fill")  # nothing typed anywhere, nothing clicked after the cart
+    assert {e.detail["purpose"] for e in r.journal.of("click")} <= {"add_to_cart"}
+    assert r.status == ScanStatus.REACHED_CART
+    _assert_clean(sim, shop, r)
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_offsite_redirect_to_an_unknown_host_is_a_navigation_error(
+    browser_pool: BrowserPool, sim: SimServer
+) -> None:
+    """Any other host outside the shop's eTLD+1 ends the walk at once."""
+    shop = "offsite-redirect-en"
+    sim.reset(shop)
+    start = len(sim.requests)
+    r = await make_walker(browser_pool, sim).walk(_input(sim, shop))
+    assert r.stop is not None
+    assert (r.stop.step, r.stop.reason) == (WalkStep.NAVIGATION, "navigation_error"), r.stop
+    assert r.stop.detail == f"left {shop}.test during checkout: other-shop.example"
+    assert r.hosted_checkout is None and r.journal.of("left_etld1")
+    assert {m for m, _, _ in _hits(sim, start, "other-shop.example")} == {"GET"}
+    assert r.status == ScanStatus.ERROR
+    _assert_clean(sim, shop, r)

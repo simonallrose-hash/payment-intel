@@ -37,6 +37,7 @@ from urllib.parse import urljoin, urlsplit
 from playwright.async_api import Error as PlaywrightError
 from playwright.async_api import Page
 
+from payintel.core.hosted_checkouts import HostedCheckout, HostedHit
 from payintel.core.models.base import Coverage, ScanStatus, StoreAccountStatus
 from payintel.crawl.checkout.accounts import Credentials
 from payintel.crawl.checkout.adapters import AdapterHints, adapter_for
@@ -200,6 +201,8 @@ class WalkInput:
     geo: dict[str, str | None] = field(default_factory=dict)
     # FR-QA-06: record a Playwright trace (screenshots + DOM snapshots) of this walk
     trace: bool = False
+    # ADR-0032: url → verified hosted checkout entry of a provider (never navigated to)
+    hosted: Callable[[str], HostedCheckout | None] | None = None
 
 
 @dataclass
@@ -237,6 +240,7 @@ class WalkResult:
     checkout_url: str = ""
     checkout_entry_index: int = -1  # index into recorder.entries where the checkout began
     trace: bytes | None = None  # Playwright trace zip when the walk was requested with one
+    hosted_checkout: HostedHit | None = None  # ADR-0032: the walk ended at a provider's page
 
     @property
     def reached_payment(self) -> bool:
@@ -394,6 +398,7 @@ class CheckoutWalker:
             checkout_url=run.checkout_url,
             checkout_entry_index=run.checkout_entry_index,
             trace=trace,
+            hosted_checkout=run.hosted_checkout,
         )
 
     async def _stop_trace(self, wc: WalkContext) -> bytes | None:
@@ -476,6 +481,7 @@ class _Run:
         self.product_url = ""
         self.checkout_url = ""
         self.checkout_entry_index = -1  # first network entry made from the checkout on
+        self.hosted_checkout: HostedHit | None = None
         self._base = inp.url
         self._tried: set[str] = set()
         self._open_step: tuple[WalkStep, float] | None = None
@@ -503,9 +509,75 @@ class _Run:
     def _stop(self, step: WalkStep, reason: str, detail: str = "", **kw: Any) -> WalkStopped:
         return WalkStopped(Stop(step, reason, detail[:500], page_url=self.gp.url, **kw))
 
+    def _own_host(self, host: str) -> bool:
+        own = self.inp.etld1
+        return host == own or host.endswith("." + own)
+
+    def _hosted_stop(self, url: str, entry: HostedCheckout, *, via: str) -> WalkStopped:
+        """The shop hands the whole checkout to a provider's hosted page (ADR-0032): the
+        walk does not follow (ADR-0014 p. 9) but records whose page it is."""
+        host = (urlsplit(url).hostname or "").lower()
+        self.hosted_checkout = HostedHit(
+            host=host, url=url[:500], provider_id=entry.provider_id, via=via
+        )
+        self.journal.add("hosted_checkout", host=host, provider=entry.provider_id, via=via)
+        return WalkStopped(
+            Stop(
+                WalkStep.CHECKOUT,
+                "hosted_checkout_external",
+                f"{entry.provider_id}: {host} ({via})",
+                page_url=self.gp.url,
+            )
+        )
+
+    def _check_landing_host(self) -> None:
+        """A redirect may have carried the browser off the shop's eTLD+1 (the `goto` check
+        only sees the requested URL). Stop here: a known hosted checkout is attributed,
+        anything else is a navigation error. Nothing is clicked or typed on that page."""
+        url = self.gp.url
+        host = (urlsplit(url).hostname or "").lower()
+        if not host or self._own_host(host):
+            return
+        entry = self.inp.hosted(url) if self.inp.hosted is not None else None
+        if entry is not None:
+            raise self._hosted_stop(url, entry, via="redirect")
+        self.journal.add("left_etld1", host=host, url=url[:300])
+        raise WalkStopped(
+            Stop(
+                WalkStep.NAVIGATION,
+                "navigation_error",
+                f"left {self.inp.etld1} during {self.step.value}: {host}",
+                page_url=url,
+            )
+        )
+
+    async def _external_links(self, selectors: tuple[str, ...]) -> list[str]:
+        """Visible links that leave the shop's eTLD+1 (never followed; ADR-0032 only
+        reads them to recognise a hosted checkout)."""
+        try:
+            raw = await self.gp.page.evaluate(_LINKS_JS, list(selectors))
+        except PlaywrightError:
+            return []
+        out: list[str] = []
+        for href in raw:
+            h = (urlsplit(str(href)).hostname or "").lower()
+            if h and not self._own_host(h):
+                out.append(str(href))
+        return out
+
+    async def _hosted_link(self) -> tuple[str, HostedCheckout] | None:
+        if self.inp.hosted is None:
+            return None
+        for href in await self._external_links((*self.adapter.checkout_links, "a[href]")):
+            entry = self.inp.hosted(href)
+            if entry is not None:
+                return href, entry
+        return None
+
     async def _after_navigation(self, status: int | None) -> None:
         """Protection and HTTP checks after every navigation (FR-CW-06), then memory (FR-CW-10)."""
         await self.gp.wait_idle(self.w.cfg.network_idle_timeout_ms)
+        self._check_landing_host()
         title = await self.gp.title()
         html = await self.gp.content()
         text = await self.gp.body_text()
@@ -797,6 +869,8 @@ class _Run:
             links = await self._links(self.adapter.checkout_links)
             if links:
                 await self._goto(links[0], WalkStep.CHECKOUT)
+            elif (hosted := await self._hosted_link()) is not None:
+                raise self._hosted_stop(hosted[0], hosted[1], via="link")
             elif await self._click_selectors_or_phrases(
                 self.adapter.checkout_links, "checkout_words", Purpose.CHECKOUT
             ):

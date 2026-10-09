@@ -21,6 +21,7 @@ from sqlalchemy.orm import Session
 from payintel.core import audit
 from payintel.core.clock import SYSTEM_CLOCK, Clock
 from payintel.core.errors import ReferenceError_
+from payintel.core.hosted_checkouts import HostedCheckouts
 from payintel.core.models.base import PaymentMethodType, ProviderRole, ReferenceStatus
 from payintel.core.models.reference import PaymentMethod, Platform, Provider, Vertical
 
@@ -60,6 +61,8 @@ class ReferenceData:
     verticals: list[dict[str, Any]]
     stop_reasons: StopReasonTaxonomy
     problems: list[str] = field(default_factory=list)
+    # ADR-0032: hosted checkout hosts of providers; `verified` rows drive the walker
+    hosted_checkouts: HostedCheckouts = field(default_factory=HostedCheckouts.empty)
 
 
 def _read_yaml(path: Path) -> dict[str, Any]:
@@ -163,12 +166,18 @@ def load_reference(directory: Path = REFERENCE_DIR) -> ReferenceData:
     if "other" not in stop_reasons.any_step or "other" not in stop_reasons.requires_detail:
         raise ReferenceError_("stop_reasons.yaml: `other` must be any-step and require detail")
 
+    hosted = HostedCheckouts.load(directory / "hosted_checkouts.yaml")
+    unknown = sorted(hosted.provider_ids() - provider_ids)
+    if unknown:
+        raise ReferenceError_(f"hosted_checkouts.yaml: unknown provider ids {unknown}")
+
     return ReferenceData(
         providers=providers,
         payment_methods=methods,
         platforms=platforms,
         verticals=verticals,
         stop_reasons=stop_reasons,
+        hosted_checkouts=hosted,
     )
 
 

@@ -27,11 +27,10 @@ rules:
   page_scope: any
   enabled: true
 - id: provider.flutterwave.network_host.2
-  version: 1
+  version: 2
   signal_type: network_host
   pattern: api.flutterwave.com
   weight: 0.5
   page_scope: checkout
-  enabled: false
-  needs_verification: true
-  note: server API, may not appear in the browser
+  enabled: true
+  note: "verified 2026-10-09: Standard flow `data.link` is https://api.flutterwave.com/v3/hosted/pay/… (https://developer.flutterwave.com/docs/collecting-payments/standard)"

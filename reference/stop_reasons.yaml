@@ -30,6 +30,7 @@ steps:
     - checkout_not_found
     - guest_unavailable_registration_disabled
     - login_failed
+    - hosted_checkout_external
   registration:
     - registration_form_unknown
     - registration_captcha
