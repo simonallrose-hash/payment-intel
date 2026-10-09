@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_macros.html" import csrf %}
 {% block title %}Crawler{% endblock %}
 {% block content %}
 <h1>Crawler monitoring</h1>
@@ -18,5 +19,19 @@
 <table class="grid"><thead><tr><th>Worker</th><th>Scans</th><th>Last activity</th><th>Avg duration</th></tr></thead><tbody>
 {% for w, n, last, avg in workers %}<tr><td>{{ w }}</td><td>{{ n }}</td><td>{{ last|dt }}</td><td>{{ "%.1f"|format(avg or 0) }} s</td></tr>{% else %}<tr><td colspan="4" class="muted">No worker activity in the last hour.</td></tr>{% endfor %}
 </tbody></table>
+<h2>ASN limits after hoster complaints (FR-OO-04)</h2>
+<p class="muted">A complaint applies at once: hosts in the ASN are crawled at factor × the normal rates and the whole ASN shares one bucket; workers reload within a minute. Only staff_admin lifts a limit after the review.{% if not asn_table_configured %} No ip2asn table is configured (<code>PAYINTEL_SCAN__ASN_TABLE_PATH</code>): complaints must name the ASN and workers cannot apply limits by IP.{% endif %}</p>
+<table class="grid"><thead><tr><th>ASN</th><th>Factor</th><th>ASN rps</th><th>Complaints</th><th>Source</th><th>Since</th><th>Note</th><th></th></tr></thead><tbody>
+{% for l in asn_limits %}<tr><td>AS{{ l.asn }} {{ l.asn_name or "" }}</td><td>{{ l.factor }}</td><td>{{ l.asn_rps }}</td><td>{{ l.complaints }} (last {{ l.last_complaint_at|dt }})</td><td>{{ l.source }}{% if l.ip %} · {{ l.ip }}{% endif %}</td><td>{{ l.created_at|dt }}</td><td>{{ l.note or "" }}</td>
+<td>{% if ui.principal.role.value == "staff_admin" %}<form method="post" action="/admin/crawler/asn-limits/{{ l.asn }}/lift" class="inline">{{ csrf(ui) }}<input name="note" placeholder="review outcome"><button type="submit">Lift</button></form>{% endif %}</td></tr>
+{% else %}<tr><td colspan="8" class="muted">No active ASN limits.</td></tr>{% endfor %}
+</tbody></table>
+{% if ui.principal.role.value == "staff_admin" %}<form method="post" action="/admin/crawler/asn-limits" class="card">{{ csrf(ui) }}
+<label>ASN or IP from the complaint <input name="target" required placeholder="AS24940 or 203.0.113.7"></label>
+<label>Source <input name="source" required placeholder="abuse@hoster.example, ticket 123"></label>
+<label>Note <input name="note"></label>
+<button type="submit">Apply limit (factor {{ complaint_factor }})</button>
+</form>{% endif %}
+{% if asn_lifted %}<p class="muted">Recently lifted: {% for l in asn_lifted %}AS{{ l.asn }} ({{ l.lifted_at|dt }} by {{ l.lifted_by }}){% if not loop.last %} · {% endif %}{% endfor %}</p>{% endif %}
 <p class="muted">Host-level CPU/RAM come from the server monitoring stack (runbook §9); this page shows the application view.</p>
 {% endblock %}

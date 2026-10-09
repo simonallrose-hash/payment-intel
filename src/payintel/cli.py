@@ -58,10 +58,12 @@ users_app = typer.Typer(no_args_is_help=True, help="Portal and staff users")
 keys_app = typer.Typer(no_args_is_help=True, help="API keys (FR-API-02)")
 orgs_app = typer.Typer(no_args_is_help=True, help="Organisations (FR-KYC-01)")
 abuse_app = typer.Typer(no_args_is_help=True, help="Anti-abuse detectors and canaries (FR-AB-*)")
+crawler_app = typer.Typer(no_args_is_help=True, help="Crawler limits and complaints (FR-OO-04)")
 app.add_typer(api_app, name="api")
 app.add_typer(alerts_app, name="alerts")
 app.add_typer(exports_app, name="exports")
 app.add_typer(abuse_app, name="abuse")
+app.add_typer(crawler_app, name="crawler")
 app.add_typer(report_app, name="report")
 app.add_typer(optout_app, name="optout")
 app.add_typer(dsar_app, name="dsar")
@@ -352,9 +354,15 @@ def discovery_resolve(
     days = settings.scan.no_dns_recheck_days if recheck_days is None else recheck_days
     with session_scope(get_engine()) as session:
         hosts = dns_mod.hosts_due(session, clock=SYSTEM_CLOCK, recheck_days=days, limit=limit)
+        from payintel.compliance.complaints import load_table
+
         r = asyncio.run(
             dns_mod.resolve_hosts(
-                session, hosts, resolver, concurrency=settings.discovery.dns_concurrency
+                session,
+                hosts,
+                resolver,
+                concurrency=settings.discovery.dns_concurrency,
+                asn_table=load_table(settings),
             )
         )
     typer.echo(
@@ -434,6 +442,8 @@ def worker_light(
     ch = make_ch_client(settings.clickhouse)
     redis = Redis.from_url(settings.redis.url)
     factory = sessionmaker(bind=get_engine(), expire_on_commit=False)
+    from payintel.compliance.complaints import build_policy
+
     ctx = build_context(
         settings,
         worker_id=worker_id,
@@ -442,6 +452,7 @@ def worker_light(
         limiter=RedisRateLimiter(redis),
         allow_private=allow_private,
         ruleset=_effective_ruleset(factory),
+        asn_policy=build_policy(settings, factory),
     )
     scanner = LightScanner(ctx)
     conc = concurrency or settings.light.concurrency_per_worker
@@ -1048,6 +1059,91 @@ def orgs_screen(
             )
     finally:
         client.close()
+
+
+@crawler_app.command("complaint")
+def crawler_complaint(
+    target: Annotated[str, typer.Argument(help="ASN (AS12345 or 12345) or an IP address")],
+    source: Annotated[str, typer.Option(help="Mailbox / ticket the complaint came from")],
+    note: Annotated[str | None, typer.Option(help="Free text")] = None,
+    factor: Annotated[float | None, typer.Option(help="Rate multiplier; default settings")] = None,
+    actor: Annotated[str, typer.Option(help="Audit actor")] = "cli",
+) -> None:
+    """FR-OO-04: apply the reduced crawl rate for the hoster's ASN at once."""
+    from payintel.compliance import complaints as cmp
+
+    settings = get_settings()
+    with session_scope(get_engine()) as session:
+        row = cmp.record(
+            session,
+            target=target,
+            source=source,
+            note=note,
+            actor=_cli_principal(actor).actor,
+            clock=SYSTEM_CLOCK,
+            table=cmp.load_table(settings),
+            factor=factor if factor is not None else settings.scan.complaint_rps_factor,
+            asn_rps=settings.scan.complaint_asn_rps,
+        )
+        typer.echo(
+            f"AS{row.asn}: factor {row.factor} asn_rps {row.asn_rps} "
+            f"complaints {row.complaints}"
+        )
+
+
+@crawler_app.command("complaints")
+def crawler_complaints(
+    path: Annotated[Path, typer.Argument(exists=True, dir_okay=False, help="One per line")],
+    actor: Annotated[str, typer.Option(help="Audit actor")] = "mailbox",
+) -> None:
+    """FR-OO-04: ingest complaints exported from the abuse mailbox
+    (`<iso-ts> <asn|ip> <source> [note]` per line)."""
+    from payintel.compliance import complaints as cmp
+
+    settings = get_settings()
+    items = cmp.parse_lines(path.read_text(encoding="utf-8").splitlines())
+    with session_scope(get_engine()) as session:
+        r = cmp.ingest(
+            session,
+            items,
+            actor=_cli_principal(actor).actor,
+            clock=SYSTEM_CLOCK,
+            table=cmp.load_table(settings),
+            factor=settings.scan.complaint_rps_factor,
+            asn_rps=settings.scan.complaint_asn_rps,
+        )
+    typer.echo(f"lines={r.lines} applied={r.applied} unresolved={r.unresolved}")
+
+
+@crawler_app.command("asn-limits")
+def crawler_asn_limits() -> None:
+    """List the active ASN limits."""
+    from payintel.compliance import complaints as cmp
+
+    with session_scope(get_engine()) as session:
+        rows = cmp.active(session)
+        for row in rows:
+            typer.echo(
+                f"AS{row.asn} {row.asn_name or ''}: factor {row.factor} asn_rps {row.asn_rps} "
+                f"complaints {row.complaints} since {row.created_at:%Y-%m-%d} ({row.source})"
+            )
+    typer.echo(f"{len(rows)} active ASN limit(s)")
+
+
+@crawler_app.command("lift")
+def crawler_lift(
+    asn: Annotated[int, typer.Argument(help="ASN")],
+    note: Annotated[str | None, typer.Option(help="Review outcome")] = None,
+    actor: Annotated[str, typer.Option(help="Audit actor")] = "cli",
+) -> None:
+    """Lift an ASN limit after the manual review."""
+    from payintel.compliance import complaints as cmp
+
+    with session_scope(get_engine()) as session:
+        row = cmp.lift(
+            session, asn, actor=_cli_principal(actor).actor, note=note, clock=SYSTEM_CLOCK
+        )
+        typer.echo(f"AS{row.asn}: lifted")
 
 
 @users_app.command("create")

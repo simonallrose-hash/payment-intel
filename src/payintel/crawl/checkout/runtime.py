@@ -34,7 +34,7 @@ from payintel.detect.country import CountryDetector
 from payintel.detect.hosts import HostCategorizer
 from payintel.detect.rules import RuleSet, load_rules
 from payintel.history.writer import ObservationBuffer
-from payintel.scheduler.politeness import MemoryRateLimiter, RateLimiter
+from payintel.scheduler.politeness import AsnPolicy, MemoryRateLimiter, RateLimiter
 
 
 def global_candidates(ruleset: RuleSet) -> list[str]:
@@ -102,6 +102,7 @@ def build_checkout_context(
     sleep: Any = None,
     base_scheme: str = "https",
     reference: ReferenceData | None = None,
+    asn_policy: AsnPolicy | None = None,
     rewrite: Rewriter | None = None,
     robots_fetch: RobotsFetch | None = None,
     walker: CheckoutWalker | None = None,
@@ -124,6 +125,7 @@ def build_checkout_context(
         ip_rps=settings.scan.max_requests_per_second_per_ip,
         sleep=sleep,
         transport=transport,
+        asn_policy=asn_policy,
     )
     if walker is None:
         cfg = walker_config(settings, current_year=clock.now().year)

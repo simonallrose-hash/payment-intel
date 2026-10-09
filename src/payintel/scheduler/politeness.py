@@ -14,7 +14,7 @@ from __future__ import annotations
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Any, Protocol
 
 from redis.asyncio import Redis
 
@@ -118,6 +118,64 @@ class RedisRateLimiter:
         value = await self._r.decr(k)
         if value <= 0:
             await self._r.delete(k)
+
+
+def asn_key(asn: int) -> str:
+    return f"asn:{asn}"
+
+
+@dataclass(frozen=True)
+class AsnDecision:
+    asn: int | None
+    factor: float = 1.0
+    asn_rps: float | None = None
+
+
+LimitLoader = Callable[[], dict[int, tuple[float, float]]]
+
+
+class AsnPolicy:
+    """FR-OO-04: per-request rate multiplier and ASN-wide cap for limited ASNs.
+
+    `loader` returns the active limits `{asn: (factor, asn_rps)}` (normally
+    `compliance.complaints.active_factors` on a fresh session) and is called
+    again once `refresh_seconds` have passed; `lookup` maps an IP to its ASN
+    (`crawl.asn.AsnTable.lookup`).
+    """
+
+    def __init__(
+        self,
+        lookup: Callable[[str], Any],
+        loader: LimitLoader,
+        *,
+        refresh_seconds: float = 60.0,
+        now: Callable[[], float] = time.monotonic,
+    ) -> None:
+        self._lookup = lookup
+        self._loader = loader
+        self._refresh = refresh_seconds
+        self._now = now
+        self._loaded_at: float | None = None
+        self._limits: dict[int, tuple[float, float]] = {}
+
+    def refresh(self, *, force: bool = False) -> dict[int, tuple[float, float]]:
+        now = self._now()
+        if force or self._loaded_at is None or now - self._loaded_at >= self._refresh:
+            self._limits = dict(self._loader())
+            self._loaded_at = now
+        return self._limits
+
+    def decide(self, ip: str) -> AsnDecision:
+        limits = self.refresh()
+        info = self._lookup(ip)
+        asn = getattr(info, "asn", None) if info is not None else None
+        if asn is None:
+            return AsnDecision(None)
+        hit = limits.get(int(asn))
+        if hit is None:
+            return AsnDecision(int(asn))
+        factor, asn_rps = hit
+        return AsnDecision(int(asn), factor, asn_rps)
 
 
 def host_key(hostname: str) -> str:

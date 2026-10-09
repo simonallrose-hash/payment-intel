@@ -9,6 +9,7 @@ from sqlalchemy import (
     BigInteger,
     Boolean,
     DateTime,
+    Float,
     ForeignKey,
     Index,
     Integer,
@@ -116,3 +117,42 @@ class StoreAccount(Base):
     created_scan_run_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("scan_run.id", ondelete="SET NULL"), nullable=True
     )
+
+
+class AsnLimit(Base):
+    """FR-OO-04: reduced crawl rates for an ASN after a hoster complaint."""
+
+    __tablename__ = "asn_limit"
+    __table_args__ = {
+        "comment": "FR-OO-04: reduced crawl rates for an ASN after a hoster complaint"
+    }
+
+    asn: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=False)
+    factor: Mapped[float] = mapped_column(
+        Float,
+        nullable=False,
+        comment="Multiplier on per-host and per-IP request rates (0 < factor ≤ 1)",
+    )
+    asn_rps: Mapped[float] = mapped_column(
+        Float,
+        nullable=False,
+        comment="Cap on requests per second across the whole ASN while limited",
+    )
+    source: Mapped[str] = mapped_column(String(256), nullable=False, comment="abuse@…, ticket id")
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    ip: Mapped[str | None] = mapped_column(
+        String(64), nullable=True, comment="address named in the complaint"
+    )
+    asn_name: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    complaints: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=1, server_default=text("1")
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_by: Mapped[str] = mapped_column(String(128), nullable=False)
+    last_complaint_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    lifted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="Set by staff after the manual review; the limit no longer applies",
+    )
+    lifted_by: Mapped[str | None] = mapped_column(String(128), nullable=True)

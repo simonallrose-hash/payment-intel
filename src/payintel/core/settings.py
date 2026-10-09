@@ -12,6 +12,7 @@ delimiter, e.g. `PAYINTEL_SCAN__LIGHT_INTERVAL_DAYS=7`.
 from __future__ import annotations
 
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic import BaseModel, Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -118,6 +119,19 @@ class ScanSettings(BaseModel):
     max_requests_per_second_per_host: float = Field(default=1.0, description="FR-SC-06")
     max_browser_sessions_per_etld1: int = Field(default=1, description="FR-SC-06")
     max_requests_per_second_per_ip: float = Field(default=5.0, description="FR-SC-06")
+    asn_table_path: Path | None = Field(
+        default=None,
+        description="FR-OO-04: ip2asn TSV (iptoasn.com, optionally .gz) for IP → ASN lookups",
+    )
+    complaint_rps_factor: float = Field(
+        default=0.1, description="FR-OO-04: per-host/per-IP rate multiplier after a complaint"
+    )
+    complaint_asn_rps: float = Field(
+        default=1.0, description="FR-OO-04: requests per second across a limited ASN"
+    )
+    asn_limits_refresh_seconds: float = Field(
+        default=60.0, description="FR-OO-04: how often workers reload the active ASN limits"
+    )
     priority_weight_ecommerce: float = Field(default=1.0, description="FR-SC-02 weight")
     priority_weight_traffic_rank: float = Field(default=1.0, description="FR-SC-02 weight")
     priority_weight_has_checkout: float = Field(default=1.0, description="FR-SC-02 weight")

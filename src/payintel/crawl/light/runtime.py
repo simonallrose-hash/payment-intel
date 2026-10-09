@@ -28,7 +28,7 @@ from payintel.discovery.classify import EcommerceClassifier
 from payintel.discovery.dns import UnboundResolver
 from payintel.discovery.parking import ParkingDetector
 from payintel.history.writer import ObservationBuffer
-from payintel.scheduler.politeness import MemoryRateLimiter, RateLimiter
+from payintel.scheduler.politeness import AsnPolicy, MemoryRateLimiter, RateLimiter
 
 Resolve = Callable[[str], Awaitable[list[str]]]
 
@@ -66,6 +66,7 @@ def build_context(
     sleep: Any = None,
     base_scheme: str = "https",
     reference: ReferenceData | None = None,
+    asn_policy: AsnPolicy | None = None,
     ruleset: RuleSet | None = None,
 ) -> ScanContext:
     reference = reference or load_reference()
@@ -85,6 +86,7 @@ def build_context(
         ip_rps=settings.scan.max_requests_per_second_per_ip,
         sleep=sleep,
         transport=transport,
+        asn_policy=asn_policy,
     )
     return ScanContext(
         settings=settings,

@@ -17,7 +17,14 @@ from urllib.parse import urljoin
 import httpx
 
 from payintel.crawl.egress import EgressBlocked, EgressGuard
-from payintel.scheduler.politeness import RateLimiter, host_key, ip_key
+from payintel.scheduler.politeness import (
+    AsnDecision,
+    AsnPolicy,
+    RateLimiter,
+    asn_key,
+    host_key,
+    ip_key,
+)
 
 MAX_HOPS = 5
 TransportFactory = Callable[[], httpx.AsyncBaseTransport]
@@ -112,6 +119,7 @@ class Fetcher:
         max_connections: int = 400,
         keepalive: int = 0,
         shards: int = 16,
+        asn_policy: AsnPolicy | None = None,
     ) -> None:
         import asyncio
 
@@ -136,6 +144,7 @@ class Fetcher:
         self._max_bytes = max_bytes
         self._host_rps = host_rps
         self._ip_rps = ip_rps
+        self._asn_policy = asn_policy
         self._sleep = sleep or asyncio.sleep
 
     @staticmethod
@@ -176,11 +185,19 @@ class Fetcher:
             await client.aclose()
 
     async def _polite_wait(self, hostname: str, addresses: tuple[str, ...]) -> None:
-        wait = await self._limiter.acquire(host_key(hostname), self._host_rps)
+        # FR-OO-04: a hoster complaint scales the host/IP rates down and caps the whole ASN
+        decision = (
+            self._asn_policy.decide(addresses[0])
+            if self._asn_policy is not None and addresses
+            else AsnDecision(None)
+        )
+        host_rps = self._host_rps * decision.factor
+        ip_rps = self._ip_rps * decision.factor
+        wait = await self._limiter.acquire(host_key(hostname), host_rps)
         for ip in addresses[:1]:
-            wait = max(
-                wait, await self._limiter.acquire(ip_key(ip), self._ip_rps, burst=self._ip_rps)
-            )
+            wait = max(wait, await self._limiter.acquire(ip_key(ip), ip_rps, burst=ip_rps))
+        if decision.asn is not None and decision.asn_rps is not None:
+            wait = max(wait, await self._limiter.acquire(asn_key(decision.asn), decision.asn_rps))
         if wait > 0:
             await self._sleep(wait)
 

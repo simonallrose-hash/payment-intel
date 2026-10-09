@@ -25,6 +25,7 @@ from sqlalchemy.orm import Session
 from payintel.core.clock import SYSTEM_CLOCK, Clock
 from payintel.core.models.base import DomainStatus
 from payintel.core.models.domains import Domain, Host
+from payintel.crawl.asn import AsnTable
 from payintel.discovery.parking import ParkingDetector, get_parking_detector
 
 
@@ -142,6 +143,7 @@ async def resolve_hosts(
     clock: Clock = SYSTEM_CLOCK,
     concurrency: int = 50,
     parking: ParkingDetector | None = None,
+    asn_table: AsnTable | None = None,
 ) -> ResolveResult:
     parking = parking or get_parking_detector()
     sem = asyncio.Semaphore(concurrency)
@@ -158,6 +160,10 @@ async def resolve_hosts(
         host.dns_checked_at = now
         host.dns_status = rec.status
         host.last_resolved_ips = list(rec.addresses) or None
+        if asn_table is not None and rec.addresses:
+            info = asn_table.lookup(rec.addresses[0])
+            host.asn = info.asn if info else None
+            host.hosting_country = info.country if info else None
         host.cname = rec.cname
         host.mx = list(rec.mx) or None
         host.ns = list(rec.ns) or None

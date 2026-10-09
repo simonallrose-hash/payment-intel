@@ -23,6 +23,7 @@ from payintel.abuse import usage_report as usage_mod
 from payintel.api import ui
 from payintel.api.deps import SessionDep, StateDep
 from payintel.api.schemas.internal import StoreInternal
+from payintel.compliance import complaints as complaints_mod
 from payintel.compliance import contracts as contracts_mod
 from payintel.compliance import dsar as dsar_mod
 from payintel.compliance import kyc as kyc_mod
@@ -809,7 +810,57 @@ def crawler(request: Request, state: StateDep, session: SessionDep, ctx: ui.Staf
         by_status=[(t.value, s.value, n) for t, s, n in by_status],
         throughput=throughput,
         workers=workers,
+        asn_limits=complaints_mod.active(session),
+        asn_lifted=complaints_mod.recent_lifted(session),
+        asn_table_configured=state.settings.scan.asn_table_path is not None,
+        complaint_factor=state.settings.scan.complaint_rps_factor,
     )
+
+
+@router.post("/crawler/asn-limits")
+def crawler_complaint(
+    state: StateDep,
+    session: SessionDep,
+    ctx: Admin,
+    _csrf: ui.CsrfDep,
+    target: Annotated[str, Form()],
+    source: Annotated[str, Form()],
+    note: Annotated[str | None, Form()] = None,
+) -> Response:
+    """FR-OO-04: a hoster complaint reduces the rates for its ASN at once."""
+    row = complaints_mod.record(
+        session,
+        target=target,
+        source=source,
+        note=(note or "").strip() or None,
+        actor=ctx.principal.actor,
+        clock=state.clock,
+        table=complaints_mod.load_table(state.settings),
+        factor=state.settings.scan.complaint_rps_factor,
+        asn_rps=state.settings.scan.complaint_asn_rps,
+    )
+    return ui.redirect(
+        "/admin/crawler", msg=f"AS{row.asn} limited: factor {row.factor}, {row.asn_rps} rps."
+    )
+
+
+@router.post("/crawler/asn-limits/{asn}/lift")
+def crawler_lift(
+    state: StateDep,
+    session: SessionDep,
+    ctx: Admin,
+    _csrf: ui.CsrfDep,
+    asn: int,
+    note: Annotated[str | None, Form()] = None,
+) -> Response:
+    complaints_mod.lift(
+        session,
+        asn,
+        actor=ctx.principal.actor,
+        note=(note or "").strip() or None,
+        clock=state.clock,
+    )
+    return ui.redirect("/admin/crawler", msg=f"AS{asn} limit lifted.")
 
 
 # --- internal domain search (FR-ADM-04) -------------------------------------------------

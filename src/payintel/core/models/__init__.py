@@ -16,7 +16,7 @@ from payintel.core.models.portal import DsarRequest, PortalSession, ReportJob, S
 from payintel.core.models.quality import FindingReview, GoldLabel, QualityAlert
 from payintel.core.models.reference import PaymentMethod, Platform, Provider, Vertical
 from payintel.core.models.rules import DetectionRule
-from payintel.core.models.scans import ScanPlan, ScanRun, StoreAccount
+from payintel.core.models.scans import AsnLimit, ScanPlan, ScanRun, StoreAccount
 from payintel.core.models.store import (
     ChangeEvent,
     StoreCheckoutHost,
@@ -29,6 +29,7 @@ __all__ = [
     "AbuseIncident",
     "AlertRule",
     "ApiKey",
+    "AsnLimit",
     "AuditLog",
     "Base",
     "Canary",
