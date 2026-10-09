@@ -143,6 +143,8 @@ def match_new_events(
             continue
         confidence = _confidence_of(session, event)
         for rule in rules:
+            if event.detected_at < rule.created_at:
+                continue  # rules do not replay history that predates them
             if event.event_type.value not in rule.event_types:
                 continue
             if rule.watchlist_id is not None:

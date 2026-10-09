@@ -52,7 +52,20 @@ def resolve_grant(session: Session, org_id: uuid.UUID, *, today: date, flags: Fl
         raise EntitlementDenied(DenialCode.ORG_NOT_ACTIVE, "organisation is not active")
     contract = active_contract(session, org_id, today)
     if contract is None:
-        # Distinguish "no contract today" from "contract without entitlement".
+        # Distinguish "no contract today" from "contract without an active entitlement".
+        in_term = session.execute(
+            select(Contract.id)
+            .where(
+                Contract.org_id == org_id,
+                Contract.starts_on <= today,
+                Contract.ends_on >= today,
+            )
+            .limit(1)
+        ).first()
+        if in_term:
+            raise EntitlementDenied(
+                DenialCode.NO_ENTITLEMENT, "contract in term has no active entitlement"
+            )
         any_contract = session.execute(
             select(Contract.id).where(Contract.org_id == org_id).limit(1)
         ).first()

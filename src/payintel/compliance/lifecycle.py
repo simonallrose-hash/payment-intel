@@ -98,8 +98,8 @@ def transition(
         raise EntitlementDenied(
             DenialCode.ROLE_FORBIDDEN, f"role {principal.role.value} cannot set {to.value}"
         )
-    if to == OrgStatus.ACTIVE and not kyc_approved(session, org.id):
-        raise ConflictError("activation requires an approved KYC dossier (FR-KYC-01)")
+    if to in (OrgStatus.APPROVED, OrgStatus.ACTIVE) and not kyc_approved(session, org.id):
+        raise ConflictError(f"{to.value} requires an approved KYC dossier (FR-KYC-01)")
     before = org.status.value
     org.status = to
     session.flush()

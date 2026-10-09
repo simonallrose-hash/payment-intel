@@ -70,7 +70,8 @@ class Principal:
         if self.is_staff:
             return True
         if self.role == Role.API_CLIENT:
-            return role == Role.API_CLIENT
+            # Keys are limited by scopes (FR-API-02); they never reach org_admin floors.
+            return _ORG_RANK.get(role, 99) <= _ORG_RANK[Role.ORG_ANALYST]
         return _ORG_RANK.get(self.role, 0) >= _ORG_RANK.get(role, 99)
 
 

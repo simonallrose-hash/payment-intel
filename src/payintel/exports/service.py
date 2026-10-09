@@ -22,12 +22,19 @@ from payintel.api.usage import log_usage
 from payintel.core import audit
 from payintel.core.clock import Clock
 from payintel.core.errors import ConflictError, NotFoundError, ValidationError
+from payintel.core.flags import FlagService
 from payintel.core.models.base import ExportFormat, ExportStatus, ExportType, OrgStatus, Role
 from payintel.core.models.exports import Canary, ExportJob
 from payintel.core.models.orgs import Contract, Entitlement, Organization
 from payintel.core.s3 import ObjectStore
 from payintel.core.settings import Settings
-from payintel.entitlements.check import require_role, require_same_org, require_staff
+from payintel.entitlements.check import (
+    EntitlementDenied,
+    require_role,
+    require_same_org,
+    require_staff,
+    resolve_grant,
+)
 from payintel.entitlements.model import Grant, Principal
 from payintel.entitlements.quotas import check_record_quota
 from payintel.entitlements.segment import countries_in_segment, platforms_in_segment
@@ -157,6 +164,7 @@ def approve(session: Session, job: ExportJob, *, principal: Principal, clock: Cl
         raise ConflictError("export is not awaiting approval", status=job.status.value)
     job.status = ExportStatus.PENDING
     job.approved_by = principal.user_id
+    job.params = {**job.params, "approved_by": principal.actor}  # CLI principals have no user id
     session.flush()
     audit.record(
         session,
@@ -272,7 +280,7 @@ def run_job(
             now=now,
             about_to_add=real_rows,
         )
-        if real_rows > grant.export_max_rows and job.approved_by is None:
+        if real_rows > grant.export_max_rows and not job.params.get("approved_by"):
             raise ConflictError("export exceeds the row limit and is not approved")
         rows = watermark.order_rows(rows, job.watermark_id, _row_key(job.type))
         fields = fields_for(job.type.value, grant.profile)
@@ -411,6 +419,7 @@ def schedule_periodic(session: Session, *, settings: Settings, clock: Clock) -> 
             Contract.ends_on >= now.date(),
         )
     ).all()
+    flags = FlagService(session, settings.flags, clock=clock)
     for org, _ent in rows:
         exists = session.execute(
             select(ExportJob.id).where(
@@ -422,12 +431,23 @@ def schedule_periodic(session: Session, *, settings: Settings, clock: Clock) -> 
         ).first()
         if exists:
             continue
+        try:
+            grant = resolve_grant(session, org.id, today=now.date(), flags=flags)
+        except EntitlementDenied:
+            continue
+        spec = ExportSpec(ExportType.FULL_SNAPSHOT, ExportFormat.PARQUET)
+        estimate = estimate_rows(session, grant, spec)
         job = ExportJob(
             org_id=org.id,
             type=ExportType.FULL_SNAPSHOT,
             format=ExportFormat.PARQUET,
-            params={"since": None, "countries": [], "platforms": [], "scheduled": True},
-            status=ExportStatus.PENDING,
+            params=spec.params()
+            | {"scheduled": True, "estimate": estimate, "profile": grant.profile.value},
+            status=(
+                ExportStatus.PENDING
+                if estimate <= grant.export_max_rows
+                else ExportStatus.AWAITING_APPROVAL
+            ),
             created_at=now,
         )
         session.add(job)
