@@ -14,7 +14,7 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, String, Text, text
+from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, Index, String, Text, text
 from sqlalchemy.dialects.postgresql import INET, JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -67,6 +67,7 @@ class ReportJob(Base):
     """One C Report build (FR-RP-01…04)."""
 
     __tablename__ = "report_job"
+    __table_args__ = (Index("uq_report_job_public_slug", "public_slug", unique=True),)
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     spec: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
@@ -86,9 +87,23 @@ class ReportJob(Base):
     )
     xlsx_key: Mapped[str | None] = mapped_column(String(512), nullable=True)
     csv_key: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    pdf_key: Mapped[str | None] = mapped_column(String(512), nullable=True)
     summary: Mapped[dict[str, Any]] = mapped_column(
         JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb")
     )
+    public_summary: Mapped[dict[str, Any] | None] = mapped_column(
+        JSONB,
+        nullable=True,
+        comment="FR-RP-05: aggregates without domains, built with the report",
+    )
+    public_slug: Mapped[str | None] = mapped_column(
+        String(96),
+        nullable=True,
+        comment="FR-RP-05: path of the public page while published",
+    )
+    public_pdf_key: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    published_by: Mapped[str | None] = mapped_column(String(128), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)

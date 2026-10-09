@@ -6,7 +6,7 @@
 {% for j in jobs %}
 <tr><td>{{ j.created_at|dt }}</td><td>{{ j.spec.countries|join(", ") }}{% if j.spec.platforms %} · {{ j.spec.platforms|join(", ") }}{% endif %}</td>
 <td>{{ j.summary.get("total_stores", "—") }}</td><td>{{ j.status.value }}</td>
-<td>{% if j.xlsx_key %}<a href="/portal/reports/{{ j.id }}/xlsx">XLSX</a>{% endif %} {% if j.csv_key %}<a href="/portal/reports/{{ j.id }}/csv">CSV</a>{% endif %}</td></tr>
+<td>{% if j.xlsx_key %}<a href="/portal/reports/{{ j.id }}/xlsx">XLSX</a>{% endif %} {% if j.csv_key %}<a href="/portal/reports/{{ j.id }}/csv">CSV</a>{% endif %} {% if j.pdf_key %}<a href="/portal/reports/{{ j.id }}/pdf">PDF</a>{% endif %}</td></tr>
 {% else %}<tr><td colspan="5" class="muted">No reports delivered to your organisation yet.</td></tr>{% endfor %}
 </tbody></table>
 {% endblock %}

@@ -13,17 +13,18 @@
 <label>Period end <input name="period_end" type="date"></label>
 <fieldset><legend>Metrics</legend>{% for m in metrics %}<label class="check"><input type="checkbox" name="metrics" value="{{ m }}" checked> {{ m }}</label>{% endfor %}</fieldset>
 <label>Deliver to organisation (optional) <select name="org_id"><option value="">internal only</option>{% for o in orgs %}<option value="{{ o.id }}">{{ o.legal_name }}</option>{% endfor %}</select></label>
-<button type="submit">Build XLSX + CSV</button>
+<button type="submit">Build XLSX + CSV + PDF</button>
 <p class="muted">Cells with fewer than {{ min_cell }} stores are merged into “other” or withheld (FR-RP-03, LR-19). Shares carry 95 % Wilson intervals; the Methodology sheet lists sample, coverage and limitations.</p>
 </form>
 </div>
 <div>
 <h2>Recent reports</h2>
-<table class="grid"><thead><tr><th>Built</th><th>Scope</th><th>Stores</th><th>Cells (withheld)</th><th>Status</th><th>By</th><th>Files</th></tr></thead><tbody>
+<table class="grid"><thead><tr><th>Built</th><th>Scope</th><th>Stores</th><th>Cells (withheld)</th><th>Status</th><th>By</th><th>Files</th><th>Public summary</th></tr></thead><tbody>
 {% for j in jobs %}
 <tr><td>{{ j.created_at|dt }}</td><td>{{ j.spec.countries|join(", ") }}{% if j.spec.platforms %} · {{ j.spec.platforms|join(", ") }}{% endif %}</td><td>{{ j.summary.get("total_stores", "—") }}</td><td>{{ j.summary.get("cells", "—") }} ({{ j.summary.get("cells_withheld", "—") }})</td><td>{{ j.status.value }}{% if j.error %} <span class="muted">{{ j.error[:80] }}</span>{% endif %}</td><td>{{ j.requested_by }}</td>
-<td>{% if j.xlsx_key %}<a href="/admin/reports/{{ j.id }}/xlsx">XLSX</a>{% endif %} {% if j.csv_key %}<a href="/admin/reports/{{ j.id }}/csv">CSV</a>{% endif %}</td></tr>
-{% else %}<tr><td colspan="7" class="muted">No reports yet.</td></tr>{% endfor %}
+<td>{% if j.xlsx_key %}<a href="/admin/reports/{{ j.id }}/xlsx">XLSX</a>{% endif %} {% if j.csv_key %}<a href="/admin/reports/{{ j.id }}/csv">CSV</a>{% endif %} {% if j.pdf_key %}<a href="/admin/reports/{{ j.id }}/pdf">PDF</a>{% endif %}</td>
+<td>{% if j.published_at %}<a href="/reports/{{ j.public_slug }}">/reports/{{ j.public_slug }}</a> <form method="post" action="/admin/reports/{{ j.id }}/unpublish" class="inline">{{ csrf(ui) }}<button type="submit" class="link">withdraw</button></form>{% elif j.status.value == "done" %}<form method="post" action="/admin/reports/{{ j.id }}/publish" class="inline">{{ csrf(ui) }}<button type="submit">Publish summary</button></form>{% else %}—{% endif %}</td></tr>
+{% else %}<tr><td colspan="8" class="muted">No reports yet.</td></tr>{% endfor %}
 </tbody></table>
 </div>
 </div>

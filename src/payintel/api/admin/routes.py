@@ -1469,21 +1469,39 @@ def report_download(
     job = reports.get_job(session, job_id)
     if state.store is None:
         raise ConfigurationError("object store is not configured")
-    key = job.xlsx_key if kind == "xlsx" else job.csv_key if kind == "csv" else None
-    if not key:
-        raise NotFoundError("file not available")
+    key, media, filename = reports.file_for(job, kind)
     data = state.store.get_bytes(state.settings.s3.bucket_exports, key)
-    media = (
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        if kind == "xlsx"
-        else "application/zip"
-    )
-    filename = f"payintel-report-{job.id}.{'xlsx' if kind == 'xlsx' else 'csv.zip'}"
     return Response(
         data,
         media_type=media,
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+@router.post("/reports/{job_id}/publish")
+def report_publish(
+    state: StateDep, session: SessionDep, ctx: Analyst, _csrf: ui.CsrfDep, job_id: uuid.UUID
+) -> Response:
+    """FR-RP-05: publish the free summary (aggregates only, no domains)."""
+    job = reports.publish(
+        session,
+        reports.get_job(session, job_id),
+        principal=ctx.principal,
+        store=state.store,
+        settings=state.settings,
+        clock=state.clock,
+    )
+    return ui.redirect("/admin/reports", msg=f"Summary published at /reports/{job.public_slug}.")
+
+
+@router.post("/reports/{job_id}/unpublish")
+def report_unpublish(
+    state: StateDep, session: SessionDep, ctx: Analyst, _csrf: ui.CsrfDep, job_id: uuid.UUID
+) -> Response:
+    reports.unpublish(
+        session, reports.get_job(session, job_id), principal=ctx.principal, clock=state.clock
+    )
+    return ui.redirect("/admin/reports", msg="Summary withdrawn from the public pages.")
 
 
 # --- audit log (FR-AB-01) -------------------------------------------------------------------------

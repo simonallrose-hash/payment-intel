@@ -33,6 +33,7 @@ dependencies = [
     "openpyxl>=3.1,<4",
     "python-multipart>=0.0.20,<1",
     "itsdangerous>=2.2,<3",
+    "fpdf2>=2.8.9",
 ]
 
 [project.scripts]
@@ -56,6 +57,7 @@ dev = [
     "hypothesis>=6.168.5",
     "schemathesis>=3.39,<5",
     "types-openpyxl>=3.1.5.20260827",
+    "pypdf>=6.20.0",
 ]
 
 [build-system]

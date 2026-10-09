@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}{{ s.title }}{% endblock %}
+{% block content %}
+<h1>{{ s.title }}</h1>
+<p class="muted">Period {{ s.period }} · generated {{ s.generated_at|dt }} · {{ s.stores }} stores in scope · platforms {{ s.platforms|join(", ") or "all" }} · verticals {{ s.verticals|join(", ") or "all" }}{% if job.public_pdf_key %} · <a href="/reports/{{ job.public_slug }}.pdf">PDF</a>{% endif %}</p>
+{% for c in s.cells %}
+<h2>{{ c.cell }} · {{ c.stores }} stores</h2>
+<div class="cols">
+<div>
+<h3>Top payment providers</h3>
+<table class="grid"><thead><tr><th>Provider</th><th>Share of stores</th><th>95 % interval</th></tr></thead><tbody>
+{% for r in c.psp %}<tr><td>{{ r.key }}</td><td>{{ r.share|pct }}</td><td>{{ r.ci_low|pct }} – {{ r.ci_high|pct }}</td></tr>{% else %}<tr><td colspan="3" class="muted">—</td></tr>{% endfor %}
+</tbody></table>
+</div>
+<div>
+<h3>Top payment methods</h3>
+<table class="grid"><thead><tr><th>Method</th><th>Share of stores</th><th>95 % interval</th></tr></thead><tbody>
+{% for r in c.methods %}<tr><td>{{ r.key }}</td><td>{{ r.share|pct }}</td><td>{{ r.ci_low|pct }} – {{ r.ci_high|pct }}</td></tr>{% else %}<tr><td colspan="3" class="muted">—</td></tr>{% endfor %}
+</tbody></table>
+</div>
+</div>
+<p>{% if c.bnpl_share is not none %}Stores offering BNPL: {{ c.bnpl_share|pct }}. {% endif %}{% if c.providers_per_store is not none %}Providers per store: {{ "%.2f"|format(c.providers_per_store) }}.{% endif %}</p>
+{% else %}<p class="muted">No cell reached the publication floor of {{ s.min_cell }} stores.</p>{% endfor %}
+<h2>Methodology (short)</h2>
+<p>Data come from external observation of public store pages and a checkout walk that stops before any payment; no orders are placed. Only cells with at least {{ s.min_cell }} stores are published ({{ s.cells_withheld }} withheld); smaller rows are merged into “other”. Shares carry 95 % Wilson score intervals. No store names or domains are part of this summary. <a href="{{ methodology_url }}">Full methodology</a>.</p>
+{% endblock %}

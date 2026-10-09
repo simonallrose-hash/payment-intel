@@ -114,7 +114,8 @@ def test_admin_builds_xlsx_with_methodology(
     page = client.get("/portal/reports").text
     assert "XLSX" in page and str(job.id) in page
     assert client.get(f"/portal/reports/{job.id}/xlsx").status_code == 200
-    assert client.get(f"/portal/reports/{job.id}/pdf").status_code == 404
+    assert client.get(f"/portal/reports/{job.id}/pdf").status_code == 200
+    assert client.get(f"/portal/reports/{job.id}/docx").status_code == 404
     # another organisation cannot
     from payintel.core.models.base import Role
     from tests.stage3.conftest import new_user

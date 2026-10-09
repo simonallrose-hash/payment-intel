@@ -10,8 +10,10 @@ from starlette.responses import HTMLResponse, Response
 from payintel.api import ui
 from payintel.api.deps import SessionDep, StateDep
 from payintel.compliance import bot_page, dsar, optout
-from payintel.core.errors import ConfigurationError
+from payintel.core.errors import ConfigurationError, NotFoundError
 from payintel.core.models.base import DsarKind, OptoutMethod
+from payintel.reports import public as public_mod
+from payintel.reports import service as reports
 
 router = APIRouter(tags=["public"], include_in_schema=False)
 
@@ -113,3 +115,45 @@ def dsar_submit(
         clock=state.clock,
     )
     return ui.render(request, "public/dsar_done.html", req=req)
+
+
+# --- public report summaries (FR-RP-05) ------------------------------------------------------
+
+
+@router.get("/reports", response_class=HTMLResponse)
+def public_reports(request: Request, state: StateDep, session: SessionDep) -> HTMLResponse:
+    jobs = reports.published(session)
+    items = [
+        (job, public_mod.PublicSummary.from_dict(job.public_summary))
+        for job in jobs
+        if job.public_summary
+    ]
+    return ui.render(request, "public/reports.html", items=items)
+
+
+@router.get("/reports/{slug}.pdf")
+def public_report_pdf(state: StateDep, session: SessionDep, slug: str) -> Response:
+    job = reports.by_slug(session, slug)
+    if state.store is None or not job.public_pdf_key:
+        raise NotFoundError("summary PDF not available")
+    data = state.store.get_bytes(state.settings.s3.bucket_exports, job.public_pdf_key)
+    return Response(
+        data,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="payintel-summary-{slug}.pdf"'},
+    )
+
+
+@router.get("/reports/{slug}", response_class=HTMLResponse)
+def public_report(
+    request: Request, state: StateDep, session: SessionDep, slug: str
+) -> HTMLResponse:
+    job = reports.by_slug(session, slug)
+    summary = public_mod.PublicSummary.from_dict(job.public_summary or {})
+    return ui.render(
+        request,
+        "public/report.html",
+        job=job,
+        s=summary,
+        methodology_url=state.settings.api.methodology_url,
+    )

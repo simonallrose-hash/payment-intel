@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}Market summaries{% endblock %}
+{% block content %}
+<h1>Market summaries</h1>
+<p class="muted">Free summaries of PayIntel C Reports: shares of payment providers and methods among online stores, by country and platform. Aggregates only — no store names, no domains; cells with fewer than the published floor of stores are withheld.</p>
+<table class="grid"><thead><tr><th>Report</th><th>Period</th><th>Stores</th><th>Cells</th><th>Published</th><th></th></tr></thead><tbody>
+{% for job, s in items %}<tr><td><a href="/reports/{{ job.public_slug }}">{{ s.title }}</a></td><td>{{ s.period }}</td><td>{{ s.stores }}</td><td>{{ s.cells|length }}</td><td>{{ job.published_at|dt }}</td><td>{% if job.public_pdf_key %}<a href="/reports/{{ job.public_slug }}.pdf">PDF</a>{% endif %}</td></tr>
+{% else %}<tr><td colspan="6" class="muted">No summaries published yet.</td></tr>{% endfor %}
+</tbody></table>
+{% endblock %}

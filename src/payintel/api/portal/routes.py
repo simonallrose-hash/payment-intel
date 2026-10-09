@@ -770,15 +770,8 @@ def report_download(
         raise NotFoundError("report not found")
     if state.store is None:
         raise ConfigurationError("object store is not configured")
-    key = job.xlsx_key if kind == "xlsx" else job.csv_key if kind == "csv" else None
-    if not key:
-        raise NotFoundError("file not available")
+    key, media, filename = reports.file_for(job, kind)
     data = state.store.get_bytes(state.settings.s3.bucket_exports, key)
-    media = (
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        if kind == "xlsx"
-        else "application/zip"
-    )
     audit.record(
         session,
         actor=ctx.principal.actor,
@@ -789,7 +782,6 @@ def report_download(
         ip=ctx.principal.ip,
         clock=state.clock,
     )
-    filename = f"payintel-report-{job.id}.{'xlsx' if kind == 'xlsx' else 'csv.zip'}"
     return Response(
         data,
         media_type=media,
