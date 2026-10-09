@@ -30,9 +30,7 @@ def upgrade() -> None:
             comment="FR-AB-03: API keys refused until compliance lifts the restriction",
         ),
     )
-    op.add_column(
-        "organization", sa.Column("restricted_reason", sa.String(256), nullable=True)
-    )
+    op.add_column("organization", sa.Column("restricted_reason", sa.String(256), nullable=True))
     op.create_table(
         "abuse_incident",
         sa.Column("id", sa.BigInteger(), autoincrement=True, nullable=False),
@@ -47,9 +45,7 @@ def upgrade() -> None:
         sa.Column("summary", sa.String(512), nullable=False),
         sa.Column("details", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
         sa.Column("status", sa.String(16), nullable=False, comment="open|resolved|dismissed"),
-        sa.Column(
-            "auto_restricted", sa.Boolean(), nullable=False, server_default=sa.text("false")
-        ),
+        sa.Column("auto_restricted", sa.Boolean(), nullable=False, server_default=sa.text("false")),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("resolved_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("resolved_by", sa.String(128), nullable=True),

@@ -32,12 +32,22 @@
 `reason`: `org_not_active`, `contract_not_in_term`, `no_entitlement`,
 `ip_not_allowed`, `scope_missing`, `role_forbidden`, `outside_segment`,
 `field_profile_insufficient`, `c2_disabled`, `key_revoked`, `key_expired`,
-`watchlist_limit_exceeded`, `export_limit_exceeded`.
+`watchlist_limit_exceeded`, `export_limit_exceeded`, `org_restricted`
+(организация ограничена после инцидента анти-абьюза, FR-AB-03; снимает
+`staff_compliance`).
 
 Лимиты (FR-API-07): `429` с `Retry-After`, `code = rate_limited` (окно 1 с,
 по умолчанию 10 rps) или `quota_exceeded` (по умолчанию 50 000 записей в
 сутки, 1 000 000 в месяц; экспорт считается в ту же квоту). Прочие коды:
-`400 validation_error` (с `errors[]`), `404 not_found`, `409 conflict`.
+`400 validation_error` (с `errors[]`), `404 not_found`, `409 conflict`,
+`503 upstream` (внешний сервис недоступен — сейчас только санкционный
+скрининг в админке; клиентские эндпоинты внешних сервисов не вызывают).
+
+Находки, отклонённые аналитиком при ревью (FR-QA-05), отсутствуют в
+ответах, фильтрах, экспортах и отчётах до повторного подтверждения;
+события `store_offline` / `store_online` (FR-SC-05) приходят в `changes`
+и алертах для магазинов сегмента, даже когда сам магазин временно не
+отдаётся в `stores`.
 
 Домены только из CZDS, домены с opt-out и не e-commerce отсутствуют во всех
 ответах (FR-DS-09, FR-OO-02): для клиента их нет.
@@ -94,6 +104,13 @@ API, ни экспортом.
   (читайте с `comment="#"`), в агрегатах — поле `_meta`.
 - Лимит строк — `export_max_rows` entitlement (403 `export_limit_exceeded`);
   периодические экспорты по `export_schedule` создаёт сервис `exporter`.
+
+## Отчёты и публичные сводки (FR-RP-04/05)
+
+Отчёт, привязанный к организации, доступен в портале в XLSX, CSV и PDF
+(`/portal/reports/{id}/pdf`). Публичные сводки — без аутентификации:
+`GET /reports` (список), `GET /reports/{slug}` (HTML), `GET /reports/{slug}.pdf`;
+они не содержат доменов и не входят в API `/v1`.
 
 ## Методология
 

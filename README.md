@@ -79,7 +79,7 @@ make bench-light                                             # NFR-P-01 на л�
 ## Структура
 
 ```text
-alembic/            миграции Postgres (0001 схема … 0005 отчёты по организациям)
+alembic/            миграции Postgres (0001 схема … 0011 PDF и публичные сводки отчётов)
 clickhouse/         нумерованные идемпотентные SQL-миграции ClickHouse (раздел 5.2 ТЗ)
 docker/             Dockerfile приложения, конфиги Unbound и Caddy
 docs/               runbook, methodology, api, capacity, adr/, legal/
@@ -92,24 +92,29 @@ src/payintel/
   scheduler/        приоритет, планы, очередь SKIP LOCKED, backoff, politeness (FR-SC-*)
   crawl/            egress-фильтр, PII-санитайзер; light/: robots, fetcher, HTML, артефакты, воркер
                     checkout/: browser (Playwright), guardrails/ (политика кликов, GuardedPage, инжекция),
-                    адаптеры, walker, capture, blocking, stops, accounts, payment_fill, worker (FR-CW-*)
+                    адаптеры (woocommerce, magento2, shopware6, prestashop, shopify), walker, capture,
+                    blocking, stops, accounts, payment_fill, geo (FR-CW-11), worker (FR-CW-*); asn.py — ip2asn
   history/          буфер наблюдений ClickHouse, материализация store_*, differ «два подряд», read (FR-HI-*)
-  quality/          gold set, импорт находок, eval, дашборд (FR-QA-03), разбор стопов (FR-QA-06)
+  quality/          gold set, импорт находок, eval, дашборд (FR-QA-03), разбор стопов (FR-QA-06),
+                    всплески provider_removed (FR-QA-04), ревью находок (FR-QA-05)
+  abuse/            детекторы аномалий, инциденты и автоограничение, канарейки, квартальные отчёты (FR-AB-*)
   c2/               пустой пакет фазы 2, импорт только при feature_c2_enabled
   entitlements/     Principal/Grant, resolve_grant, сегменты, lineage guard, rate limit и квоты (FR-API-06/07)
   api/              FastAPI: v1/ (stores, changes, stats, watchlists, webhooks, exports, usage), auth/ (ключи,
                     пароли argon2id, TOTP, сессии, CSRF), schemas/ (c1_basic, c1_full, internal), portal/, admin/,
                     public/ (bot, optout, dsar), templates/ (Jinja2), static/app.css, problems (RFC 9457)
-  compliance/       KYC-досье и решения, жизненный цикл организации, контракты/entitlements, opt-out, DSAR
+  compliance/       KYC-досье и решения, re-KYC, санкционный скрининг (OpenSanctions), жизненный цикл
+                    организации, контракты/entitlements, opt-out, DSAR, жалобы хостеров и лимиты по ASN
   exports/          задания, builder (Parquet/CSV/агрегаты), watermark, canary, worker (FR-EX-*)
   alerts/           watchlists, правила, matcher, webhook (HMAC) и telegram, delivery с ретраями, worker (FR-AL-*)
-  reports/          агрегаты с подавлением ячеек, Уилсон, XLSX/CSV с листом методологии (FR-RP-*)
+  reports/          агрегаты с подавлением ячеек, Уилсон, XLSX/CSV/PDF с методологией, публичные сводки (FR-RP-*)
   detect/admin.py   версии правил из админки, overlay на YAML, предпросмотр на gold set (FR-ADM-02)
-  c2/               пустой пакет фазы 2, импорт только при feature_c2_enabled
+  detect/vertical.py, redetect.py   вертикаль по словарю (FR-DT-10), повторная детекция из артефактов (FR-DT-12)
 scripts/            check_coverage.py, bench_light.py (NFR-P-01)
 tests/              unit/ (без контейнеров), integration/ (testcontainers), e2e/ (Chromium + симулятор магазинов),
-                    stage3/ (API, портал, экспорты, алерты, compliance, отчёты, контракт OpenAPI)
-tests/fixtures/shops/   37 конфигураций симулятора: адаптеры, ловушка, блокировки, каждый stop_step
+                    stage3/ (API, портал, экспорты, алерты, compliance, отчёты, контракт OpenAPI),
+                    stage4/ (сегментные алерты, ревью, анти-абьюз, re-KYC/скрининг, ASN-лимиты, PDF)
+tests/fixtures/shops/   38 конфигураций симулятора: адаптеры (включая shopify), ловушка, блокировки, каждый stop_step
 ```
 
 ## Конфигурация
@@ -121,6 +126,13 @@ tests/fixtures/shops/   37 конфигураций симулятора: ада
 Все лимиты и сроки из ТЗ заданы значениями по умолчанию и проверяются тестом
 `tests/unit/test_settings_defaults.py` (NFR-M-02). Секреты только через `.env`
 (NFR-S-06); `.env.example` содержит пустые значения и проверяется тестом.
+
+Группы этапа 4: `PAYINTEL_ABUSE__*` (пороги детекторов, `AUTO_RESTRICT`),
+`PAYINTEL_COMPLIANCE__*` (`REKYC_INTERVAL_DAYS`, `REKYC_REMINDER_DAYS`,
+`STAFF_TELEGRAM_CHAT_ID`, `SANCTIONS_*`), `PAYINTEL_SECRETS__OPENSANCTIONS_API_KEY`,
+`PAYINTEL_SCAN__ASN_TABLE_PATH` (TSV iptoasn.com), `PAYINTEL_SCAN__COMPLAINT_*`,
+`PAYINTEL_CHECKOUT__EGRESS_COUNTRY`, `PAYINTEL_CHECKOUT__GEO_PROXIES` (JSON-словарь
+страна → URL прокси, только для геолокации). Подробности — `docs/runbook.md`, пп. 12, 19–21.
 
 ## Тесты
 

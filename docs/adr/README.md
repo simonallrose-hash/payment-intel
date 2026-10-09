@@ -22,3 +22,12 @@
 - [ADR-0018](0018-exports-watermark-canaries.md) — Экспорты: водяной знак, канарейки, лимиты и формат
 - [ADR-0019](0019-alerts-delivery.md) — Алерты: доставка, подпись, ретраи, дайджесты
 - [ADR-0020](0020-admin-rule-versions-and-preview.md) — Правила детекции в админке: версии, наложение, предпросмотр
+- [ADR-0021](0021-segment-alerts-and-holds.md) — Сегментные алерты без watchlist и удержание доставок при всплеске `provider_removed`
+- [ADR-0022](0022-finding-review-verticals-redetect-availability.md) — Ревью находок, вертикали, повторная детекция, события доступности
+- [ADR-0023](0023-anti-abuse.md) — Анти-абьюз: детекторы, инциденты, автоограничение, канарейки, квартальные отчёты
+- [ADR-0024](0024-rekyc-and-sanctions-screening.md) — Re-KYC раз в 12 месяцев и санкционный скрининг (OpenSanctions)
+- [ADR-0025](0025-asn-rate-limits.md) — Лимиты скорости по ASN после жалоб и таблица ip2asn
+- [ADR-0026](0026-checkout-geo-proxies.md) — Гео-параметр прохода и прокси только для геолокации
+- [ADR-0027](0027-pdf-reports-fpdf2.md) — PDF-отчёты: fpdf2 вместо WeasyPrint + matplotlib
+- [ADR-0028](0028-public-summaries.md) — Публичные сводки без доменов
+- [ADR-0029](0029-shopify-adapter.md) — Адаптер Shopify: документированная витрина, чекаут эвристикой

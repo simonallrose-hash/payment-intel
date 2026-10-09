@@ -36,7 +36,9 @@ def upgrade() -> None:
         ),
         sa.Column("source", sa.String(length=256), nullable=False, comment="abuse@…, ticket id"),
         sa.Column("note", sa.Text(), nullable=True),
-        sa.Column("ip", sa.String(length=64), nullable=True, comment="address named in the complaint"),
+        sa.Column(
+            "ip", sa.String(length=64), nullable=True, comment="address named in the complaint"
+        ),
         sa.Column("asn_name", sa.String(length=256), nullable=True),
         sa.Column("complaints", sa.Integer(), nullable=False, server_default=sa.text("1")),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),

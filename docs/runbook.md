@@ -165,6 +165,17 @@ payintel TO S3(...)` еженедельно. MinIO: версионировани
 - Флаги читаются при лизинге задачи: `allow_shipping_step_fill`,
   `allow_account_registration`, `allow_payment_field_fill`
   (`payintel flags set …`, FR-ADM-05).
+- Гео-параметр (FR-CW-11, ADR-0026): проход идёт с языком и адресом страны
+  магазина. Если страна магазина отличается от
+  `PAYINTEL_CHECKOUT__EGRESS_COUNTRY` (DE) и в
+  `PAYINTEL_CHECKOUT__GEO_PROXIES` (JSON `{"FR": "http://user:pass@host:port"}`,
+  схемы http/https/socks5) есть прокси этой страны, контекст браузера
+  идёт через него — только для геолокации, решение принимается до прохода и
+  пишется в манифест (`geo.reason`, хост прокси без учётных данных).
+  Прокси никогда не включается в ответ на блокировку (LR-03).
+- Адаптеры (FR-CW-03): woocommerce, magento2, shopware6, prestashop,
+  shopify (этап 4, ADR-0029); остальные платформы — эвристика. Лимиты по
+  ASN (п. 21) действуют и на проходы чекаута.
 - Артефакты: `s3://<bucket>/checkout/<etld1>/<scan_run_id>/manifest.json`
   (журнал действий, шаги, запросы, находки, стоп), `payment_step.html.gz`,
   `payment_block.html.gz`, `screenshot.jpg` (≤300 КБ), `har.json.gz` (без
@@ -242,6 +253,16 @@ payintel TO S3(...)` еженедельно. MinIO: версионировани
   (`docker compose restart worker-light worker-checkout`). ADR-0020.
 - Feature flags: `/admin/flags` (только `staff_admin`), `feature_c2_enabled`
   остаётся выключенным.
+- Ревью находок (FR-QA-05, ADR-0022): `/admin/review` — очередь провайдеров
+  и способов оплаты по возрастанию уверенности, улики из ClickHouse со
+  ссылками на скриншоты; «подтвердить»/«отклонить» пишет gold-метку,
+  отклонённая находка скрывается из API, экспортов и отчётов
+  (`suppressed`) до повторного подтверждения.
+- Повторная детекция (FR-DT-12): `payintel redetect [--host <домен>]
+  [--limit N] [--apply] [--csv findings.csv]` — пересчёт по сохранённым
+  артефактам текущим набором правил; без `--apply` только отчёт о
+  добавленном/исчезнувшем.
+- Анти-абьюз, re-KYC, лимиты по ASN — пп. 19–21.
 
 ## 15. Алерты (FR-AL-*)
 
@@ -255,6 +276,16 @@ payintel TO S3(...)` еженедельно. MinIO: версионировани
 - Telegram: токен бота в `PAYINTEL_SECRETS__TELEGRAM_BOT_TOKEN`; клиент
   указывает chat id в правиле. Egress только на `api.telegram.org` и URL
   webhook клиента (приватные адреса запрещены).
+- Сегментные правила (FR-AL-05, ADR-0021): правило без watchlist действует
+  на весь сегмент entitlement, при желании суженный странами/платформами
+  (вне гранта — 422).
+- Всплеск `provider_removed` (FR-QA-04): notifier перед каждой
+  диспетчеризацией (и `payintel quality anomalies`) сравнивает последние
+  24 ч с средним за 7 дней; при > 3× поднимается quality-алерт
+  `provider_removed_spike`, доставки по провайдеру удерживаются. Аналитик
+  в `/admin/quality` подтверждает (доставки уходят) или отклоняет (доставки
+  → `failed` с заметкой). Без решения доставки висят — проверяйте список
+  удержаний при каждом разборе.
 
 ## 16. Экспорты и отчёты (FR-EX-*, FR-RP-*)
 
@@ -267,11 +298,23 @@ payintel TO S3(...)` еженедельно. MinIO: версионировани
   `exports.watermark.order_matches` из Python-сессии с `watermark_id`
   кандидатов из `export_job`. Канареечные домены — таблица `canary`:
   DNS/HTTP-обращение к `c-*.<canary zone>` указывает на экспорт.
-- Отчёты C (XLSX + CSV zip, лист «Методология»): `/admin/reports`
-  (`staff_analyst`) или `payintel report build --country DE --out ./out`.
-  Ячейки < 30 магазинов скрываются, редкие провайдеры → `other`; сводка
-  `min_published` в задании должна быть ≥ 30. Клиент получает отчёт в
-  `/portal/reports`, если задание привязано к его организации.
+- Отчёты C (XLSX + CSV zip + PDF, лист/раздел «Методология»):
+  `/admin/reports` (`staff_analyst`) или `payintel report build --country DE
+  --out ./out`. Ячейки < 30 магазинов скрываются, редкие провайдеры →
+  `other`; сводка `min_published` в задании должна быть ≥ 30. Клиент
+  получает отчёт (включая PDF) в `/portal/reports`, если задание привязано
+  к его организации. PDF строится fpdf2 с вшитыми шрифтами DejaVu
+  (ADR-0027), системные библиотеки не нужны.
+- Публичные сводки (FR-RP-05, ADR-0028): у готового отчёта в
+  `/admin/reports` кнопка «Publish summary» → анонимные страницы
+  `/reports` и `/reports/<slug>` (+ `.pdf`) с топ-5 провайдеров/методов на
+  ячейку, без доменов. «withdraw» делает страницы 404. Обе операции в
+  аудите (`report.publish`/`report.unpublish`).
+- Квартальные отчёты об использовании (FR-AB-05): `payintel abuse
+  usage-report --year 2026 --quarter 3 [--org <id>]` (по умолчанию —
+  прошлый квартал, все организации) или кнопка «Build quarterly report»
+  на карточке организации → `usage/<org>/<period>.xlsx` в бакете
+  экспортов; клиент видит их в `/portal/usage`.
 
 ## 17. Opt-out и DSAR (FR-OO-*, FR-DS-09, LR-06)
 
@@ -292,3 +335,70 @@ payintel TO S3(...)` еженедельно. MinIO: версионировани
 `payintel audit verify`). Файлы экспортов и отчётов — в бакете
 `PAYINTEL_S3__BUCKET_EXPORTS`, KYC-документы и контракты — там же под
 `kyc/` и `contracts/`.
+К этапу 4 добавляются `abuse_incident`, `canary_hit`, `usage_report`,
+`finding_review`, `asn_limit`, поля re-KYC на `kyc_dossier`,
+`report_job.public_summary`; PDF отчётов и публичные сводки — в бакете
+экспортов под `reports/`. Таблица ip2asn (п. 21) не бэкапится: она
+скачивается заново.
+
+## 19. Анти-абьюз (FR-AB-02…05, ADR-0023)
+
+- `payintel abuse detect [--once] [--interval 900]` — отдельный процесс
+  (цикл раз в 15 мин; в compose добавьте сервис рядом с `exporter`),
+  прогоняет детекторы по `usage_log` за 24 ч: доля отказов `outside_segment`,
+  всплеск записей (> 3× среднего за 14 окон), перебор каталога, новая сеть
+  /16, зондирование полей. Пороги — группа `PAYINTEL_ABUSE__*`
+  (`settings.py`).
+- Критичная находка (записи > 10× или перебор ≥ 3000 доменов) **сразу**
+  ограничивает организацию: все её ключи получают 403
+  `org_restricted`. Инциденты — `/admin/abuse` (`staff_compliance`);
+  «resolve» с галочкой «lift restriction» снимает ограничение, «dismiss» закрывает без него.
+  Отключить автоограничение: `PAYINTEL_ABUSE__AUTO_RESTRICT=false`.
+- Канарейки (FR-AB-04): обращения к доменам под
+  `PAYINTEL_IDENTITY__CANARY_ZONE` подаются из логов резолвера, веб-хоста и
+  почты: `payintel abuse canary-hits <файл> --kind dns|http|email` (строки
+  `<ts> <домен-или-адрес> [source] [detail]`). Попадание связывается с
+  экспортом и открывает `high`-инцидент.
+- `payintel abuse incidents` — открытые инциденты; квартальные отчёты —
+  п. 16.
+
+## 20. Re-KYC и санкционный скрининг (FR-KYC-03/06, ADR-0024)
+
+- Одобрение досье ставит срок пересмотра через 365 дней
+  (`PAYINTEL_COMPLIANCE__REKYC_INTERVAL_DAYS`); изменение бенефициаров
+  делает пересмотр должным сразу. `payintel orgs rekyc [--within-days 30]
+  [--remind]` показывает, что истекает, и с `--remind` шлёт по одному
+  напоминанию на срок (аудит `kyc.review_reminder`, Telegram в
+  `PAYINTEL_COMPLIANCE__STAFF_TELEGRAM_CHAT_ID`, если задан). Запускать
+  ежедневно из планировщика оператора.
+- Обзор админки показывает `rekyc_due` / `rekyc_overdue`; на карточке
+  организации «Open re-KYC» снимает решение и скрининг (досье остаётся),
+  далее — обычный цикл решения. Просрочка не блокирует организацию
+  автоматически — это решение комплаенса.
+- Скрининг: `PAYINTEL_SECRETS__OPENSANCTIONS_API_KEY` (коммерческий ключ
+  OpenSanctions); «Screen via OpenSanctions» на карточке или
+  `payintel orgs screen <id>`
+  запрашивает `POST /match/default` для организации и бенефициаров
+  (порог 0.7, cutoff 0.5, параметры в `PAYINTEL_COMPLIANCE__SANCTIONS_*`).
+  Результат `match` блокирует одобрение; `potential_match` требует
+  ручного решения; недоступность сервиса — 503, «clear» при ошибке не
+  ставится. Egress: `api.opensanctions.org`.
+
+## 21. Жалобы хостеров и лимиты по ASN (FR-OO-04, ADR-0025)
+
+- Таблица ip2asn: скачать `https://iptoasn.com/data/ip2asn-combined.tsv.gz`
+  (PDDL) на хост воркеров и указать `PAYINTEL_SCAN__ASN_TABLE_PATH`;
+  обновлять еженедельно (cron). Без таблицы жалобы принимаются только по
+  номеру ASN, а воркеры не применяют лимиты по ASN (предупреждение в логе
+  при старте).
+- Жалоба: `payintel crawler complaint AS12345 --source abuse@hoster
+  --note "ticket 4711"` или по IP (`203.0.113.7`, нужна таблица); в
+  админке — `/admin/crawler`, форма «Apply limit». Действует с ближайшего
+  обновления политики на воркерах (≤ 60 с): per-host и per-IP скорости ×
+  `scan.complaint_rps_factor` (0.1) и общий лимит `scan.complaint_asn_rps`
+  (1 запрос/с) на всю сеть. Повторная жалоба делит множитель пополам.
+- Пакетно: `payintel crawler complaints <файл>` (строки
+  `TARGET<TAB>SOURCE[<TAB>NOTE]`). Список: `payintel crawler asn-limits`.
+  Снятие после разбора — только `staff_admin`: `payintel crawler lift
+  AS12345 --note "…"` или кнопка «Lift» (аудит `asn_limit.lift`).
+
