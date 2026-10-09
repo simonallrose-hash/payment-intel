@@ -137,6 +137,67 @@ def rules_check() -> None:
         typer.echo(f"needs_verification: {r.rule_id} ({r.signal_type.value} {r.pattern})")
 
 
+@app.command("redetect")
+def redetect(
+    limit: Annotated[int, typer.Option(help="Hosts per run (newest artefacts first)")] = 100,
+    since_days: Annotated[
+        int | None, typer.Option(help="Only hosts with artefacts of the last N days")
+    ] = None,
+    host: Annotated[list[str] | None, typer.Option(help="Hostname(s) to re-detect")] = None,
+    apply: Annotated[bool, typer.Option("--apply", help="Write results; default dry run")] = False,
+    csv_path: Annotated[
+        Path | None, typer.Option("--csv", help="Dry run: write findings CSV (quality eval)")
+    ] = None,
+) -> None:
+    """FR-DT-12: re-run detection on stored artefacts with the current rules (no new scan)."""
+    from payintel.crawl.light.runtime import provider_roles
+    from payintel.detect import redetect as rd
+    from payintel.detect.admin import overlay
+
+    settings = get_settings()
+    reference = load_reference()
+    store = ObjectStore(make_s3_client(settings.s3))
+    reader = rd.ArtifactReader(store, settings.s3.bucket_artifacts)
+    results: list[rd.RedetectResult] = []
+    now = SYSTEM_CLOCK.now()
+    with session_scope(get_engine()) as session:
+        ruleset = overlay(session, load_rules(reference=reference))
+        if host:
+            from sqlalchemy import select as sa_select
+
+            from payintel.core.models.domains import Host
+
+            ids = [
+                int(h)
+                for h in session.execute(
+                    sa_select(Host.id).where(Host.hostname.in_([x.lower() for x in host]))
+                ).scalars()
+            ]
+        else:
+            ids = rd.candidate_hosts(session, limit=limit, since_days=since_days, now=now)
+        for host_id in ids:
+            r = rd.redetect_host(
+                session,
+                reader,
+                ruleset,
+                host_id,
+                provider_roles=provider_roles(reference),
+                apply=apply,
+                actor="cli:redetect",
+                clock=SYSTEM_CLOCK,
+            )
+            results.append(r)
+            typer.echo(rd.summary_line(r))
+    if csv_path is not None:
+        csv_path.write_text(rd.to_csv(results), encoding="utf-8")
+        typer.echo(f"findings written to {csv_path}")
+    changed = sum(1 for r in results if r.changes)
+    typer.echo(
+        f"ruleset {ruleset.version}: {len(results)} host(s), {changed} with changes"
+        f"{' (applied)' if apply else ' (dry run)'}"
+    )
+
+
 @gold_app.command("import")
 def gold_import(
     csv_path: Annotated[Path, typer.Argument(exists=True, dir_okay=False)],

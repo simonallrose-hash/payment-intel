@@ -1,25 +1,65 @@
 # Simplified 20-vertical taxonomy (FR-NR-03, FR-DT-10). `keywords` are matched
-# against menu categories and schema.org data; multilingual keywords are added
-# in stage 2 together with the classifier.
-version: 1
+# against menu link paths, schema.org category/breadcrumb names, title/meta
+# and visible text (detect/vertical.py). Multilingual: en, de, fr, es, it, nl, pl.
+version: 2
 verticals:
-  - { id: fashion, name: Fashion & apparel, keywords: [fashion, clothing, apparel, shoes, mode, kleidung, vêtements] }
-  - { id: beauty, name: Beauty & cosmetics, keywords: [beauty, cosmetics, skincare, makeup, parfum, perfume] }
-  - { id: electronics, name: Consumer electronics, keywords: [electronics, laptop, smartphone, elektronik, audio, camera] }
-  - { id: home_garden, name: Home & garden, keywords: [furniture, home, garden, möbel, decor, kitchen] }
-  - { id: food_beverage, name: Food & beverage, keywords: [food, grocery, wine, coffee, tea, lebensmittel, beer] }
-  - { id: health, name: Health & pharmacy, keywords: [pharmacy, health, vitamins, supplements, apotheke, medical] }
-  - { id: sports_outdoor, name: Sports & outdoor, keywords: [sport, fitness, outdoor, bike, cycling, running] }
-  - { id: toys_kids, name: "Toys, kids & baby", keywords: [toys, kids, baby, spielzeug, children] }
-  - { id: pets, name: Pet supplies, keywords: [pet, dog, cat, tierbedarf, animal] }
-  - { id: jewelry_watches, name: Jewelry & watches, keywords: [jewelry, jewellery, watches, schmuck, uhren, rings] }
-  - { id: books_media, name: "Books, music & media", keywords: [books, music, dvd, bücher, vinyl, games] }
-  - { id: auto_parts, name: Automotive & parts, keywords: [auto, car parts, tyres, tires, motorcycle, autoteile] }
-  - { id: diy_tools, name: "DIY, tools & hardware", keywords: [tools, hardware, werkzeug, diy, bricolage] }
-  - { id: office_supplies, name: Office & stationery, keywords: [office, stationery, paper, bürobedarf, printer] }
-  - { id: art_crafts, name: "Arts, crafts & hobbies", keywords: [craft, hobby, art supplies, yarn, basteln, sewing] }
-  - { id: adult, name: Adult, keywords: [adult, erotic, sex toys, lingerie] }
-  - { id: tobacco_vape, name: Tobacco & vaping, keywords: [vape, e-liquid, tobacco, cigars, e-zigarette] }
-  - { id: digital_goods, name: Digital goods & software, keywords: [software, license, download, ebook, subscription] }
-  - { id: b2b_industrial, name: B2B & industrial supplies, keywords: [industrial, wholesale, b2b, großhandel, machinery] }
-  - { id: other, name: Other / general merchandise, keywords: [] }
+  - id: fashion
+    name: Fashion & apparel
+    keywords: [fashion, clothing, apparel, shoes, sneakers, dresses, jeans, mode, kleidung, bekleidung, schuhe, damenmode, herrenmode, vêtements, vetements, chaussures, prêt-à-porter, moda, ropa, zapatos, abbigliamento, scarpe, kleding, schoenen, odzież, odziez, buty, ubrania]
+  - id: beauty
+    name: Beauty & cosmetics
+    keywords: [beauty, cosmetics, skincare, makeup, make-up, parfum, perfume, fragrance, kosmetik, hautpflege, schminke, düfte, beauté, beaute, cosmétiques, cosmetiques, maquillage, soins, belleza, cosméticos, cosmeticos, maquillaje, bellezza, cosmetici, trucco, profumi, cosmetica, huidverzorging, kosmetyki, perfumy, pielęgnacja, pielegnacja]
+  - id: electronics
+    name: Consumer electronics
+    keywords: [electronics, laptop, laptops, smartphone, smartphones, elektronik, audio, camera, headphones, tablet, notebook, fernseher, kopfhörer, kopfhoerer, électronique, electronique, ordinateur, téléphone, telephone, casque, electrónica, electronica, ordenador, móvil, movil, elettronica, computer, telefono, elektronica, elektronika, telefon]
+  - id: home_garden
+    name: Home & garden
+    keywords: [furniture, home, garden, möbel, moebel, decor, kitchen, lighting, bedding, wohnen, garten, haushalt, küche, kueche, lampen, maison, jardin, meubles, cuisine, décoration, decoration, hogar, jardín, jardin, muebles, cocina, casa, giardino, arredamento, cucina, wonen, tuin, meubels, keuken, dom, ogród, ogrod, meble, kuchnia]
+  - id: food_beverage
+    name: Food & beverage
+    keywords: [food, grocery, wine, coffee, tea, lebensmittel, beer, snacks, chocolate, spirits, kaffee, wein, bier, feinkost, getränke, getraenke, alimentation, épicerie, epicerie, vin, café, cafe, thé, alimentación, alimentacion, vino, cerveza, alimentari, caffè, caffe, birra, voeding, wijn, koffie, żywność, zywnosc, kawa, herbata, wino, piwo]
+  - id: health
+    name: Health & pharmacy
+    keywords: [pharmacy, health, vitamins, supplements, apotheke, medical, gesundheit, nahrungsergänzung, nahrungsergaenzung, pharmacie, santé, sante, vitamines, compléments, complements, farmacia, salud, vitaminas, suplementos, salute, vitamine, integratori, apotheek, gezondheid, supplementen, apteka, zdrowie, witaminy, suplementy]
+  - id: sports_outdoor
+    name: Sports & outdoor
+    keywords: [sport, sports, fitness, outdoor, bike, bikes, cycling, running, camping, hiking, fahrrad, fahrräder, fahrraeder, laufen, wandern, sportartikel, vélo, velo, randonnée, randonnee, deporte, deportes, bicicleta, bicicletas, ciclismo, montaña, montana, bicicletta, ciclismo, fiets, fietsen, hardlopen, rower, rowery, bieganie, turystyka]
+  - id: toys_kids
+    name: "Toys, kids & baby"
+    keywords: [toys, kids, baby, spielzeug, children, kinder, babyartikel, jouets, enfants, bébé, bebe, juguetes, niños, ninos, bebé, giocattoli, bambini, speelgoed, kinderen, zabawki, dzieci, dziecko]
+  - id: pets
+    name: Pet supplies
+    keywords: [pet, pets, dog, cat, tierbedarf, animal, haustier, haustiere, hund, hunde, katze, katzen, animalerie, animaux, chien, chat, mascotas, perro, gato, animali, cane, gatto, dierenwinkel, huisdier, hond, kat, zoologiczny, zwierzęta, zwierzeta, pies, kot, karma]
+  - id: jewelry_watches
+    name: Jewelry & watches
+    keywords: [jewelry, jewellery, watches, schmuck, uhren, rings, necklaces, bracelets, armbänder, armbaender, ketten, bijoux, montres, bagues, joyería, joyeria, relojes, anillos, gioielli, orologi, anelli, sieraden, horloges, biżuteria, bizuteria, zegarki, pierścionki, pierscionki]
+  - id: books_media
+    name: "Books, music & media"
+    keywords: [books, music, dvd, bücher, buecher, vinyl, games, videogames, blu-ray, hörbücher, hoerbuecher, livres, musique, jeux, libros, música, musica, juegos, libri, giochi, boeken, muziek, książki, ksiazki, muzyka, gry]
+  - id: auto_parts
+    name: Automotive & parts
+    keywords: [auto, car parts, tyres, tires, motorcycle, autoteile, reifen, motorrad, kfz, ersatzteile, pièces auto, pieces auto, pneus, moto, recambios, neumáticos, neumaticos, ricambi, pneumatici, auto-onderdelen, banden, motor, części samochodowe, czesci samochodowe, opony, motocykl]
+  - id: diy_tools
+    name: "DIY, tools & hardware"
+    keywords: [tools, hardware, werkzeug, werkzeuge, diy, bricolage, baumarkt, heimwerken, outillage, outils, herramientas, ferretería, ferreteria, utensili, ferramenta, gereedschap, bouwmarkt, narzędzia, narzedzia, majsterkowanie]
+  - id: office_supplies
+    name: Office & stationery
+    keywords: [office, stationery, paper, bürobedarf, buerobedarf, printer, schreibwaren, drucker, papeterie, bureau, fournitures, papelería, papeleria, oficina, cancelleria, ufficio, kantoor, kantoorartikelen, biuro, artykuły biurowe, artykuly biurowe, papiernicze]
+  - id: art_crafts
+    name: "Arts, crafts & hobbies"
+    keywords: [craft, crafts, hobby, art supplies, yarn, basteln, sewing, wolle, handarbeit, nähen, naehen, loisirs créatifs, loisirs creatifs, mercerie, laine, manualidades, lana, costura, cucito, filati, hobbyartikelen, handwerken, rękodzieło, rekodzielo, włóczka, wloczka]
+  - id: adult
+    name: Adult
+    keywords: [adult, erotic, sex toys, lingerie, erotik, sexspielzeug, dessous, érotique, erotique, sextoys, erótico, erotico, juguetes sexuales, erotico, giocattoli erotici, erotiek, erotyczne, erotyka]
+  - id: tobacco_vape
+    name: Tobacco & vaping
+    keywords: [vape, vaping, e-liquid, tobacco, cigars, e-zigarette, e-zigaretten, liquids, tabak, zigarren, cigarette électronique, cigarette electronique, tabac, cigares, vapeo, tabaco, puros, svapo, tabacco, sigari, e-sigaret, e-papieros, e-papierosy, tytoń, tyton, liquidy]
+  - id: digital_goods
+    name: Digital goods & software
+    keywords: [software, license, licence, download, ebook, ebooks, subscription, lizenz, abonnement, logiciel, téléchargement, telechargement, licencia, descarga, suscripción, suscripcion, licenza, abbonamento, licentie, oprogramowanie, licencja, subskrypcja]
+  - id: b2b_industrial
+    name: B2B & industrial supplies
+    keywords: [industrial, wholesale, b2b, großhandel, grosshandel, machinery, industriebedarf, gewerbe, industriel, grossiste, industria, mayorista, industriale, ingrosso, groothandel, industrie, hurtownia, przemysłowe, przemyslowe]
+  - id: other
+    name: Other / general merchandise
+    keywords: []

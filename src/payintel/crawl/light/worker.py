@@ -45,6 +45,7 @@ from payintel.detect.country import CountryDetector, CountryResult
 from payintel.detect.engine import Finding, PageSignals, match_page
 from payintel.detect.rules import RuleSet
 from payintel.detect.scoring import TargetScore, aggregate, best_platform
+from payintel.detect.vertical import VerticalDetector, VerticalResult
 from payintel.discovery.classify import Classification, ClassifierInput, EcommerceClassifier
 from payintel.discovery.ingest import ingest
 from payintel.discovery.parking import ParkingDetector
@@ -113,6 +114,7 @@ class LightScanOutcome:
     domain_status: DomainStatus | None = None
     new_link_candidates: int = 0
     script_meta: list[ScriptMeta] = field(default_factory=list)
+    vertical: VerticalResult | None = None
 
     @property
     def providers(self) -> list[TargetScore]:
@@ -133,6 +135,7 @@ class ScanContext:
     clock: Clock = SYSTEM_CLOCK
     worker_id: str = "worker-light-0"
     base_scheme: str = "https"
+    vertical: VerticalDetector = field(default_factory=VerticalDetector)
 
     @property
     def agent_token(self) -> str:
@@ -414,6 +417,9 @@ class LightScanner:
                 platform_confidence=platform.confidence if platform else None,
             )
         )
+        vertical = self.ctx.vertical.detect(
+            home.features, *[p.features for p in pages[1:] if p.features is not None]
+        )
         coverage = Coverage.HOMEPAGE
         if any(p.page_type == "cart" and p.features is not None for p in pages):
             coverage = Coverage.CART
@@ -437,6 +443,7 @@ class LightScanner:
             artifact_prefix=prefix,
             duration_ms=0,
             script_meta=script_meta,
+            vertical=vertical,
         )
 
     # --- persistence --------------------------------------------------------------
@@ -535,6 +542,7 @@ class LightScanner:
         buf = self.ctx.buffer
         platform_id = o.platform.target_id if o.platform else ""
         country = o.country.country if o.country and o.country.country else ""
+        vertical_id = o.vertical.vertical_id if o.vertical and o.vertical.vertical_id else ""
         buf.add(
             "obs_scan",
             {
@@ -598,7 +606,7 @@ class LightScanner:
                             "scan_run_id": o.scan_run_id,
                             "country": country,
                             "platform_id": platform_id,
-                            "vertical_id": "",
+                            "vertical_id": vertical_id,
                         },
                     )
             elif sc.target_type == RuleTargetType.PAYMENT_METHOD:
@@ -624,7 +632,7 @@ class LightScanner:
                             "scan_run_id": o.scan_run_id,
                             "country": country,
                             "platform_id": platform_id,
-                            "vertical_id": "",
+                            "vertical_id": vertical_id,
                         },
                     )
 
@@ -643,6 +651,8 @@ class LightScanner:
                 country_confidence=o.country.confidence if o.country else None,
                 currency=o.country.currency if o.country else None,
                 traffic_rank=domain.traffic_rank,
+                vertical_id=o.vertical.vertical_id if o.vertical else None,
+                vertical_confidence=o.vertical.confidence if o.vertical else None,
             ),
             scanned_at=now,
         )

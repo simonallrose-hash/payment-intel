@@ -37,6 +37,8 @@ class ProfileUpdate:
     country_confidence: ConfidenceLevel | None
     currency: str | None
     traffic_rank: int | None
+    vertical_id: str | None = None
+    vertical_confidence: ConfidenceLevel | None = None
 
 
 def upsert_profile(
@@ -77,6 +79,14 @@ def upsert_profile(
         profile.country_confidence = upd.country_confidence
     if upd.currency:
         profile.currency = upd.currency
+    if upd.vertical_id is not None and (
+        profile.vertical_id is None
+        or profile.vertical_confidence is None
+        or upd.vertical_confidence is None
+        or _RANK[upd.vertical_confidence] >= _RANK[profile.vertical_confidence]
+    ):
+        profile.vertical_id = upd.vertical_id
+        profile.vertical_confidence = upd.vertical_confidence
     if upd.traffic_rank is not None:
         profile.traffic_rank = upd.traffic_rank
     if scan_type == ScanType.LIGHT:
