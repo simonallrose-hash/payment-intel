@@ -68,3 +68,7 @@ class QualityGateError(PayIntelError):
     """Gold-set metrics below the release threshold (FR-QA-02)."""
 
     code = "quality_gate_failed"
+
+
+class UpstreamError(PayIntelError):
+    """An external service the operation depends on failed (→ 503)."""

@@ -970,6 +970,86 @@ def orgs_list() -> None:
             typer.echo(f"{o.id} {o.status.value:16} {o.country} {o.legal_name}")
 
 
+@orgs_app.command("rekyc")
+def orgs_rekyc(
+    within_days: Annotated[int | None, typer.Option(help="Horizon; default from settings")] = None,
+    remind: Annotated[bool, typer.Option("--remind", help="Issue the reminders")] = False,
+) -> None:
+    """FR-KYC-06: organisations whose re-KYC is due within the horizon; `--remind` records the
+    reminder once per due date and messages the staff Telegram chat when configured."""
+    from payintel.alerts.telegram import TelegramClient
+    from payintel.compliance import kyc as kyc_mod
+
+    settings = get_settings()
+    horizon = within_days if within_days is not None else settings.compliance.rekyc_reminder_days
+    now = SYSTEM_CLOCK.now()
+    with session_scope(get_engine()) as session:
+        due = kyc_mod.due_for_review(session, now=now, within_days=horizon)
+        for d in due:
+            state = "OVERDUE" if d.overdue else f"due {d.due_at:%Y-%m-%d}"
+            flag = " (reminded)" if d.reminded else ""
+            typer.echo(f"{d.org.id} {d.org.legal_name}: {state}{flag}")
+        sent: list[str] = []
+        if remind:
+            token = settings.secrets.telegram_bot_token.get_secret_value()
+            chat = settings.compliance.staff_telegram_chat_id
+            tg = (
+                TelegramClient(token, api_base=settings.alerts.telegram_api_base)
+                if token and chat
+                else None
+            )
+
+            def _notify(text: str) -> None:
+                sent.append(text)
+                if tg is not None and chat:
+                    tg.send(chat, text)
+
+            try:
+                kyc_mod.remind(
+                    session, now=now, clock=SYSTEM_CLOCK, within_days=horizon, notify=_notify
+                )
+            finally:
+                if tg is not None:
+                    tg.close()
+    typer.echo(f"{len(due)} organisation(s) due within {horizon} days, {len(sent)} reminder(s)")
+
+
+@orgs_app.command("screen")
+def orgs_screen(
+    org_id: Annotated[str, typer.Argument(help="Organisation id")],
+    actor: Annotated[str, typer.Option(help="Audit actor")] = "cli",
+) -> None:
+    """FR-KYC-03: screen the organisation and its beneficial owners through OpenSanctions."""
+    import uuid as _uuid
+
+    from payintel.compliance import sanctions as sanctions_mod
+    from payintel.core.models.orgs import Organization
+
+    settings = get_settings()
+    client = sanctions_mod.OpenSanctionsClient(
+        settings.secrets.opensanctions_api_key.get_secret_value(), settings=settings.compliance
+    )
+    try:
+        with session_scope(get_engine()) as session:
+            org = session.get(Organization, _uuid.UUID(org_id))
+            if org is None:
+                raise typer.BadParameter("organisation not found")
+            _, screening = sanctions_mod.screen(
+                session, org, client=client, principal=_cli_principal(actor), clock=SYSTEM_CLOCK
+            )
+            for h in screening.hits:
+                typer.echo(
+                    f"{h.query_name} → {h.caption} [{h.entity_id}] score={h.score} "
+                    f"match={'yes' if h.match else 'no'} {','.join(h.datasets)}"
+                )
+            typer.echo(
+                f"{screening.result}: {len(screening.hits)} candidate(s) "
+                f"from {screening.queries} queries"
+            )
+    finally:
+        client.close()
+
+
 @users_app.command("create")
 def users_create(
     email: Annotated[str, typer.Option(help="E-mail")],

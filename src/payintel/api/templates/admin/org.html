@@ -40,6 +40,10 @@
 <label>Upload document <input type="file" name="document" required></label><button type="submit">Store</button>
 <p class="muted">Stored: {% for d in dossier.documents or [] %}<code>{{ d }}</code> {% else %}none{% endfor %}</p>
 </form>
+{% if screening_configured %}<form method="post" action="/admin/orgs/{{ org.id }}/kyc/screen" class="inline">{{ csrf(ui) }}<button type="submit">Screen via OpenSanctions</button> <span class="muted">organisation + beneficial owners (FR-KYC-03, LR-14)</span></form>{% else %}<p class="muted">OpenSanctions screening is not configured (no API key): record the manual check below.</p>{% endif %}
+{% if dossier.sanctions_details %}<table class="grid"><thead><tr><th>Query</th><th>Candidate</th><th>Schema</th><th>Score</th><th>Match</th><th>Datasets</th></tr></thead><tbody>
+{% for h in dossier.sanctions_details %}<tr><td>{{ h.query_name }}</td><td>{{ h.caption }} <span class="muted">{{ h.entity_id }}</span></td><td>{{ h.schema }}</td><td>{{ h.score }}</td><td>{{ "yes" if h.match else "no" }}</td><td>{{ h.datasets|join(", ") }}</td></tr>
+{% endfor %}</tbody></table>{% endif %}
 <form method="post" action="/admin/orgs/{{ org.id }}/kyc/sanctions" class="card">{{ csrf(ui) }}
 <label>Sanctions screening result <select name="result">{% for s in sanctions %}<option value="{{ s }}" {% if dossier.sanctions_result==s %}selected{% endif %}>{{ s }}</option>{% endfor %}</select></label>
 <label>Source <input name="source" required value="{{ dossier.sanctions_source or '' }}" placeholder="OpenSanctions export 2026-10-01"></label>
@@ -54,6 +58,10 @@
 <button type="submit">Decide</button>
 <p class="muted">Current: {{ dossier.decision or "—" }} by {{ dossier.decided_by or "—" }} at {{ dossier.decided_at|dt }} — {{ dossier.decision_comment or "" }}</p>
 </form>
+<div class="card">
+<p><strong>Re-KYC (FR-KYC-06)</strong>: {% if dossier.next_review_at %}next review {{ dossier.next_review_at|dt }}{% if rekyc_overdue %} <span class="tag danger">overdue</span>{% endif %}{% if dossier.reminder_sent_at %} · reminder sent {{ dossier.reminder_sent_at|dt }}{% endif %}{% else %}not scheduled{% endif %}</p>
+{% if dossier.decision %}<form method="post" action="/admin/orgs/{{ org.id }}/kyc/review" class="inline">{{ csrf(ui) }}<button type="submit">Open re-KYC</button> <span class="muted">clears the decision and the screening result; dossier and documents stay</span></form>{% endif %}
+</div>
 </div>
 <div>
 <h2>Contracts and entitlements</h2>

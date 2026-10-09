@@ -63,6 +63,9 @@ class SecretsSettings(BaseModel):
     )
     session_secret: SecretStr = SecretStr("")
     telegram_bot_token: SecretStr = SecretStr("")
+    opensanctions_api_key: SecretStr = Field(
+        default=SecretStr(""), description="FR-KYC-03: OpenSanctions API key (commercial licence)."
+    )
 
 
 class IdentitySettings(BaseModel):
@@ -264,6 +267,28 @@ class AbuseSettings(BaseModel):
     auto_restrict: bool = Field(default=True, description="FR-AB-03 automatic key restriction")
 
 
+class ComplianceSettings(BaseModel):
+    """Re-KYC schedule (FR-KYC-06) and sanctions screening (FR-KYC-03, LR-14)."""
+
+    rekyc_interval_days: int = Field(default=365, description="FR-KYC-06: re-KYC every 12 months")
+    rekyc_reminder_days: int = Field(default=30, description="FR-KYC-06: reminder lead time")
+    staff_telegram_chat_id: str | None = Field(
+        default=None, description="Telegram chat of staff_compliance for reminders (optional)"
+    )
+    sanctions_api_base: str = Field(
+        default="https://api.opensanctions.org", description="OpenSanctions API (or own yente)"
+    )
+    sanctions_dataset: str = Field(default="default", description="Collection to match against")
+    sanctions_algorithm: str = Field(default="best", description="Matching algorithm")
+    sanctions_threshold: float = Field(
+        default=0.7, description="Score at or above which a candidate is a match"
+    )
+    sanctions_cutoff: float = Field(
+        default=0.5, description="Candidates between cutoff and threshold are potential matches"
+    )
+    sanctions_timeout_seconds: float = Field(default=20.0, description="HTTP timeout")
+
+
 class FlagDefaults(BaseModel):
     """Defaults for feature flags (FR-ADM-05). Runtime values live in `feature_flag`."""
 
@@ -305,6 +330,7 @@ class Settings(BaseSettings):
     export: ExportSettings = ExportSettings()
     quality: QualitySettings = QualitySettings()
     abuse: AbuseSettings = AbuseSettings()
+    compliance: ComplianceSettings = ComplianceSettings()
     flags: FlagDefaults = FlagDefaults()
 
 

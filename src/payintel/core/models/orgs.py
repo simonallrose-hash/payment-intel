@@ -11,6 +11,7 @@ from sqlalchemy import (
     Date,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     String,
     Text,
@@ -53,6 +54,13 @@ class KycRecord(Base):
     """KYC dossier (FR-KYC-02); one per organisation."""
 
     __tablename__ = "kyc_record"
+    __table_args__ = (
+        Index(
+            "ix_kyc_record_next_review_at",
+            "next_review_at",
+            postgresql_where=text("next_review_at IS NOT NULL"),
+        ),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     org_id: Mapped[uuid.UUID] = mapped_column(
@@ -84,6 +92,22 @@ class KycRecord(Base):
     decided_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     decision_comment: Mapped[str | None] = mapped_column(Text, nullable=True)
+    next_review_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="FR-KYC-06: re-KYC due date (12 months after approval, at once on "
+        "beneficiary change)",
+    )
+    reminder_sent_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="FR-KYC-06: when the 30-day reminder for the current due date went out",
+    )
+    sanctions_details: Mapped[list[dict[str, Any]] | None] = mapped_column(
+        JSONB,
+        nullable=True,
+        comment="FR-KYC-03: OpenSanctions hits per query (id, caption, score, datasets)",
+    )
 
 
 class Contract(Base):

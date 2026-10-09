@@ -42,6 +42,7 @@ class AppState:
     http_get: Callable[[str], tuple[int, str]] | None = None
     webhook_transport: Any = None
     telegram_transport: Any = None
+    sanctions_transport: Any = None
 
     @property
     def secret_box(self) -> SecretBox:

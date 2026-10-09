@@ -28,6 +28,7 @@ from payintel.compliance import dsar as dsar_mod
 from payintel.compliance import kyc as kyc_mod
 from payintel.compliance import lifecycle
 from payintel.compliance import optout as optout_mod
+from payintel.compliance import sanctions as sanctions_mod
 from payintel.compliance import users as users_mod
 from payintel.core import audit
 from payintel.core.errors import ConfigurationError, NotFoundError, ValidationError
@@ -112,7 +113,15 @@ def overview(request: Request, state: StateDep, session: SessionDep, ctx: ui.Sta
         "quality_alerts": session.execute(
             select(func.count(QualityAlert.id)).where(QualityAlert.acknowledged_at.is_(None))
         ).scalar_one(),
+        "abuse_open": len(incidents_mod.open_incidents(session)),
     }
+    due = kyc_mod.due_for_review(
+        session,
+        now=state.clock.now(),
+        within_days=state.settings.compliance.rekyc_reminder_days,
+    )
+    counts["rekyc_due"] = len(due)
+    counts["rekyc_overdue"] = sum(1 for d in due if d.overdue)
     return ui.render(request, "admin/overview.html", ctx=ctx, counts=counts)
 
 
@@ -194,6 +203,8 @@ def org_card(
         org_roles=["org_viewer", "org_analyst", "org_admin"],
         incidents=incidents_mod.open_incidents(session, org.id),
         usage_reports=usage_mod.reports_of(session, org.id),
+        rekyc_overdue=bool(rec and rec.next_review_at and rec.next_review_at <= state.clock.now()),
+        screening_configured=bool(state.settings.secrets.opensanctions_api_key.get_secret_value()),
         audit_rows=list(
             session.execute(
                 select(AuditLog)
@@ -345,8 +356,43 @@ def org_decision(
         principal=ctx.principal,
         comment=comment,
         clock=state.clock,
+        review_interval_days=state.settings.compliance.rekyc_interval_days,
     )
     return ui.redirect(f"/admin/orgs/{org.id}", msg=f"KYC decision: {decision}.")
+
+
+@router.post("/orgs/{org_id}/kyc/review")
+def org_kyc_review(
+    state: StateDep, session: SessionDep, ctx: Compliance, _csrf: ui.CsrfDep, org_id: uuid.UUID
+) -> Response:
+    """FR-KYC-06: open the re-KYC; the dossier is kept, decision and screening are redone."""
+    org = _org(session, org_id)
+    kyc_mod.start_review(session, org, principal=ctx.principal, clock=state.clock)
+    return ui.redirect(f"/admin/orgs/{org.id}", msg="Re-KYC opened: screen and decide again.")
+
+
+@router.post("/orgs/{org_id}/kyc/screen")
+def org_kyc_screen(
+    state: StateDep, session: SessionDep, ctx: Compliance, _csrf: ui.CsrfDep, org_id: uuid.UUID
+) -> Response:
+    """FR-KYC-03: screen the organisation and its beneficial owners through OpenSanctions."""
+    org = _org(session, org_id)
+    client = sanctions_mod.OpenSanctionsClient(
+        state.settings.secrets.opensanctions_api_key.get_secret_value(),
+        settings=state.settings.compliance,
+        transport=state.sanctions_transport,
+    )
+    try:
+        _, screening = sanctions_mod.screen(
+            session, org, client=client, principal=ctx.principal, clock=state.clock
+        )
+    finally:
+        client.close()
+    return ui.redirect(
+        f"/admin/orgs/{org.id}",
+        msg=f"Screening: {screening.result} ({len(screening.hits)} candidate(s), "
+        f"{screening.queries} queries).",
+    )
 
 
 @router.post("/orgs/{org_id}/contracts")

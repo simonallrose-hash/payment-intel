@@ -17,6 +17,7 @@ from payintel.core.errors import (
     ForbiddenError,
     NotFoundError,
     PayIntelError,
+    UpstreamError,
     ValidationError,
 )
 from payintel.entitlements.check import EntitlementDenied
@@ -34,6 +35,7 @@ _STATUS: dict[type[PayIntelError], int] = {
     C2DisabledError: 403,
     RateLimited: 429,
     QuotaExceeded: 429,
+    UpstreamError: 503,
 }
 
 _TITLE: dict[int, str] = {
@@ -44,6 +46,7 @@ _TITLE: dict[int, str] = {
     409: "Conflict",
     429: "Too Many Requests",
     500: "Internal Server Error",
+    503: "Service Unavailable",
 }
 
 
