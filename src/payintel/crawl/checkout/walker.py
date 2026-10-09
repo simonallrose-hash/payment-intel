@@ -191,6 +191,9 @@ class WalkInput:
     credentials: Credentials | None = None
     # (homepage html, url) → platform id, used to pick the adapter when the profile has none
     platform_detect: Callable[[str, str], str | None] | None = None
+    # FR-CW-11: geolocation proxy for this walk (Playwright proxy dict) and why it was chosen
+    proxy: dict[str, str] | None = None
+    geo: dict[str, str | None] = field(default_factory=dict)
 
 
 @dataclass
@@ -290,12 +293,15 @@ class CheckoutWalker:
         t0 = self.monotonic()
         journal = ActionJournal(lambda: self.monotonic() * 1000)
         journal.add("identity", **inp.identity.as_log())
+        if inp.geo:
+            journal.add("geo", **{k: v or "" for k, v in inp.geo.items()})
         wc = await self.pool.new_walk_context(
             ContextOptions(
                 locale=inp.identity.locale,
                 accept_language=inp.identity.accept_language,
                 allow_private=self.cfg.allow_private,
                 rewrite=self.cfg.rewrite,
+                proxy=inp.proxy,
             )
         )
         page = await wc.new_page()

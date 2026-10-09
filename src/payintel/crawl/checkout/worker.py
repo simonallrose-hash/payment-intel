@@ -57,6 +57,7 @@ from payintel.core.models.scans import ScanPlan, ScanRun
 from payintel.core.models.store import StoreCheckoutHost, StoreProfile
 from payintel.core.reference_loader import ReferenceData
 from payintel.core.settings import Settings
+from payintel.crawl.checkout import geo as geo_mod
 from payintel.crawl.checkout.accounts import AccountManager, Credentials
 from payintel.crawl.checkout.capture import NetworkEntry, network_rows
 from payintel.crawl.checkout.identities import IdentityProvider
@@ -132,6 +133,7 @@ class CheckoutOutcome:
     findings: list[Finding] = field(default_factory=list)
     diff: DiffResult | None = None
     robots_fetched: bool = True
+    geo: dict[str, str | None] = field(default_factory=dict)  # FR-CW-11 (proxy redacted)
 
     @property
     def providers(self) -> list[TargetScore]:
@@ -296,6 +298,12 @@ class CheckoutScanner:
         identity = self.ctx.identities.for_country(
             lease.profile_country, email_token=f"h{lease.host_id}"
         )
+        # FR-CW-11: decided once, before the walk; never revisited after a block (LR-03)
+        geo = geo_mod.choose(
+            identity.country,
+            egress_country=self.ctx.settings.checkout.egress_country,
+            proxies=self.ctx.settings.checkout.geo_proxies,
+        )
         robots = await self._robots(base)
         if not robots.allows(base):
             stop = Stop(
@@ -305,6 +313,7 @@ class CheckoutScanner:
                 page_url=base,
             )
             outcome = self._outcome(lease, prefix, identity.country, stop=stop, walk=None)
+            outcome.geo = geo.as_log()
             outcome.robots_fetched = robots.fetched
             outcome.duration_ms = int((asyncio.get_running_loop().time() - t0) * 1000)
             return outcome
@@ -330,6 +339,8 @@ class CheckoutScanner:
             platform_id=lease.profile_platform,
             credentials=lease.credentials,
             platform_detect=self._platform_from_homepage,
+            proxy=geo.proxy.as_playwright() if geo.proxy else None,
+            geo=geo.as_log(),
         )
         async with self._lock_for(etld1):
             walk = await self.ctx.walker.walk(inp)
@@ -341,6 +352,7 @@ class CheckoutScanner:
                 detail_max_chars=self.ctx.settings.checkout.stop_detail_max_chars,
             )
         outcome = self._outcome(lease, prefix, identity.country, stop=normalised, walk=walk)
+        outcome.geo = geo.as_log()
         outcome.duration_ms = int((asyncio.get_running_loop().time() - t0) * 1000)
         return outcome
 
@@ -523,6 +535,7 @@ class CheckoutScanner:
             "status": o.status.value,
             "coverage": o.coverage.value,
             "identity_country": o.identity_country,
+            "geo": o.geo,
             "flags": o.flags.__dict__,
             "ruleset_version": self.ctx.ruleset.version,
             "scanner_version": self.ctx.settings.scanner_version,

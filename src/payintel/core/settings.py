@@ -172,6 +172,14 @@ class LightScanSettings(BaseModel):
 
 class CheckoutSettings(BaseModel):
     walk_timeout_seconds: int = Field(default=90, description="FR-CW-10")
+    egress_country: str = Field(
+        default="DE", description="FR-CW-11: country of the crawler's own egress addresses"
+    )
+    geo_proxies: dict[str, str] = Field(
+        default_factory=dict,
+        description="FR-CW-11: ISO-2 country → proxy URL used for geolocation only "
+        "(same User-Agent, never to get around a block, LR-03)",
+    )
     network_idle_timeout_seconds: int = Field(default=15, description="FR-CW-02")
     context_memory_limit_mb: int = Field(default=1024, description="FR-CW-10")
     browser_restart_every_walks: int = Field(default=50, description="FR-CW-10")

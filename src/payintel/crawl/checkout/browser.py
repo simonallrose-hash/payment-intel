@@ -51,6 +51,27 @@ class ContextOptions:
     allow_private: bool = False
     rewrite: Rewriter | None = None
     extra_headers: dict[str, str] = field(default_factory=dict)
+    proxy: dict[str, str] | None = None  # FR-CW-11: geolocation proxy for this context only
+
+
+def context_kwargs(
+    opts: ContextOptions, *, user_agent: str, viewport: tuple[int, int]
+) -> dict[str, Any]:
+    """Playwright `new_context` arguments: identifying UA (LR-02), locale/Accept-Language of
+    the walk's country (FR-CW-11), optional geolocation proxy, no downloads/service workers."""
+    kwargs: dict[str, Any] = {
+        "user_agent": user_agent,
+        "locale": opts.locale,
+        "viewport": {"width": viewport[0], "height": viewport[1]},
+        "extra_http_headers": {"Accept-Language": opts.accept_language, **opts.extra_headers},
+        "ignore_https_errors": False,
+        "java_script_enabled": True,
+        "accept_downloads": False,
+        "service_workers": "block",
+    }
+    if opts.proxy:
+        kwargs["proxy"] = dict(opts.proxy)
+    return kwargs
 
 
 @dataclass
@@ -208,16 +229,7 @@ class BrowserPool:
             fd, name = tempfile.mkstemp(prefix="walk-", suffix=".har", dir=self.har_dir)
             os.close(fd)
             har_path = Path(name)
-        kwargs: dict[str, Any] = {
-            "user_agent": self.user_agent,
-            "locale": opts.locale,
-            "viewport": {"width": self.viewport[0], "height": self.viewport[1]},
-            "extra_http_headers": {"Accept-Language": opts.accept_language, **opts.extra_headers},
-            "ignore_https_errors": False,
-            "java_script_enabled": True,
-            "accept_downloads": False,
-            "service_workers": "block",
-        }
+        kwargs = context_kwargs(opts, user_agent=self.user_agent, viewport=self.viewport)
         if har_path is not None:
             kwargs["record_har_path"] = str(har_path)
             kwargs["record_har_content"] = "omit"
