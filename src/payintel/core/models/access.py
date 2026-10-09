@@ -22,6 +22,9 @@ class User(Base):
     totp_secret_encrypted: Mapped[str | None] = mapped_column(
         Text, nullable=True, comment="AES-GCM, key from env (NFR-S-03)"
     )
+    totp_confirmed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, comment="2FA enrolment completed (FR-UI-01)"
+    )
     is_staff: Mapped[bool] = mapped_column(
         nullable=False, default=False, server_default=text("false")
     )

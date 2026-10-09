@@ -11,6 +11,7 @@ from payintel.core.models.base import Base
 from payintel.core.models.domains import Domain, DomainSource, Host, ImportBatch
 from payintel.core.models.exports import Canary, ExportJob
 from payintel.core.models.orgs import Contract, Entitlement, KycRecord, Organization
+from payintel.core.models.portal import DsarRequest, PortalSession, ReportJob, SystemCursor
 from payintel.core.models.quality import GoldLabel, QualityAlert
 from payintel.core.models.reference import PaymentMethod, Platform, Provider, Vertical
 from payintel.core.models.rules import DetectionRule
@@ -35,6 +36,7 @@ __all__ = [
     "DetectionRule",
     "Domain",
     "DomainSource",
+    "DsarRequest",
     "Entitlement",
     "ExportJob",
     "FeatureFlag",
@@ -49,8 +51,10 @@ __all__ = [
     "Organization",
     "PaymentMethod",
     "Platform",
+    "PortalSession",
     "Provider",
     "QualityAlert",
+    "ReportJob",
     "ScanPlan",
     "ScanRun",
     "StoreAccount",
@@ -58,6 +62,7 @@ __all__ = [
     "StorePaymentMethod",
     "StoreProfile",
     "StoreProvider",
+    "SystemCursor",
     "UsageLog",
     "User",
     "Vertical",

@@ -272,5 +272,24 @@ class KycDecision(StrEnum):
     REJECTED = "rejected"
 
 
+class DsarKind(StrEnum):
+    """FR-OO-03."""
+
+    ACCESS = "access"
+    ERASURE = "erasure"
+
+
+class DsarStatus(StrEnum):
+    OPEN = "open"
+    IN_PROGRESS = "in_progress"
+    CLOSED = "closed"
+
+
+class ReportStatus(StrEnum):
+    PENDING = "pending"
+    DONE = "done"
+    FAILED = "failed"
+
+
 def enum_values(e: type[StrEnum]) -> list[str]:
     return [m.value for m in e]

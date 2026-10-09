@@ -24,6 +24,15 @@ dependencies = [
     "dnspython>=2.7,<3",
     "publicsuffixlist>=1.0.2",
     "playwright==1.56.0",
+    "fastapi>=0.115,<1",
+    "uvicorn[standard]>=0.32,<1",
+    "jinja2>=3.1,<4",
+    "argon2-cffi>=23.1,<24",
+    "pyotp>=2.9,<3",
+    "pyarrow>=18,<27",
+    "openpyxl>=3.1,<4",
+    "python-multipart>=0.0.20,<1",
+    "itsdangerous>=2.2,<3",
 ]
 
 [project.scripts]
@@ -45,6 +54,8 @@ dev = [
     "pip-audit>=2.7,<3",
     "fakeredis>=2.26,<3",
     "hypothesis>=6.168.5",
+    "schemathesis>=3.39,<5",
+    "types-openpyxl>=3.1.5.20260827",
 ]
 
 [build-system]

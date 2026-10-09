@@ -82,6 +82,16 @@ class IdentitySettings(BaseModel):
         description="Phone typed into checkout forms where no fictional range exists for the "
         "country (FR-CW-05); the default is in the Ofcom drama range, never a real number.",
     )
+    contact_email: str = Field(
+        default="bot@example.invalid", description="Contact on the bot page (FR-OO-01)."
+    )
+    crawler_ip_ranges: tuple[str, ...] = Field(
+        default=(), description="Published egress ranges for the bot page (FR-OO-01)."
+    )
+    canary_zone: str = Field(
+        default="canary.example.invalid",
+        description="DNS zone under company control for canary domains (FR-EX-05, FR-AB-04).",
+    )
 
     @property
     def user_agent(self) -> str:
@@ -192,11 +202,35 @@ class ApiSettings(BaseModel):
     methodology_url: str = Field(
         default="https://example.invalid/methodology", description="FR-API-10"
     )
+    default_monthly_records: int = Field(default=1_000_000, description="FR-API-06 default")
+    rate_limit_window_seconds: float = Field(
+        default=1.0, description="Sliding window for `api_rps` (FR-API-07)"
+    )
+    cookie_secure: bool = Field(
+        default=True, description="`Secure` on the portal session cookie; off only in dev"
+    )
+    totp_issuer: str = Field(default="PayIntel", description="TOTP issuer label (NFR-S-03)")
+    history_page_size: int = Field(default=100, description="Default rows for history/changes")
+    api_key_prefix: str = Field(default="pik_", description="Visible prefix of API keys")
+
+
+class AlertSettings(BaseModel):
+    telegram_api_base: str = Field(default="https://api.telegram.org", description="FR-AL-04")
+    webhook_timeout_seconds: float = Field(default=10.0, description="FR-AL-04")
+    retry_delays_hours: tuple[float, ...] = Field(
+        default=(1.0, 3.0, 7.0, 13.0),
+        description="Delays before attempts 2..5; sum ≤ 24 h (FR-AL-04)",
+    )
+    signature_header: str = Field(default="X-PayIntel-Signature", description="HMAC-SHA256")
+    digest_hour_utc: int = Field(default=7, ge=0, le=23, description="Daily digest time")
 
 
 class ExportSettings(BaseModel):
     canary_min: int = Field(default=3, description="FR-EX-05")
     canary_max: int = Field(default=10, description="FR-EX-05")
+    default_max_rows: int = Field(default=200_000, description="FR-EX-06 default per export")
+    default_schedule: str = Field(default="monthly", description="FR-EX-03")
+    rows_per_chunk: int = Field(default=50_000, description="Row batches while building")
 
 
 class QualitySettings(BaseModel):
@@ -249,6 +283,7 @@ class Settings(BaseSettings):
     checkout: CheckoutSettings = CheckoutSettings()
     retention: RetentionSettings = RetentionSettings()
     api: ApiSettings = ApiSettings()
+    alerts: AlertSettings = AlertSettings()
     export: ExportSettings = ExportSettings()
     quality: QualitySettings = QualitySettings()
     flags: FlagDefaults = FlagDefaults()

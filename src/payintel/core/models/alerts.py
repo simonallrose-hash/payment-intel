@@ -11,6 +11,7 @@ from sqlalchemy import (
     Boolean,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     String,
     Text,
@@ -113,6 +114,15 @@ class Delivery(Base):
     """Delivery log: 5 attempts within 24 h (FR-AL-04)."""
 
     __tablename__ = "delivery"
+    __table_args__ = (
+        Index(
+            "uq_delivery_rule_event",
+            "alert_rule_id",
+            "change_event_id",
+            unique=True,
+            postgresql_where=text("change_event_id IS NOT NULL"),
+        ),
+    )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     alert_rule_id: Mapped[int] = mapped_column(
