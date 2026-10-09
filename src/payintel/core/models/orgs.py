@@ -41,6 +41,12 @@ class Organization(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=text("now()")
     )
+    restricted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="FR-AB-03: API keys refused until compliance lifts the restriction",
+    )
+    restricted_reason: Mapped[str | None] = mapped_column(String(256), nullable=True)
 
 
 class KycRecord(Base):

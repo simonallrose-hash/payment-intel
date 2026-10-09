@@ -7,6 +7,10 @@
 <tr><th>Records this month</th><td>{{ month }} / {{ grant.monthly_records }}</td></tr>
 <tr><th>Rate limit</th><td>{{ grant.api_rps }} requests per second</td></tr>
 </table>
+<h2>Quarterly usage reports</h2>
+<table class="grid"><thead><tr><th>Period</th><th>Requests</th><th>Records</th><th>Exports</th><th>Alerts</th><th>Generated</th><th></th></tr></thead><tbody>
+{% for r, link in reports %}<tr><td>{{ r.period }}</td><td>{{ r.summary.requests }}</td><td>{{ r.summary.records }}</td><td>{{ r.summary.exports }}</td><td>{{ r.summary.alerts_delivered }}</td><td>{{ r.generated_at|dt }}</td><td>{% if link %}<a href="{{ link }}">download .xlsx</a>{% else %}—{% endif %}</td></tr>{% else %}<tr><td colspan="7" class="muted">Reports are generated automatically after each quarter.</td></tr>{% endfor %}
+</tbody></table>
 <h2>This month by endpoint</h2>
 <table class="grid"><thead><tr><th>Endpoint</th><th>Requests</th><th>Records</th></tr></thead><tbody>
 {% for e, n, rec in per_endpoint %}<tr><td><code>{{ e }}</code></td><td>{{ n }}</td><td>{{ rec or 0 }}</td></tr>{% else %}<tr><td colspan="3" class="muted">No requests this month.</td></tr>{% endfor %}

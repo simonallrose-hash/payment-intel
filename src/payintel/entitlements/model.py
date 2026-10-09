@@ -108,6 +108,7 @@ class DenialCode:
     """Machine-readable reasons for 403 (FR-API-06 "понятный код ошибки")."""
 
     ORG_NOT_ACTIVE = "org_not_active"
+    ORG_RESTRICTED = "org_restricted"
     CONTRACT_NOT_IN_TERM = "contract_not_in_term"
     NO_ENTITLEMENT = "no_entitlement"
     IP_NOT_ALLOWED = "ip_not_allowed"

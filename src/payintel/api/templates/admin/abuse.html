@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf %}
+{% block title %}Abuse{% endblock %}
+{% block content %}
+<h1>Anti-abuse</h1>
+<p class="muted">FR-AB-02/03: detector findings become incidents for compliance; critical ones restrict the organisation's keys until a decision. FR-AB-04: any access to a canary domain is linked to the organisation that received it.</p>
+<h2>Open incidents ({{ open_incidents|length }})</h2>
+<table class="grid"><thead><tr><th>Created</th><th>Organisation</th><th>Detector</th><th>Severity</th><th>Summary</th><th>Auto-restricted</th><th></th></tr></thead><tbody>
+{% for i in open_incidents %}
+<tr><td>{{ i.created_at|dt }}</td><td><a href="/admin/orgs/{{ i.org_id }}">{{ orgs[i.org_id].legal_name if i.org_id in orgs else i.org_id }}</a></td><td>{{ i.detector }}</td><td><span class="tag">{{ i.severity }}</span></td><td>{{ i.summary }}</td><td>{{ "yes" if i.auto_restricted else "no" }}</td>
+<td><form method="post" action="/admin/abuse/incidents/{{ i.id }}/resolve" class="inline">{{ csrf(ui) }}
+<input name="resolution" placeholder="note" maxlength="500">
+<label><input type="checkbox" name="lift_restriction" value="1"> lift restriction</label>
+<button type="submit" name="status" value="resolved">resolve</button>
+<button type="submit" name="status" value="dismissed" class="link">dismiss</button></form></td></tr>
+{% else %}<tr><td colspan="7" class="muted">No open incidents.</td></tr>{% endfor %}
+</tbody></table>
+<h2>Restricted organisations</h2>
+<p>{% for o in restricted %}<a href="/admin/orgs/{{ o.id }}">{{ o.legal_name }}</a> (since {{ o.restricted_at|dt }}: {{ o.restricted_reason }}){% if not loop.last %} · {% endif %}{% else %}<span class="muted">None.</span>{% endfor %}</p>
+<h2>Canary hits</h2>
+<table class="grid"><thead><tr><th>Observed</th><th>Kind</th><th>Canary</th><th>Organisation</th><th>Source</th><th>Detail</th></tr></thead><tbody>
+{% for h, c in hits %}
+<tr><td>{{ h.observed_at|dt }}</td><td>{{ h.kind }}</td><td><code>{{ c.domain }}</code></td><td><a href="/admin/orgs/{{ h.org_id }}">{{ orgs[h.org_id].legal_name if h.org_id in orgs else h.org_id }}</a></td><td>{{ h.source or "" }}</td><td class="muted">{{ (h.detail or "")[:80] }}</td></tr>
+{% else %}<tr><td colspan="6" class="muted">No canary hits recorded.</td></tr>{% endfor %}
+</tbody></table>
+<h2>Recently closed</h2>
+<table class="grid"><thead><tr><th>Closed</th><th>Organisation</th><th>Detector</th><th>Severity</th><th>Status</th><th>By</th><th>Resolution</th></tr></thead><tbody>
+{% for i in closed %}
+<tr><td>{{ i.resolved_at|dt }}</td><td>{{ orgs[i.org_id].legal_name if i.org_id in orgs else i.org_id }}</td><td>{{ i.detector }}</td><td>{{ i.severity }}</td><td>{{ i.status }}</td><td>{{ i.resolved_by }}</td><td class="muted">{{ (i.resolution or "")[:80] }}</td></tr>
+{% else %}<tr><td colspan="7" class="muted">Nothing closed yet.</td></tr>{% endfor %}
+</tbody></table>
+{% endblock %}

@@ -40,6 +40,7 @@ ADMIN_PAGES = [
     "/admin/flags",
     "/admin/quality",
     "/admin/review",
+    "/admin/abuse",
     "/admin/optout",
     "/admin/dsar",
     "/admin/exports",

@@ -3,6 +3,7 @@
 Importing this package registers all tables on `Base.metadata` (used by Alembic).
 """
 
+from payintel.core.models.abuse import AbuseIncident, CanaryHit, UsageReport
 from payintel.core.models.access import ApiKey, Membership, User
 from payintel.core.models.alerts import AlertRule, Delivery, Watchlist, WatchlistItem, Webhook
 from payintel.core.models.assets import HostJsAsset, JsAsset
@@ -12,7 +13,7 @@ from payintel.core.models.domains import Domain, DomainSource, Host, ImportBatch
 from payintel.core.models.exports import Canary, ExportJob
 from payintel.core.models.orgs import Contract, Entitlement, KycRecord, Organization
 from payintel.core.models.portal import DsarRequest, PortalSession, ReportJob, SystemCursor
-from payintel.core.models.quality import GoldLabel, QualityAlert
+from payintel.core.models.quality import FindingReview, GoldLabel, QualityAlert
 from payintel.core.models.reference import PaymentMethod, Platform, Provider, Vertical
 from payintel.core.models.rules import DetectionRule
 from payintel.core.models.scans import ScanPlan, ScanRun, StoreAccount
@@ -25,11 +26,13 @@ from payintel.core.models.store import (
 )
 
 __all__ = [
+    "AbuseIncident",
     "AlertRule",
     "ApiKey",
     "AuditLog",
     "Base",
     "Canary",
+    "CanaryHit",
     "ChangeEvent",
     "Contract",
     "Delivery",
@@ -40,6 +43,7 @@ __all__ = [
     "Entitlement",
     "ExportJob",
     "FeatureFlag",
+    "FindingReview",
     "GoldLabel",
     "Host",
     "HostJsAsset",
@@ -64,6 +68,7 @@ __all__ = [
     "StoreProvider",
     "SystemCursor",
     "UsageLog",
+    "UsageReport",
     "User",
     "Vertical",
     "Watchlist",

@@ -57,9 +57,11 @@ dsar_app = typer.Typer(no_args_is_help=True, help="GDPR data subject requests (F
 users_app = typer.Typer(no_args_is_help=True, help="Portal and staff users")
 keys_app = typer.Typer(no_args_is_help=True, help="API keys (FR-API-02)")
 orgs_app = typer.Typer(no_args_is_help=True, help="Organisations (FR-KYC-01)")
+abuse_app = typer.Typer(no_args_is_help=True, help="Anti-abuse detectors and canaries (FR-AB-*)")
 app.add_typer(api_app, name="api")
 app.add_typer(alerts_app, name="alerts")
 app.add_typer(exports_app, name="exports")
+app.add_typer(abuse_app, name="abuse")
 app.add_typer(report_app, name="report")
 app.add_typer(optout_app, name="optout")
 app.add_typer(dsar_app, name="dsar")
@@ -712,6 +714,104 @@ def alerts_dispatch(
         if once:
             return
         time.sleep(interval)
+
+
+@abuse_app.command("detect")
+def abuse_detect(
+    once: Annotated[bool, typer.Option("--once", help="One pass, then exit")] = False,
+    interval: Annotated[float, typer.Option(help="Seconds between passes")] = 900.0,
+) -> None:
+    """FR-AB-02/03: run the usage anomaly detectors; critical findings restrict the organisation."""
+    from payintel.abuse import incidents as incidents_mod
+
+    settings = get_settings()
+    while True:
+        with session_scope(get_engine()) as session:
+            r = incidents_mod.run_all(
+                session, now=SYSTEM_CLOCK.now(), s=settings.abuse, clock=SYSTEM_CLOCK
+            )
+            for inc in r.incidents:
+                typer.echo(f"{inc.severity} {inc.detector} org={inc.org_id}: {inc.summary}")
+        typer.echo(
+            f"organisations={r.organisations} new incidents={len(r.incidents)} "
+            f"restricted={len(r.restricted)}"
+        )
+        if once:
+            return
+        time.sleep(interval)
+
+
+@abuse_app.command("canary-hits")
+def abuse_canary_hits(
+    path: Annotated[Path, typer.Argument(exists=True, dir_okay=False, help="Log lines")],
+    kind: Annotated[str, typer.Option(help="dns | http | email")] = "dns",
+) -> None:
+    """FR-AB-04: ingest canary accesses (`<iso-ts> <name> [source] [detail]` per line)."""
+    from payintel.abuse import canary as canary_mod
+
+    settings = get_settings()
+    hits = canary_mod.parse_lines(path.read_text(encoding="utf-8").splitlines())
+    with session_scope(get_engine()) as session:
+        r = canary_mod.ingest(
+            session,
+            hits,
+            kind=kind,
+            zone=settings.identity.canary_zone,
+            s=settings.abuse,
+            clock=SYSTEM_CLOCK,
+        )
+    typer.echo(
+        f"lines={r.lines} matched={r.matched} unmatched={r.unmatched} new incidents={r.incidents}"
+    )
+
+
+@abuse_app.command("incidents")
+def abuse_incidents() -> None:
+    """List open incidents."""
+    from payintel.abuse import incidents as incidents_mod
+
+    with session_scope(get_engine()) as session:
+        rows = incidents_mod.open_incidents(session)
+        for inc in rows:
+            typer.echo(
+                f"{inc.id} {inc.created_at:%Y-%m-%d %H:%M} {inc.severity} {inc.detector} "
+                f"org={inc.org_id} {inc.summary}"
+            )
+    typer.echo(f"{len(rows)} open incident(s)")
+
+
+@abuse_app.command("usage-report")
+def abuse_usage_report(
+    year: Annotated[int | None, typer.Option(help="Default: previous quarter")] = None,
+    quarter: Annotated[int | None, typer.Option(help="1-4")] = None,
+    org: Annotated[list[str] | None, typer.Option(help="Organisation id(s)")] = None,
+) -> None:
+    """FR-AB-05: build the quarterly usage report (XLSX in the exports bucket) per organisation."""
+    import uuid as _uuid
+
+    from payintel.abuse import usage_report as usage_mod
+
+    settings = get_settings()
+    now = SYSTEM_CLOCK.now()
+    q = (
+        usage_mod.Quarter(year, quarter)
+        if year and quarter
+        else usage_mod.Quarter.of(now.date()).previous()
+    )
+    store = ObjectStore(make_s3_client(settings.s3))
+    store.ensure_bucket(settings.s3.bucket_exports)
+    with session_scope(get_engine()) as session:
+        rows = usage_mod.build_all(
+            session,
+            q,
+            store=store,
+            bucket=settings.s3.bucket_exports,
+            now=now,
+            org_ids=[_uuid.UUID(o) for o in org] if org else None,
+        )
+        for r in rows:
+            typer.echo(f"{r.org_id} {r.period}: {r.summary['requests']} requests → {r.file_key}")
+    typer.echo(f"{len(rows)} report(s) for {q.period}")
 
 
 @exports_app.command("run")

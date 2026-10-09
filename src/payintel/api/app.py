@@ -184,6 +184,9 @@ def _journal(
         return
     params = {k: v for k, v in request.query_params.multi_items()}
     params["status"] = str(status)
+    denial = getattr(request.state, "denial", None)
+    if denial:
+        params["denial"] = str(denial)
     session = state.session_factory()
     try:
         log_usage(

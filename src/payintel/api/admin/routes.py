@@ -17,6 +17,9 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 from starlette.responses import HTMLResponse, Response
 
+from payintel.abuse import canary as canary_mod
+from payintel.abuse import incidents as incidents_mod
+from payintel.abuse import usage_report as usage_mod
 from payintel.api import ui
 from payintel.api.deps import SessionDep, StateDep
 from payintel.api.schemas.internal import StoreInternal
@@ -29,6 +32,7 @@ from payintel.compliance import users as users_mod
 from payintel.core import audit
 from payintel.core.errors import ConfigurationError, NotFoundError, ValidationError
 from payintel.core.flags import FlagService
+from payintel.core.models.abuse import AbuseIncident
 from payintel.core.models.access import ApiKey
 from payintel.core.models.audit import AuditLog
 from payintel.core.models.base import (
@@ -188,6 +192,8 @@ def org_card(
         profiles=[p.value for p in FieldProfile],
         c2_enabled=flags.is_enabled("feature_c2_enabled"),
         org_roles=["org_viewer", "org_analyst", "org_admin"],
+        incidents=incidents_mod.open_incidents(session, org.id),
+        usage_reports=usage_mod.reports_of(session, org.id),
         audit_rows=list(
             session.execute(
                 select(AuditLog)
@@ -1155,6 +1161,110 @@ def dsar_close(
         raise NotFoundError("request not found")
     dsar_mod.close(session, req, principal=ctx.principal, resolution=resolution, clock=state.clock)
     return ui.redirect("/admin/dsar", msg="Request closed.")
+
+
+# --- anti-abuse (FR-AB-02…05) ------------------------------------------------------------------
+
+
+@router.get("/abuse", response_class=HTMLResponse)
+def abuse_page(request: Request, session: SessionDep, ctx: Compliance) -> Any:
+    orgs = {o.id: o for o in session.execute(select(Organization)).scalars()}
+    closed = list(
+        session.execute(
+            select(AbuseIncident)
+            .where(AbuseIncident.status != "open")
+            .order_by(AbuseIncident.resolved_at.desc())
+            .limit(30)
+        ).scalars()
+    )
+    return ui.render(
+        request,
+        "admin/abuse.html",
+        ctx=ctx,
+        open_incidents=incidents_mod.open_incidents(session),
+        closed=closed,
+        orgs=orgs,
+        restricted=[o for o in orgs.values() if o.restricted_at is not None],
+        hits=canary_mod.recent_hits(session, limit=50),
+    )
+
+
+@router.post("/abuse/incidents/{incident_id}/resolve")
+def abuse_resolve(
+    state: StateDep,
+    session: SessionDep,
+    ctx: Compliance,
+    _csrf: ui.CsrfDep,
+    incident_id: int,
+    status: Annotated[str, Form()] = "resolved",
+    resolution: Annotated[str | None, Form()] = None,
+    lift_restriction: Annotated[str | None, Form()] = None,
+) -> Response:
+    incidents_mod.resolve(
+        session,
+        incident_id,
+        status=status,
+        resolution=(resolution or "").strip() or None,
+        lift_restriction=bool(lift_restriction),
+        actor=ctx.principal.actor,
+        ip=ctx.principal.ip,
+        clock=state.clock,
+    )
+    return ui.redirect("/admin/abuse", msg=f"Incident {status}.")
+
+
+@router.post("/orgs/{org_id}/restrict")
+def org_restrict(
+    state: StateDep,
+    session: SessionDep,
+    ctx: Compliance,
+    _csrf: ui.CsrfDep,
+    org_id: uuid.UUID,
+    reason: Annotated[str, Form()],
+) -> Response:
+    org = _org(session, org_id)
+    if not reason.strip():
+        raise ValidationError("a reason is required")
+    incidents_mod.restrict(
+        session, org, reason=reason.strip(), actor=ctx.principal.actor, clock=state.clock
+    )
+    return ui.redirect(f"/admin/orgs/{org.id}", msg="API access restricted.")
+
+
+@router.post("/orgs/{org_id}/unrestrict")
+def org_unrestrict(
+    state: StateDep, session: SessionDep, ctx: Compliance, _csrf: ui.CsrfDep, org_id: uuid.UUID
+) -> Response:
+    org = _org(session, org_id)
+    if org.restricted_at is not None:
+        incidents_mod.unrestrict(session, org, actor=ctx.principal.actor, clock=state.clock)
+    return ui.redirect(f"/admin/orgs/{org.id}", msg="API access restored.")
+
+
+@router.post("/orgs/{org_id}/usage-report")
+def org_usage_report(
+    state: StateDep,
+    session: SessionDep,
+    ctx: ui.StaffDep,
+    _csrf: ui.CsrfDep,
+    org_id: uuid.UUID,
+    period: Annotated[str | None, Form()] = None,
+) -> Response:
+    org = _org(session, org_id)
+    now = state.clock.now()
+    quarter = usage_mod.Quarter.of(now.date()).previous()
+    if period:
+        year, _, q = period.upper().partition("-Q")
+        quarter = usage_mod.Quarter(int(year), int(q))
+    usage_mod.build(
+        session,
+        org,
+        quarter,
+        store=state.store,
+        bucket=state.settings.s3.bucket_exports,
+        now=now,
+    )
+    return ui.redirect(f"/admin/orgs/{org.id}", msg=f"Usage report {quarter.period} built.")
 
 
 # --- export approvals (FR-EX-06) ------------------------------------------------------------

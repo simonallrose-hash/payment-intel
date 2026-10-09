@@ -50,6 +50,11 @@ def resolve_grant(session: Session, org_id: uuid.UUID, *, today: date, flags: Fl
     org = session.get(Organization, org_id)
     if org is None or org.status != OrgStatus.ACTIVE:
         raise EntitlementDenied(DenialCode.ORG_NOT_ACTIVE, "organisation is not active")
+    if org.restricted_at is not None:
+        raise EntitlementDenied(
+            DenialCode.ORG_RESTRICTED,
+            "organisation access is restricted pending an abuse review (FR-AB-03)",
+        )
     contract = active_contract(session, org_id, today)
     if contract is None:
         # Distinguish "no contract today" from "contract without an active entitlement".

@@ -2,7 +2,7 @@
 {% from "_macros.html" import csrf %}
 {% block title %}{{ org.legal_name }}{% endblock %}
 {% block content %}
-<h1>{{ org.legal_name }} <span class="tag">{{ org.status.value }}</span></h1>
+<h1>{{ org.legal_name }} <span class="tag">{{ org.status.value }}</span>{% if org.restricted_at %} <span class="tag danger">restricted</span>{% endif %}</h1>
 <p class="muted">{{ org.country }} · reg. {{ org.reg_number or "—" }} · created {{ org.created_at|dt }} · id <code>{{ org.id }}</code></p>
 <div class="cols">
 <div>
@@ -14,6 +14,17 @@
 <p class="muted">Activation requires an approved KYC decision; compliance or admin role only.</p>
 </form>
 
+<h2>Abuse (FR-AB-03)</h2>
+{% if org.restricted_at %}
+<p>API keys are refused since {{ org.restricted_at|dt }}: {{ org.restricted_reason }}</p>
+<form method="post" action="/admin/orgs/{{ org.id }}/unrestrict" class="inline">{{ csrf(ui) }}<button type="submit">Lift restriction</button></form>
+{% else %}
+<form method="post" action="/admin/orgs/{{ org.id }}/restrict" class="inline">{{ csrf(ui) }}<label>Reason <input name="reason" required></label><button type="submit" class="danger">Restrict API access</button></form>
+{% endif %}
+{% if incidents %}<p>Open incidents: {% for i in incidents %}<a href="/admin/abuse">{{ i.detector }} ({{ i.severity }})</a>{% if not loop.last %} · {% endif %}{% endfor %}</p>{% endif %}
+<h2>Usage reports (FR-AB-05)</h2>
+<form method="post" action="/admin/orgs/{{ org.id }}/usage-report" class="inline">{{ csrf(ui) }}<label>Period <input name="period" placeholder="2026-Q3"></label><button type="submit">Build quarterly report</button></form>
+<p class="muted">{% for r in usage_reports %}{{ r.period }}: {{ r.summary.requests }} requests, {{ r.summary.records }} records{% if r.file_key %} (<code>{{ r.file_key }}</code>){% endif %}{% if not loop.last %} · {% endif %}{% else %}None yet.{% endfor %}</p>
 <h2>KYC dossier</h2>
 <form method="post" action="/admin/orgs/{{ org.id }}/kyc" class="card">{{ csrf(ui) }}
 <label>Address <input name="address" value="{{ dossier.address or '' }}"></label>

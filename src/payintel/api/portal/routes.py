@@ -952,12 +952,23 @@ def usage_page(
         .group_by(UsageLog.endpoint)
         .order_by(func.count(UsageLog.id).desc())
     ).all()
+    from payintel.abuse import usage_report as usage_mod
+
+    reports = []
+    for rep in usage_mod.reports_of(session, grant.org_id):
+        link = None
+        if rep.file_key and state.store is not None:
+            link = state.store.presigned_get_url(
+                state.settings.s3.bucket_exports, rep.file_key, expires_seconds=72 * 3600
+            )
+        reports.append((rep, link))
     return ui.render(
         request,
         "portal/usage.html",
         ctx=ctx,
         rows=rows,
         per_endpoint=per_endpoint,
+        reports=reports,
         day=records_used(session, grant.org_id, since=_day_start(now)),
         month=records_used(session, grant.org_id, since=_month_start(now)),
         grant=grant,

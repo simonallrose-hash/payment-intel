@@ -246,6 +246,24 @@ class QualitySettings(BaseModel):
     anomaly_removed_multiplier: float = Field(default=3.0, description="FR-QA-04")
 
 
+class AbuseSettings(BaseModel):
+    """Usage anomaly detectors (FR-AB-02/03)."""
+
+    window_hours: int = Field(default=24, description="Detection window")
+    baseline_days: int = Field(default=14, description="Mean records per window over this span")
+    records_multiplier: float = Field(default=3.0, description="FR-AB-02: records > 3x mean")
+    records_min: int = Field(default=1_000, description="Minimum records before a spike counts")
+    outside_segment_share: float = Field(default=0.2, description="Share of outside_segment 403s")
+    outside_segment_min: int = Field(default=20, description="Minimum requests for the share")
+    enumeration_min_lookups: int = Field(default=300, description="Distinct-domain lookups")
+    enumeration_distinct_share: float = Field(default=0.9, description="Distinct / lookups")
+    field_attempts_min: int = Field(default=5, description="field_profile_insufficient 403s")
+    new_network_min_requests: int = Field(default=50, description="Requests from a new /16")
+    critical_records_multiplier: float = Field(default=10.0, description="→ auto restrict")
+    critical_enumeration_lookups: int = Field(default=3_000, description="→ auto restrict")
+    auto_restrict: bool = Field(default=True, description="FR-AB-03 automatic key restriction")
+
+
 class FlagDefaults(BaseModel):
     """Defaults for feature flags (FR-ADM-05). Runtime values live in `feature_flag`."""
 
@@ -286,6 +304,7 @@ class Settings(BaseSettings):
     alerts: AlertSettings = AlertSettings()
     export: ExportSettings = ExportSettings()
     quality: QualitySettings = QualitySettings()
+    abuse: AbuseSettings = AbuseSettings()
     flags: FlagDefaults = FlagDefaults()
 
 

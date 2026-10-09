@@ -91,6 +91,8 @@ def install(app: FastAPI) -> None:
         if isinstance(exc, RateLimited | QuotaExceeded):
             headers["Retry-After"] = str(exc.retry_after_seconds)
         reason = getattr(exc, "reason", None)
+        if reason is not None:
+            request.state.denial = str(reason)  # journalled for the abuse detectors (FR-AB-02)
         detail = exc.message if status < 500 else "internal error"
         if ui.is_ui_path(request.url.path):
             title = _TITLE.get(status, "Error")
