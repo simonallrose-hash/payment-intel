@@ -3,7 +3,7 @@ SHELL := /bin/bash
 UV ?= uv
 COMPOSE_DEV := docker compose -f docker-compose.dev.yml
 
-.PHONY: help install dev dev-down lint typecheck test test-unit eval migrate seed cov check-coverage clean bench-light worker-light
+.PHONY: help install dev dev-down lint typecheck test test-unit test-stage3 eval migrate seed cov check-coverage clean bench-light worker-light api notifier exporter
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}'
@@ -57,6 +57,18 @@ worker-checkout: ## Run one checkout worker loop (Chromium) against the dev envi
 
 test-e2e: ## Checkout e2e walks on the shop simulator (set PAYINTEL_TEST_TRAP_RUNS=1000 for AC-04)
 	$(UV) run pytest tests/e2e
+
+test-stage3: ## API, portal, exports, alerts, compliance, reports and OpenAPI contract tests
+	$(UV) run pytest tests/stage3 tests/unit/test_stage3_helpers.py
+
+api: ## Run the API + portal + admin against the dev environment (http://127.0.0.1:8000)
+	$(UV) run payintel api serve
+
+notifier: ## One alert matching/dispatch cycle against the dev environment
+	$(UV) run payintel alerts dispatch --once
+
+exporter: ## One export scheduling/build pass against the dev environment
+	$(UV) run payintel exports run --once
 
 clean: ## Remove caches and build artifacts
 	rm -rf .pytest_cache .mypy_cache .ruff_cache coverage.json .coverage htmlcov dist build

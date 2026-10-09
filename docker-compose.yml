@@ -1,8 +1,8 @@
 # Production composition (AS-17): one compose file, services split across
 # servers by `profiles` (app-1, crawl-1, data-1). Secrets come from `.env`
-# (NFR-S-06). Application process services are added per stage as they are
-# implemented; stage 0 ships the data stores, the reverse proxy, the resolver
-# and the one-shot `migrate` job.
+# (NFR-S-06). `app-1` runs the stores, the reverse proxy, the API/portal
+# (`api`), the alert dispatcher (`notifier`) and the export/opt-out worker
+# (`exporter`); `crawl-1` runs the scanners; `data-1` ClickHouse and MinIO.
 name: payintel
 
 x-app: &app
@@ -88,6 +88,41 @@ services:
     profiles: [app-1]
     restart: "no"
     command: ["payintel", "migrate"]
+
+  api:
+    <<: *app
+    profiles: [app-1]
+    command: ["payintel", "api", "serve", "--host", "0.0.0.0", "--port", "8000", "--workers", "2"]
+    expose: ["8000"]
+    environment:
+      PAYINTEL_API__COOKIE_SECURE: "true"
+    depends_on: [postgres, redis]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://127.0.0.1:8000/healthz')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits: { memory: 1g }
+
+  notifier:
+    <<: *app
+    profiles: [app-1]
+    command: ["payintel", "alerts", "dispatch", "--interval", "30"]
+    depends_on: [postgres]
+    deploy:
+      resources:
+        limits: { memory: 512m }
+
+  exporter:
+    <<: *app
+    profiles: [app-1]
+    command: ["payintel", "exports", "run", "--interval", "60"]
+    depends_on: [postgres]
+    deploy:
+      resources:
+        limits: { memory: 2g }   # Parquet build of a 200k-row snapshot
 
   worker-light:
     <<: *app

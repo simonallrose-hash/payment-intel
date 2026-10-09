@@ -12,4 +12,14 @@ header {
     -Server
 }
 
-reverse_proxy {$API_UPSTREAM}
+# Static assets of the portal may be cached; everything else is `no-store`
+# (set by the application).
+@static path /static/*
+header @static Cache-Control "public, max-age=86400"
+
+# The application reads the first X-Forwarded-For hop for IP allow-lists and
+# the audit log (FR-API-06, FR-AB-01); Caddy sets it from the TCP peer.
+reverse_proxy {$API_UPSTREAM} {
+    header_up X-Forwarded-For {remote_host}
+    header_up X-Request-Id {http.request.uuid}
+}
