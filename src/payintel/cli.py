@@ -13,25 +13,28 @@ from typing import Annotated
 import typer
 from alembic import command as alembic_command
 from alembic.config import Config as AlembicConfig
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import Session, sessionmaker
 
+from payintel.api.app import create_app
 from payintel.core import audit as audit_mod
 from payintel.core.ch import apply_migrations, make_ch_client
 from payintel.core.clock import SYSTEM_CLOCK
 from payintel.core.db import get_engine, session_scope
 from payintel.core.flags import FlagService
 from payintel.core.logging import configure_logging, get_logger
-from payintel.core.models.base import ConfidenceLevel, DomainSourceKind, ScanType
+from payintel.core.models.base import ConfidenceLevel, DomainSourceKind, Role, ScanType
 from payintel.core.reference_loader import load_reference, sync_reference
 from payintel.core.s3 import ObjectStore, make_s3_client
 from payintel.core.settings import get_settings
 from payintel.crawl.light.runtime import build_context
 from payintel.crawl.light.worker import LightScanner, run_batch, run_pipeline
-from payintel.detect.rules import load_rules, sync_rules
+from payintel.detect import admin as rule_admin
+from payintel.detect.rules import RuleSet, load_rules, sync_rules
 from payintel.discovery import dns as dns_mod
 from payintel.discovery.ingest import ingest
 from payintel.discovery.psl import PSL_PATH, SuffixList
 from payintel.discovery.sources import parse_source
+from payintel.entitlements.model import Principal
 from payintel.quality import eval as eval_mod
 from payintel.quality.findings import import_findings_csv
 from payintel.quality.gold import gold_size, import_gold_csv
@@ -45,6 +48,24 @@ audit_app = typer.Typer(no_args_is_help=True, help="Audit log (FR-AB-01, NFR-S-1
 discovery_app = typer.Typer(no_args_is_help=True, help="Domain discovery (FR-DS-*)")
 scheduler_app = typer.Typer(no_args_is_help=True, help="Scan planning (FR-SC-*)")
 quality_app = typer.Typer(no_args_is_help=True, help="Quality dashboard and stop review (FR-QA-*)")
+api_app = typer.Typer(no_args_is_help=True, help="HTTP API, portal and admin (FR-API-*, FR-UI-*)")
+alerts_app = typer.Typer(no_args_is_help=True, help="Alert matching and delivery (FR-AL-*)")
+exports_app = typer.Typer(no_args_is_help=True, help="Export jobs (FR-EX-*)")
+report_app = typer.Typer(no_args_is_help=True, help="C Report builder (FR-RP-*)")
+optout_app = typer.Typer(no_args_is_help=True, help="Opt-out requests (FR-OO-02)")
+dsar_app = typer.Typer(no_args_is_help=True, help="GDPR data subject requests (FR-OO-03)")
+users_app = typer.Typer(no_args_is_help=True, help="Portal and staff users")
+keys_app = typer.Typer(no_args_is_help=True, help="API keys (FR-API-02)")
+orgs_app = typer.Typer(no_args_is_help=True, help="Organisations (FR-KYC-01)")
+app.add_typer(api_app, name="api")
+app.add_typer(alerts_app, name="alerts")
+app.add_typer(exports_app, name="exports")
+app.add_typer(report_app, name="report")
+app.add_typer(optout_app, name="optout")
+app.add_typer(dsar_app, name="dsar")
+app.add_typer(users_app, name="users")
+app.add_typer(keys_app, name="keys")
+app.add_typer(orgs_app, name="orgs")
 app.add_typer(gold_app, name="gold")
 app.add_typer(flags_app, name="flags")
 app.add_typer(audit_app, name="audit")
@@ -60,6 +81,13 @@ log = get_logger("payintel.cli")
 def _root() -> None:
     settings = get_settings()
     configure_logging(settings.log_level, json_output=settings.environment != "dev")
+
+
+def _effective_ruleset(factory: sessionmaker[Session]) -> RuleSet:
+    """YAML rules with admin changes from `detection_rule` applied (FR-ADM-02)."""
+    base = load_rules(reference=load_reference())
+    with factory() as session:
+        return rule_admin.overlay(session, base)
 
 
 def _alembic_config() -> AlembicConfig:
@@ -342,6 +370,7 @@ def worker_light(
     store.ensure_bucket(settings.s3.bucket_artifacts)
     ch = make_ch_client(settings.clickhouse)
     redis = Redis.from_url(settings.redis.url)
+    factory = sessionmaker(bind=get_engine(), expire_on_commit=False)
     ctx = build_context(
         settings,
         worker_id=worker_id,
@@ -349,9 +378,9 @@ def worker_light(
         store=store,
         limiter=RedisRateLimiter(redis),
         allow_private=allow_private,
+        ruleset=_effective_ruleset(factory),
     )
     scanner = LightScanner(ctx)
-    factory = sessionmaker(bind=get_engine(), expire_on_commit=False)
     conc = concurrency or settings.light.concurrency_per_worker
 
     async def loop() -> None:
@@ -506,6 +535,7 @@ def worker_checkout(
     redis = Redis.from_url(settings.redis.url)
     factory = sessionmaker(bind=get_engine(), expire_on_commit=False)
     conc = concurrency or settings.checkout.concurrency_per_worker
+    ruleset = _effective_ruleset(factory)
 
     async def loop() -> None:
         async with build_browser_pool(settings) as pool:
@@ -517,6 +547,7 @@ def worker_checkout(
                 store=store,
                 limiter=RedisRateLimiter(redis),
                 allow_private=allow_private,
+                ruleset=ruleset,
             )
             if ctx.accounts is None:
                 log.warning(
@@ -546,6 +577,283 @@ def worker_checkout(
                 await redis.aclose()
 
     asyncio.run(loop())
+
+
+# --- stage 3: API, portal, alerts, exports, reports, compliance ------------------
+
+
+def _cli_principal(actor: str) -> Principal:
+    """Staff-admin principal for operator commands (audited as `staff_admin:cli:<actor>`)."""
+    return Principal(kind="staff", org_id=None, role=Role.STAFF_ADMIN, email=f"cli:{actor}")
+
+
+@api_app.command("serve")
+def api_serve(
+    host: Annotated[str, typer.Option(help="Bind address")] = "127.0.0.1",
+    port: Annotated[int, typer.Option(help="Port")] = 8000,
+    workers: Annotated[int, typer.Option(help="Uvicorn workers")] = 1,
+) -> None:
+    """Run the API, portal and admin behind Caddy (docker-compose `api`)."""
+    import uvicorn
+
+    from payintel.api.runtime import build_state
+
+    state = build_state(get_settings())
+    application = create_app(state)
+    uvicorn.run(application, host=host, port=port, workers=workers, proxy_headers=True)
+
+
+@alerts_app.command("dispatch")
+def alerts_dispatch(
+    once: Annotated[bool, typer.Option("--once", help="One cycle, then exit")] = False,
+    interval: Annotated[float, typer.Option(help="Seconds between cycles")] = 30.0,
+    force_digests: Annotated[bool, typer.Option(help="Send digests now (manual run)")] = False,
+) -> None:
+    """Match new change events to alert rules and deliver (webhook/Telegram), with retries."""
+    from payintel.alerts.worker import build_senders, run_cycle
+
+    settings = get_settings()
+    factory = sessionmaker(bind=get_engine(), expire_on_commit=False)
+    webhook, telegram = build_senders(settings, clock=SYSTEM_CLOCK)
+    while True:
+        r = run_cycle(
+            factory,
+            settings=settings,
+            clock=SYSTEM_CLOCK,
+            webhook_sender=webhook,
+            telegram_sender=telegram,
+            force_digests=force_digests,
+        )
+        typer.echo(
+            f"events={r.matched.events_seen} new deliveries={r.matched.deliveries_created}; "
+            f"attempted={r.dispatched.attempted} delivered={r.dispatched.delivered} "
+            f"failed={r.dispatched.failed}"
+        )
+        if once:
+            return
+        time.sleep(interval)
+
+
+@exports_app.command("run")
+def exports_run(
+    once: Annotated[bool, typer.Option("--once", help="One pass, then exit")] = False,
+    interval: Annotated[float, typer.Option(help="Seconds between passes")] = 60.0,
+    limit: Annotated[int, typer.Option(help="Jobs per pass")] = 10,
+) -> None:
+    """Schedule periodic exports and build pending jobs into S3 (FR-EX-03/04/05)."""
+    from payintel.exports.worker import run_once
+
+    settings = get_settings()
+    store = ObjectStore(make_s3_client(settings.s3))
+    store.ensure_bucket(settings.s3.bucket_exports)
+    factory = sessionmaker(bind=get_engine(), expire_on_commit=False)
+    while True:
+        r = run_once(factory, settings=settings, clock=SYSTEM_CLOCK, store=store, limit=limit)
+        typer.echo(f"scheduled={r.scheduled} built={r.built} failed={len(r.failed)}")
+        if once:
+            return
+        time.sleep(interval)
+
+
+@report_app.command("build")
+def report_build(
+    country: Annotated[list[str], typer.Option("--country", help="ISO-2, repeatable")],
+    platform: Annotated[list[str] | None, typer.Option("--platform")] = None,
+    vertical: Annotated[list[str] | None, typer.Option("--vertical")] = None,
+    period_start: Annotated[str | None, typer.Option(help="YYYY-MM-DD")] = None,
+    period_end: Annotated[str | None, typer.Option(help="YYYY-MM-DD")] = None,
+    out: Annotated[Path, typer.Option(help="Directory for the XLSX and CSV zip")] = Path("."),
+    actor: Annotated[str, typer.Option(help="Audit actor")] = "cli",
+) -> None:
+    """Build a C Report (XLSX + CSV) for one or more countries (FR-RP-01…04, AC-15)."""
+    from datetime import date as _date
+
+    from payintel.reports import aggregates
+    from payintel.reports import service as report_service
+
+    settings = get_settings()
+    spec = aggregates.ReportSpec(
+        countries=tuple(c.upper() for c in country),
+        platforms=tuple(platform or ()),
+        verticals=tuple(vertical or ()),
+        period_start=_date.fromisoformat(period_start) if period_start else None,
+        period_end=_date.fromisoformat(period_end) if period_end else None,
+        min_cell=settings.quality.report_min_cell_size,
+    )
+    ch = None
+    try:
+        ch = make_ch_client(settings.clickhouse)
+        ch.command("SELECT 1")
+    except Exception as exc:
+        log.warning(
+            "clickhouse unavailable, monthly dynamics use the Postgres fallback", error=str(exc)
+        )
+        ch = None
+    with session_scope(get_engine()) as session:
+        job, xlsx, csv_zip = report_service.build_report(
+            session,
+            spec,
+            principal=_cli_principal(actor),
+            store=None,
+            settings=settings,
+            clock=SYSTEM_CLOCK,
+            ch=ch,
+        )
+    out.mkdir(parents=True, exist_ok=True)
+    (out / f"payintel-report-{job.id}.xlsx").write_bytes(xlsx)
+    (out / f"payintel-report-{job.id}.csv.zip").write_bytes(csv_zip)
+    typer.echo(f"report {job.id}: {json.dumps(job.summary, ensure_ascii=False)} → {out}")
+
+
+@optout_app.command("verify-pending")
+def optout_verify_pending() -> None:
+    """Check DNS TXT / well-known proofs of pending opt-out requests and apply confirmed ones."""
+    from payintel.compliance import optout, resolvers
+
+    settings = get_settings()
+    dns_txt = resolvers.dns_txt_lookup(settings)
+    verified = 0
+    with session_scope(get_engine()) as session:
+        for req in optout.pending_requests(session):
+            if optout.verify(
+                session, req, dns_txt=dns_txt, http_get=resolvers.http_get, clock=SYSTEM_CLOCK
+            ):
+                verified += 1
+                typer.echo(f"verified: {req.domain}")
+        applied = optout.apply_verified(session, clock=SYSTEM_CLOCK)
+    typer.echo(f"verified {verified}, applied {applied}")
+
+
+@optout_app.command("apply")
+def optout_apply() -> None:
+    """Apply verified opt-outs: flag domains, drop scan plans (FR-OO-02, ≤72 h)."""
+    from payintel.compliance import optout
+
+    with session_scope(get_engine()) as session:
+        applied = optout.apply_verified(session, clock=SYSTEM_CLOCK)
+    typer.echo(f"applied {applied}")
+
+
+@dsar_app.command("list")
+def dsar_list() -> None:
+    """Open GDPR requests with deadlines; overdue ones are marked (FR-OO-03)."""
+    from payintel.compliance import dsar
+
+    with session_scope(get_engine()) as session:
+        overdue = {r.id for r in dsar.overdue(session, clock=SYSTEM_CLOCK)}
+        for r in dsar.open_requests(session):
+            flag = " OVERDUE" if r.id in overdue else ""
+            typer.echo(
+                f"#{r.id} {r.kind.value} {r.status.value} due {r.due_at:%Y-%m-%d} "
+                f"{r.subject} <{r.contact}>{flag}"
+            )
+
+
+@orgs_app.command("create")
+def orgs_create(
+    legal_name: Annotated[str, typer.Option(help="Legal name")],
+    country: Annotated[str, typer.Option(help="ISO-2")],
+    reg_number: Annotated[str | None, typer.Option(help="Registration number")] = None,
+    actor: Annotated[str, typer.Option(help="Audit actor")] = "cli",
+) -> None:
+    """Create an applicant organisation (status `applied`)."""
+    from payintel.core.models.orgs import Organization
+
+    with session_scope(get_engine()) as session:
+        org = Organization(
+            legal_name=legal_name,
+            reg_number=reg_number,
+            country=country.upper(),
+            created_at=SYSTEM_CLOCK.now(),
+        )
+        session.add(org)
+        session.flush()
+        audit_mod.record(
+            session,
+            actor=_cli_principal(actor).actor,
+            action="org.create",
+            object_type="organization",
+            object_id=str(org.id),
+            after={"legal_name": legal_name, "country": country.upper()},
+        )
+        typer.echo(str(org.id))
+
+
+@orgs_app.command("list")
+def orgs_list() -> None:
+    from sqlalchemy import select
+
+    from payintel.core.models.orgs import Organization
+
+    with session_scope(get_engine()) as session:
+        for o in session.execute(select(Organization).order_by(Organization.created_at)).scalars():
+            typer.echo(f"{o.id} {o.status.value:16} {o.country} {o.legal_name}")
+
+
+@users_app.command("create")
+def users_create(
+    email: Annotated[str, typer.Option(help="E-mail")],
+    password: Annotated[
+        str, typer.Option(help="Initial password (≥ 12 chars)", prompt=True, hide_input=True)
+    ],
+    role: Annotated[str, typer.Option(help="org_viewer|org_analyst|org_admin|staff_*")],
+    org: Annotated[str | None, typer.Option(help="Organisation id (org roles only)")] = None,
+    actor: Annotated[str, typer.Option(help="Audit actor")] = "cli",
+) -> None:
+    """Create a portal or staff user; 2FA enrolment happens at first login (FR-UI-01)."""
+    import uuid as _uuid
+
+    from payintel.compliance import users
+
+    with session_scope(get_engine()) as session:
+        user = users.create_user(
+            session,
+            email=email,
+            password=password,
+            role=Role(role),
+            org_id=_uuid.UUID(org) if org else None,
+            actor=_cli_principal(actor).actor,
+            clock=SYSTEM_CLOCK,
+        )
+        typer.echo(f"{user.id} {user.email} {role}")
+
+
+@keys_app.command("issue")
+def keys_issue(
+    org: Annotated[str, typer.Option(help="Organisation id")],
+    name: Annotated[str, typer.Option(help="Key name")],
+    scopes: Annotated[
+        str, typer.Option(help="Comma-separated scopes")
+    ] = "stores:read,changes:read,stats:read,usage:read",
+    expires_in_days: Annotated[int | None, typer.Option()] = None,
+    allowed_ips: Annotated[str | None, typer.Option(help="Comma-separated IPs/CIDRs")] = None,
+    actor: Annotated[str, typer.Option(help="Audit actor")] = "cli",
+) -> None:
+    """Issue an API key; the key is printed once and never stored (FR-API-02)."""
+    import uuid as _uuid
+
+    from payintel.api.auth import keys as keys_mod
+
+    settings = get_settings()
+    pepper = settings.secrets.api_key_pepper.get_secret_value()
+    if not pepper:
+        typer.echo("PAYINTEL_SECRETS__API_KEY_PEPPER is not set", err=True)
+        sys.exit(2)
+    with session_scope(get_engine()) as session:
+        issued = keys_mod.issue_key(
+            session,
+            org_id=_uuid.UUID(org),
+            name=name,
+            scopes=[s.strip() for s in scopes.split(",") if s.strip()],
+            expires_in_days=expires_in_days,
+            allowed_ips=[s.strip() for s in (allowed_ips or "").split(",") if s.strip()],
+            created_by=None,
+            actor=_cli_principal(actor).actor,
+            pepper=pepper,
+            prefix=settings.api.api_key_prefix,
+            clock=SYSTEM_CLOCK,
+        )
+        typer.echo(issued.raw)
 
 
 if __name__ == "__main__":  # pragma: no cover
