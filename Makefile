@@ -3,7 +3,7 @@ SHELL := /bin/bash
 UV ?= uv
 COMPOSE_DEV := docker compose -f docker-compose.dev.yml
 
-.PHONY: help install dev dev-down lint typecheck test test-unit test-stage3 test-stage4 eval migrate seed cov check-coverage clean bench-light worker-light api notifier exporter
+.PHONY: help install dev dev-down lint typecheck test test-unit test-stage3 test-stage4 eval migrate seed cov check-coverage clean bench-light bench-data bench-api worker-light api notifier exporter
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}'
@@ -47,7 +47,13 @@ eval: ## Compute precision/recall/F1 on the gold set (FR-QA-02); fails if PSP pr
 	$(UV) run payintel eval --report eval-report.json
 
 bench-light: ## NFR-P-01 load run of the light scanner against a local fixture server (not in CI)
-	$(UV) run python scripts/bench_light.py --domains $${BENCH_DOMAINS:-500} --concurrency $${BENCH_CONCURRENCY:-200}
+	$(UV) run python scripts/bench_light.py --domains $${BENCH_DOMAINS:-500} --concurrency $${BENCH_CONCURRENCY:-200} --processes $${BENCH_PROCESSES:-1}
+
+bench-data: ## NFR-P stand: ~1M synthetic stores into PAYINTEL_POSTGRES__DSN (not in CI; needs PAYINTEL_SECRETS__API_KEY_PEPPER)
+	$(UV) run python scripts/synth_dataset.py --stores $${BENCH_STORES:-1000000} --reset
+
+bench-api: ## NFR-P-03/04/05 load run against a running API (BENCH_URL, BENCH_KEY)
+	$(UV) run python scripts/bench_api.py --base-url $${BENCH_URL:-http://127.0.0.1:8000} --api-key $${BENCH_KEY} --duration $${BENCH_DURATION:-60} --out bench-api.json
 
 worker-light: ## Run one light-scan worker loop against the dev environment
 	$(UV) run payintel worker-light

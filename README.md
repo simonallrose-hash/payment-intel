@@ -71,7 +71,8 @@ make bench-light                                             # NFR-P-01 на л�
 | `make eval` | метрики качества, ненулевой код при precision PSP < 0.95 (FR-QA-02) |
 | `make worker-light` / `make worker-checkout` | цикл лёгкого сканера / сканера чекаута против dev-окружения |
 | `make test-e2e` | e2e-проходы Chromium по симулятору магазинов (`PAYINTEL_TEST_TRAP_RUNS=1000` для AC-04) |
-| `make bench-light` | нагрузочный прогон NFR-P-01 (`BENCH_DOMAINS`, `BENCH_CONCURRENCY`), не в CI |
+| `make bench-light` | нагрузочный прогон NFR-P-01 (`BENCH_DOMAINS`, `BENCH_CONCURRENCY`, `BENCH_PROCESSES`), не в CI |
+| `make bench-data` / `make bench-api` | синтетический стенд ~1 млн магазинов и прогон NFR-P-03/04/05 против запущенного API (`BENCH_URL`, `BENCH_KEY`), не в CI |
 | `make api` | API + портал + админка на http://127.0.0.1:8000 против dev-окружения |
 | `make notifier` / `make exporter` | один цикл алертов / экспортов (`--once`) против dev-окружения |
 | `make test-stage3` | тесты API, портала, экспортов, алертов, compliance, отчётов и контракта OpenAPI |
@@ -110,7 +111,7 @@ src/payintel/
   reports/          агрегаты с подавлением ячеек, Уилсон, XLSX/CSV/PDF с методологией, публичные сводки (FR-RP-*)
   detect/admin.py   версии правил из админки, overlay на YAML, предпросмотр на gold set (FR-ADM-02)
   detect/vertical.py, redetect.py   вертикаль по словарю (FR-DT-10), повторная детекция из артефактов (FR-DT-12)
-scripts/            check_coverage.py, bench_light.py (NFR-P-01)
+scripts/            check_coverage.py, bench_light.py (NFR-P-01), synth_dataset.py и bench_api.py (NFR-P-03..06)
 tests/              unit/ (без контейнеров), integration/ (testcontainers), e2e/ (Chromium + симулятор магазинов),
                     stage3/ (API, портал, экспорты, алерты, compliance, отчёты, контракт OpenAPI),
                     stage4/ (сегментные алерты, ревью, анти-абьюз, re-KYC/скрининг, ASN-лимиты, PDF)
