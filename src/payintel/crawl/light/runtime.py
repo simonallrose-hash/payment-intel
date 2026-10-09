@@ -23,7 +23,7 @@ from payintel.crawl.light.artifacts import ArtifactWriter
 from payintel.crawl.light.fetcher import Fetcher
 from payintel.crawl.light.worker import ScanContext
 from payintel.detect.country import CountryDetector
-from payintel.detect.rules import load_rules
+from payintel.detect.rules import RuleSet, load_rules
 from payintel.discovery.classify import EcommerceClassifier
 from payintel.discovery.dns import UnboundResolver
 from payintel.discovery.parking import ParkingDetector
@@ -66,9 +66,10 @@ def build_context(
     sleep: Any = None,
     base_scheme: str = "https",
     reference: ReferenceData | None = None,
+    ruleset: RuleSet | None = None,
 ) -> ScanContext:
     reference = reference or load_reference()
-    ruleset = load_rules(reference=reference)
+    ruleset = ruleset or load_rules(reference=reference)
     guard = EgressGuard(
         resolve or (system_resolve if allow_private else unbound_resolve(settings)),
         allow_private=allow_private,

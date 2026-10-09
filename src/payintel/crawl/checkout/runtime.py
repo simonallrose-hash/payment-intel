@@ -105,9 +105,10 @@ def build_checkout_context(
     rewrite: Rewriter | None = None,
     robots_fetch: RobotsFetch | None = None,
     walker: CheckoutWalker | None = None,
+    ruleset: RuleSet | None = None,
 ) -> CheckoutContext:
     reference = reference or load_reference()
-    ruleset = load_rules(reference=reference)
+    ruleset = ruleset or load_rules(reference=reference)
     guard = EgressGuard(
         resolve or (system_resolve if allow_private else unbound_resolve(settings)),
         allow_private=allow_private,
