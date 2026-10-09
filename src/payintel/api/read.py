@@ -17,7 +17,7 @@ from datetime import date, datetime
 from typing import Any, Protocol
 
 from sqlalchemy import Select, exists, func, literal, select, tuple_
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 
 from payintel.api.schemas import c1_basic, c1_full
 from payintel.api.schemas.common import (
@@ -57,13 +57,25 @@ _RANK_NULL = 2**31 - 1
 SORTS: tuple[str, ...] = ("domain", "traffic_rank", "updated_at")
 
 
+EvidenceKey = tuple[int, str]
+
+
 class EvidenceSource(Protocol):
     def evidence(self, host_id: int, provider_id: str, limit: int) -> list[Evidence]: ...
+
+    def evidence_many(
+        self, keys: Sequence[EvidenceKey], limit: int
+    ) -> dict[EvidenceKey, list[Evidence]]: ...
 
 
 class NoEvidence:
     def evidence(self, host_id: int, provider_id: str, limit: int) -> list[Evidence]:
         return []
+
+    def evidence_many(
+        self, keys: Sequence[EvidenceKey], limit: int
+    ) -> dict[EvidenceKey, list[Evidence]]:
+        return {}
 
 
 class ClickHouseEvidence:
@@ -73,23 +85,33 @@ class ClickHouseEvidence:
         self._client = client
 
     def evidence(self, host_id: int, provider_id: str, limit: int) -> list[Evidence]:
+        return self.evidence_many([(host_id, provider_id)], limit).get((host_id, provider_id), [])
+
+    def evidence_many(
+        self, keys: Sequence[EvidenceKey], limit: int
+    ) -> dict[EvidenceKey, list[Evidence]]:
+        """One round trip for a whole page: `LIMIT n BY (host, provider)` (NFR-P-04)."""
+        if not keys:
+            return {}
         try:
             result = self._client.query(
-                "SELECT signal_type, signal_value, page_type FROM obs_provider "
-                "WHERE host_id = %(h)s AND provider_id = %(p)s "
-                "ORDER BY scan_ts DESC LIMIT %(n)s",
-                parameters={"h": host_id, "p": provider_id, "n": limit},
+                "SELECT host_id, provider_id, signal_type, signal_value, page_type "
+                "FROM obs_provider WHERE (host_id, provider_id) IN %(keys)s "
+                "ORDER BY scan_ts DESC LIMIT %(n)s BY host_id, provider_id",
+                parameters={"keys": [tuple(k) for k in keys], "n": limit},
             )
         except Exception:
-            return []
-        seen: set[tuple[str, str, str]] = set()
-        out: list[Evidence] = []
-        for signal_type, value, page_type in result.result_rows:
-            key = (str(signal_type), str(value), str(page_type))
+            return {}
+        seen: set[tuple[int, str, str, str, str]] = set()
+        out: dict[EvidenceKey, list[Evidence]] = {}
+        for host_id, provider_id, signal_type, value, page_type in result.result_rows:
+            key = (int(host_id), str(provider_id), str(signal_type), str(value), str(page_type))
             if key in seen:
                 continue
             seen.add(key)
-            out.append(Evidence(signal_type=key[0], value=key[1], page_type=key[2]))
+            out.setdefault((key[0], key[1]), []).append(
+                Evidence(signal_type=key[2], value=key[3], page_type=key[4])
+            )
         return out
 
 
@@ -322,139 +344,227 @@ def build_store(
     min_confidence: str | None = None,
     evidence_limit: int = 3,
 ) -> c1_basic.StoreBasic | c1_full.StoreFull:
-    p = row.profile
-    providers = [
-        r
-        for r in session.execute(
-            select(StoreProvider)
-            .where(StoreProvider.host_id == row.host_id, StoreProvider.suppressed.is_(False))
-            .order_by(StoreProvider.provider_id)
-        ).scalars()
-        if _conf_ok(r.confidence, min_confidence)
-    ]
-    methods = [
-        r
-        for r in session.execute(
-            select(StorePaymentMethod)
-            .where(
-                StorePaymentMethod.host_id == row.host_id,
-                StorePaymentMethod.suppressed.is_(False),
-            )
-            .order_by(StorePaymentMethod.method_id)
-        ).scalars()
-        if _conf_ok(r.confidence, min_confidence)
-    ]
-    pnames = _names(session, Provider, {r.provider_id for r in providers})
-    mref = _names(session, PaymentMethod, {r.method_id for r in methods})
-    platform = (
-        PlatformRef(id=p.platform_id, confidence=_conf(p.platform_confidence))
-        if p.platform_id
-        else None
-    )
-    country = (
-        CountryRef(code=p.country, confidence=_conf(p.country_confidence)) if p.country else None
-    )
-    coverage = p.coverage.value if p.coverage else None
-    status = p.checkout_status.value if p.checkout_status else None
-    confidence = _conf(p.platform_confidence)
-    if profile == FieldProfile.C1_BASIC:
-        return c1_basic.StoreBasic(
-            domain=row.domain,
-            as_of=_as_of(p),
-            confidence=confidence,
-            coverage=coverage,
-            platform=platform,
-            country=country,
-            checkout=CheckoutInfo(status=status, coverage=coverage),
-            providers=[
-                ProviderRef(
-                    id=r.provider_id,
-                    name=pnames[r.provider_id].name if r.provider_id in pnames else r.provider_id,
-                    role=r.role.value,
-                    confidence=r.confidence.value,
-                    first_seen=r.first_seen,
-                    last_seen=r.last_seen,
-                )
-                for r in providers
-            ],
-            payment_methods=[
-                MethodRef(
-                    id=r.method_id,
-                    type=mref[r.method_id].type.value if r.method_id in mref else "other",
-                    confidence=r.confidence.value,
-                )
-                for r in methods
-            ],
-            methodology_url=methodology_url,
-        )
-    ev = evidence or NoEvidence()
-    psp_hosts = [
-        h
-        for h in session.execute(
-            select(StoreCheckoutHost.third_party_etld1)
-            .where(StoreCheckoutHost.host_id == row.host_id, StoreCheckoutHost.category == "psp")
-            .order_by(StoreCheckoutHost.third_party_etld1)
-        ).scalars()
-    ]
-    recent = session.execute(
-        select(ChangeEvent)
-        .where(ChangeEvent.host_id == row.host_id, ChangeEvent.suppressed.is_(False))
-        .order_by(ChangeEvent.detected_at.desc(), ChangeEvent.id.desc())
-        .limit(10)
-    ).scalars()
-    return c1_full.StoreFull(
-        domain=row.domain,
-        as_of=_as_of(p),
-        confidence=confidence,
-        coverage=coverage,
-        platform=platform,
-        country=country,
-        currency=p.currency,
-        vertical=VerticalRef(id=p.vertical_id, confidence=_conf(p.vertical_confidence))
-        if p.vertical_id
-        else None,
-        checkout=CheckoutInfoFull(
-            status=status,
-            coverage=coverage,
-            acquirer_hidden=p.acquirer_hidden,
-            checkout_country=p.checkout_country,
-        ),
-        providers=[
-            ProviderRefFull(
-                id=r.provider_id,
-                name=pnames[r.provider_id].name if r.provider_id in pnames else r.provider_id,
-                role=r.role.value,
-                confidence=r.confidence.value,
-                first_seen=r.first_seen,
-                last_seen=r.last_seen,
-                active_on_checkout=r.active_on_checkout,
-                evidence=ev.evidence(row.host_id, r.provider_id, evidence_limit),
-            )
-            for r in providers
-        ],
-        payment_methods=[
-            MethodRefFull(
-                id=r.method_id,
-                type=mref[r.method_id].type.value if r.method_id in mref else "other",
-                confidence=r.confidence.value,
-                provider_id=r.provider_id,
-                first_seen=r.first_seen,
-                last_seen=r.last_seen,
-            )
-            for r in methods
-        ],
-        checkout_psp_hosts=psp_hosts,
-        recent_changes=[
-            c1_full.RecentChange(
-                type=e.event_type.value, entity=e.entity_id, detected_at=e.detected_at
-            )
-            for e in recent
-        ],
-        traffic_rank=p.traffic_rank,
-        last_light_scan_at=p.last_light_scan_at,
-        last_checkout_scan_at=p.last_checkout_scan_at,
+    return build_stores(
+        session,
+        [row],
+        profile=profile,
         methodology_url=methodology_url,
+        evidence=evidence,
+        min_confidence=min_confidence,
+        evidence_limit=evidence_limit,
+    )[0]
+
+
+@dataclass
+class _Children:
+    """Child rows of a page of stores, fetched with one query per table (NFR-P-04)."""
+
+    providers: dict[int, list[StoreProvider]] = field(default_factory=dict)
+    methods: dict[int, list[StorePaymentMethod]] = field(default_factory=dict)
+    psp_hosts: dict[int, list[str]] = field(default_factory=dict)
+    recent: dict[int, list[ChangeEvent]] = field(default_factory=dict)
+
+
+_IN_CHUNK = 1_000
+
+
+def _load_children(
+    session: Session,
+    host_ids: Sequence[int],
+    *,
+    full: bool,
+    min_confidence: str | None,
+    recent_limit: int = 10,
+) -> _Children:
+    out = _Children()
+    for i in range(0, len(host_ids), _IN_CHUNK):
+        chunk = list(host_ids[i : i + _IN_CHUNK])
+        for sp in session.execute(
+            select(StoreProvider)
+            .where(StoreProvider.host_id.in_(chunk), StoreProvider.suppressed.is_(False))
+            .order_by(StoreProvider.host_id, StoreProvider.provider_id)
+        ).scalars():
+            if _conf_ok(sp.confidence, min_confidence):
+                out.providers.setdefault(sp.host_id, []).append(sp)
+        for sm in session.execute(
+            select(StorePaymentMethod)
+            .where(StorePaymentMethod.host_id.in_(chunk), StorePaymentMethod.suppressed.is_(False))
+            .order_by(StorePaymentMethod.host_id, StorePaymentMethod.method_id)
+        ).scalars():
+            if _conf_ok(sm.confidence, min_confidence):
+                out.methods.setdefault(sm.host_id, []).append(sm)
+        if not full:
+            continue
+        for host_id, etld1 in session.execute(
+            select(StoreCheckoutHost.host_id, StoreCheckoutHost.third_party_etld1)
+            .where(StoreCheckoutHost.host_id.in_(chunk), StoreCheckoutHost.category == "psp")
+            .order_by(StoreCheckoutHost.host_id, StoreCheckoutHost.third_party_etld1)
+        ):
+            out.psp_hosts.setdefault(int(host_id), []).append(str(etld1))
+        rn = (
+            func.row_number()
+            .over(
+                partition_by=ChangeEvent.host_id,
+                order_by=(ChangeEvent.detected_at.desc(), ChangeEvent.id.desc()),
+            )
+            .label("rn")
+        )
+        ranked = (
+            select(ChangeEvent, rn)
+            .where(ChangeEvent.host_id.in_(chunk), ChangeEvent.suppressed.is_(False))
+            .subquery()
+        )
+        ce = aliased(ChangeEvent, ranked)
+        for e in session.execute(
+            select(ce).where(ranked.c.rn <= recent_limit).order_by(ce.host_id, ranked.c.rn)
+        ).scalars():
+            out.recent.setdefault(e.host_id, []).append(e)
+    return out
+
+
+def build_stores(
+    session: Session,
+    rows: Sequence[StoreRow],
+    *,
+    profile: FieldProfile,
+    methodology_url: str,
+    evidence: EvidenceSource | None = None,
+    min_confidence: str | None = None,
+    evidence_limit: int = 3,
+) -> list[c1_basic.StoreBasic | c1_full.StoreFull]:
+    """Build a whole page with a fixed number of queries, whatever its size.
+
+    Per page: providers, methods (both profiles), PSP hosts and the last ten
+    changes (c1_full), two reference lookups and one ClickHouse round trip for
+    evidence (NFR-P-04: 1000 rows in ≤ 2 s).
+    """
+    if not rows:
+        return []
+    full = profile != FieldProfile.C1_BASIC
+    kids = _load_children(
+        session, [r.host_id for r in rows], full=full, min_confidence=min_confidence
     )
+    pnames = _names(
+        session, Provider, {sp.provider_id for ps in kids.providers.values() for sp in ps}
+    )
+    mref = _names(
+        session, PaymentMethod, {sm.method_id for ms in kids.methods.values() for sm in ms}
+    )
+    ev: dict[EvidenceKey, list[Evidence]] = {}
+    if full:
+        keys = [(host_id, sp.provider_id) for host_id, ps in kids.providers.items() for sp in ps]
+        ev = (evidence or NoEvidence()).evidence_many(keys, evidence_limit)
+    out: list[c1_basic.StoreBasic | c1_full.StoreFull] = []
+    for row in rows:
+        p = row.profile
+        providers = kids.providers.get(row.host_id, [])
+        methods = kids.methods.get(row.host_id, [])
+        platform = (
+            PlatformRef(id=p.platform_id, confidence=_conf(p.platform_confidence))
+            if p.platform_id
+            else None
+        )
+        country = (
+            CountryRef(code=p.country, confidence=_conf(p.country_confidence))
+            if p.country
+            else None
+        )
+        coverage = p.coverage.value if p.coverage else None
+        status = p.checkout_status.value if p.checkout_status else None
+        confidence = _conf(p.platform_confidence)
+        if not full:
+            out.append(
+                c1_basic.StoreBasic(
+                    domain=row.domain,
+                    as_of=_as_of(p),
+                    confidence=confidence,
+                    coverage=coverage,
+                    platform=platform,
+                    country=country,
+                    checkout=CheckoutInfo(status=status, coverage=coverage),
+                    providers=[
+                        ProviderRef(
+                            id=r.provider_id,
+                            name=pnames[r.provider_id].name
+                            if r.provider_id in pnames
+                            else r.provider_id,
+                            role=r.role.value,
+                            confidence=r.confidence.value,
+                            first_seen=r.first_seen,
+                            last_seen=r.last_seen,
+                        )
+                        for r in providers
+                    ],
+                    payment_methods=[
+                        MethodRef(
+                            id=r.method_id,
+                            type=mref[r.method_id].type.value if r.method_id in mref else "other",
+                            confidence=r.confidence.value,
+                        )
+                        for r in methods
+                    ],
+                    methodology_url=methodology_url,
+                )
+            )
+            continue
+        out.append(
+            c1_full.StoreFull(
+                domain=row.domain,
+                as_of=_as_of(p),
+                confidence=confidence,
+                coverage=coverage,
+                platform=platform,
+                country=country,
+                currency=p.currency,
+                vertical=VerticalRef(id=p.vertical_id, confidence=_conf(p.vertical_confidence))
+                if p.vertical_id
+                else None,
+                checkout=CheckoutInfoFull(
+                    status=status,
+                    coverage=coverage,
+                    acquirer_hidden=p.acquirer_hidden,
+                    checkout_country=p.checkout_country,
+                ),
+                providers=[
+                    ProviderRefFull(
+                        id=r.provider_id,
+                        name=pnames[r.provider_id].name
+                        if r.provider_id in pnames
+                        else r.provider_id,
+                        role=r.role.value,
+                        confidence=r.confidence.value,
+                        first_seen=r.first_seen,
+                        last_seen=r.last_seen,
+                        active_on_checkout=r.active_on_checkout,
+                        evidence=ev.get((row.host_id, r.provider_id), []),
+                    )
+                    for r in providers
+                ],
+                payment_methods=[
+                    MethodRefFull(
+                        id=r.method_id,
+                        type=mref[r.method_id].type.value if r.method_id in mref else "other",
+                        confidence=r.confidence.value,
+                        provider_id=r.provider_id,
+                        first_seen=r.first_seen,
+                        last_seen=r.last_seen,
+                    )
+                    for r in methods
+                ],
+                checkout_psp_hosts=kids.psp_hosts.get(row.host_id, []),
+                recent_changes=[
+                    c1_full.RecentChange(
+                        type=e.event_type.value, entity=e.entity_id, detected_at=e.detected_at
+                    )
+                    for e in kids.recent.get(row.host_id, [])
+                ],
+                traffic_rank=p.traffic_rank,
+                last_light_scan_at=p.last_light_scan_at,
+                last_checkout_scan_at=p.last_checkout_scan_at,
+                methodology_url=methodology_url,
+            )
+        )
+    return out
 
 
 def history(
@@ -570,38 +680,62 @@ def market_share(
     ):
         cell_sizes[(country, platform)] = int(n)
     total = sum(cell_sizes.values())
-    q = (
+    # Aggregation stays in Postgres (NFR-P-05): one row per (cell, provider),
+    # then one row per cell for the providers merged into `other`.
+    member = (
         select(
-            StoreProfile.country,
-            StoreProfile.platform_id,
-            StoreProvider.provider_id,
-            StoreProvider.host_id,
+            StoreProfile.country.label("country"),
+            StoreProfile.platform_id.label("platform_id"),
+            StoreProvider.provider_id.label("provider_id"),
+            StoreProvider.host_id.label("host_id"),
         )
         .join(StoreProfile, StoreProfile.host_id == StoreProvider.host_id)
         .where(
             StoreProvider.host_id.in_(select(hosts.c.host_id)),
             StoreProvider.suppressed.is_(False),
         )
-        .order_by(StoreProfile.country, StoreProfile.platform_id, StoreProvider.provider_id)
     )
     if role:
-        q = q.where(StoreProvider.role == role)
-    per_provider: dict[tuple[str | None, str | None, str], set[int]] = {}
-    for country, platform, provider, host_id in session.execute(q):
-        per_provider.setdefault((country, platform, provider), set()).add(int(host_id))
+        member = member.where(StoreProvider.role == role)
+    m = member.cte("member")
+    counts = (
+        select(
+            m.c.country,
+            m.c.platform_id,
+            m.c.provider_id,
+            func.count(func.distinct(m.c.host_id)).label("n"),
+        )
+        .group_by(m.c.country, m.c.platform_id, m.c.provider_id)
+        .cte("counts")
+    )
     cells: list[tuple[str | None, str | None, str, int]] = []
-    other: dict[tuple[str | None, str | None], set[int]] = {}
-    for (country, platform, provider), host_ids in sorted(
-        per_provider.items(), key=lambda kv: (str(kv[0][0]), str(kv[0][1]), kv[0][2])
+    small: set[tuple[str | None, str | None]] = set()
+    for country, platform, provider, n in session.execute(
+        select(counts.c.country, counts.c.platform_id, counts.c.provider_id, counts.c.n).order_by(
+            counts.c.country, counts.c.platform_id, counts.c.provider_id
+        )
     ):
         if cell_sizes.get((country, platform), 0) < min_cell:
             continue  # withheld cell
-        if len(host_ids) >= min_cell:
-            cells.append((country, platform, provider, len(host_ids)))
+        if int(n) >= min_cell:
+            cells.append((country, platform, provider, int(n)))
         else:
-            other.setdefault((country, platform), set()).update(host_ids)
-    for (country, platform), host_ids in sorted(
-        other.items(), key=lambda kv: (str(kv[0][0]), str(kv[0][1]))
-    ):
-        cells.append((country, platform, "other", len(host_ids)))
+            small.add((country, platform))
+    if small:
+        merged = (
+            select(m.c.country, m.c.platform_id, func.count(func.distinct(m.c.host_id)))
+            .join(
+                counts,
+                (counts.c.country.is_not_distinct_from(m.c.country))
+                & (counts.c.platform_id.is_not_distinct_from(m.c.platform_id))
+                & (counts.c.provider_id == m.c.provider_id),
+            )
+            .where(counts.c.n < min_cell)
+            .group_by(m.c.country, m.c.platform_id)
+            .order_by(m.c.country, m.c.platform_id)
+        )
+        for country, platform, n in session.execute(merged):
+            if (country, platform) in small:
+                cells.append((country, platform, "other", int(n)))
     return total, cells
+

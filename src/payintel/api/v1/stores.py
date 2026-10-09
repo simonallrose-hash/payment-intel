@@ -114,17 +114,14 @@ def search_stores(
     )
     size = _page_size(state, limit)
     rows, nxt = read.search(session, access.grant, filters, sort=sort, cursor=cursor, limit=size)
-    items = [
-        read.build_store(
-            session,
-            r,
-            profile=access.grant.profile,
-            methodology_url=state.settings.api.methodology_url,
-            evidence=state.evidence,
-            min_confidence=min_confidence,
-        )
-        for r in rows
-    ]
+    items = read.build_stores(
+        session,
+        rows,
+        profile=access.grant.profile,
+        methodology_url=state.settings.api.methodology_url,
+        evidence=state.evidence,
+        min_confidence=min_confidence,
+    )
     request.state.records = len(items)
     return Page(
         items=items,
