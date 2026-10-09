@@ -1,1 +1,1 @@
-"""Stage 1–3 package (see docs/plan in the project thread); intentionally empty at stage 0."""
+"""Watchlists, alert rules, deliveries over Telegram and signed webhooks (FR-AL-*)."""
