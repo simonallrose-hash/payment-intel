@@ -59,11 +59,13 @@ keys_app = typer.Typer(no_args_is_help=True, help="API keys (FR-API-02)")
 orgs_app = typer.Typer(no_args_is_help=True, help="Organisations (FR-KYC-01)")
 abuse_app = typer.Typer(no_args_is_help=True, help="Anti-abuse detectors and canaries (FR-AB-*)")
 crawler_app = typer.Typer(no_args_is_help=True, help="Crawler limits and complaints (FR-OO-04)")
+stats_app = typer.Typer(no_args_is_help=True, help="Precomputed statistics (NFR-P-05)")
 app.add_typer(api_app, name="api")
 app.add_typer(alerts_app, name="alerts")
 app.add_typer(exports_app, name="exports")
 app.add_typer(abuse_app, name="abuse")
 app.add_typer(crawler_app, name="crawler")
+app.add_typer(stats_app, name="stats")
 app.add_typer(report_app, name="report")
 app.add_typer(optout_app, name="optout")
 app.add_typer(dsar_app, name="dsar")
@@ -699,9 +701,20 @@ def api_serve(
 
     from payintel.api.runtime import build_state
 
+    if workers > 1:
+        # uvicorn forks workers only from an import string; each process wires its own state.
+        uvicorn.run(
+            "payintel.api.runtime:application",
+            factory=True,
+            host=host,
+            port=port,
+            workers=workers,
+            proxy_headers=True,
+        )
+        return
     state = build_state(get_settings())
     application = create_app(state)
-    uvicorn.run(application, host=host, port=port, workers=workers, proxy_headers=True)
+    uvicorn.run(application, host=host, port=port, proxy_headers=True)
 
 
 @alerts_app.command("dispatch")
@@ -709,11 +722,17 @@ def alerts_dispatch(
     once: Annotated[bool, typer.Option("--once", help="One cycle, then exit")] = False,
     interval: Annotated[float, typer.Option(help="Seconds between cycles")] = 30.0,
     force_digests: Annotated[bool, typer.Option(help="Send digests now (manual run)")] = False,
+    metrics_port: Annotated[
+        int | None, typer.Option(help="Expose Prometheus metrics on 127.0.0.1:<port> (NFR-P-07)")
+    ] = None,
 ) -> None:
     """Match new change events to alert rules and deliver (webhook/Telegram), with retries."""
     from payintel.alerts.worker import build_senders, run_cycle
+    from payintel.core import metrics
 
     settings = get_settings()
+    if metrics_port is not None:
+        metrics.start_exporter(metrics_port)
     factory = sessionmaker(bind=get_engine(), expire_on_commit=False)
     webhook, telegram = build_senders(settings, clock=SYSTEM_CLOCK)
     while True:
@@ -734,6 +753,23 @@ def alerts_dispatch(
         if once:
             return
         time.sleep(interval)
+
+
+@stats_app.command("refresh")
+def stats_refresh() -> None:
+    """Rebuild the market-share snapshot read by `GET /v1/stats/market-share` (ADR-0033).
+
+    Run from cron (hourly is plenty: stores change on scan cadence, days).
+    """
+    from payintel.stats import snapshot
+
+    settings = get_settings()
+    with Session(get_engine()) as session:
+        r = snapshot.refresh(
+            session, min_cell=settings.quality.report_min_cell_size, now=SYSTEM_CLOCK.now()
+        )
+        session.commit()
+    typer.echo(f"market_share_cell: {r.rows} rows ({r.roles} role views) as of {r.computed_at}")
 
 
 @abuse_app.command("detect")

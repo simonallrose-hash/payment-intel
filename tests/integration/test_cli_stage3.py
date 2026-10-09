@@ -167,10 +167,17 @@ def test_api_serve_builds_the_app(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(runtime, "build_state", fake_build_state)
     monkeypatch.setattr(uvicorn, "run", fake_run)
     try:
-        result = CliRunner().invoke(app, ["api", "serve", "--port", "8123", "--workers", "2"])
+        result = CliRunner().invoke(app, ["api", "serve", "--port", "8123"])
         assert result.exit_code == 0, (result.output, result.exception)
-        assert captured["port"] == 8123 and captured["workers"] == 2
+        assert captured["port"] == 8123 and "workers" not in captured
         assert captured["proxy_headers"] is True
         assert hasattr(captured["app"], "openapi")
+        # several workers: uvicorn forks from an import string, each process wires itself
+        captured.clear()
+        result = CliRunner().invoke(app, ["api", "serve", "--port", "8123", "--workers", "2"])
+        assert result.exit_code == 0, (result.output, result.exception)
+        assert captured["app"] == "payintel.api.runtime:application"
+        assert captured["factory"] is True and captured["workers"] == 2
+        assert hasattr(runtime.application(), "openapi")
     finally:
         get_settings.cache_clear()

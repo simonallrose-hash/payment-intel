@@ -17,6 +17,7 @@ from payintel.core.models.quality import FindingReview, GoldLabel, QualityAlert
 from payintel.core.models.reference import PaymentMethod, Platform, Provider, Vertical
 from payintel.core.models.rules import DetectionRule
 from payintel.core.models.scans import AsnLimit, ScanPlan, ScanRun, StoreAccount
+from payintel.core.models.stats import MarketShareCell
 from payintel.core.models.store import (
     ChangeEvent,
     StoreCheckoutHost,
@@ -51,6 +52,7 @@ __all__ = [
     "ImportBatch",
     "JsAsset",
     "KycRecord",
+    "MarketShareCell",
     "Membership",
     "OptoutRequest",
     "Organization",

@@ -27,10 +27,22 @@ def market_share(
     role: str | None = None,
 ) -> Any:
     min_cell = state.settings.quality.report_min_cell_size
-    total, cells = read.market_share(
+    snap = read.market_share_snapshot(
         session, access.grant, countries=country, platforms=platform, role=role, min_cell=min_cell
     )
-    totals = cell_totals(session, access.grant, countries=country, platforms=platform)
+    if snap is not None:  # NFR-P-05: precomputed cells (ADR-0033)
+        as_of, total, cells, totals = snap.as_of, snap.total, snap.cells, snap.totals
+    else:  # no snapshot yet (first deployment): aggregate live
+        as_of = state.clock.now()
+        total, cells = read.market_share(
+            session,
+            access.grant,
+            countries=country,
+            platforms=platform,
+            role=role,
+            min_cell=min_cell,
+        )
+        totals = cell_totals(session, access.grant, countries=country, platforms=platform)
     out: list[MarketShareCell] = []
     for c, p, provider, n in cells:
         t = totals.get((c, p), 0)
@@ -48,7 +60,7 @@ def market_share(
         )
     request.state.records = len(out)
     return MarketShareOut(
-        as_of=state.clock.now(),
+        as_of=as_of,
         total_stores=total,
         min_cell_size=min_cell,
         cells=out,

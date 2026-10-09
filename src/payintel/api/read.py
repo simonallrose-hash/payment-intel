@@ -653,11 +653,13 @@ def market_share(
     role: str | None,
     min_cell: int,
 ) -> tuple[int, list[tuple[str | None, str | None, str, int]]]:
-    """Stores per (country, platform, provider) in the segment.
+    """Stores per (country, platform, provider) in the segment, aggregated live.
 
     LR-19 / FR-RP-03: a (country, platform) cell with fewer than `min_cell`
     stores is withheld entirely; inside a published cell, providers present in
     fewer than `min_cell` stores are merged into `other` (distinct stores).
+    `market_share_snapshot` serves the same numbers from the precomputed table
+    (NFR-P-05); this function is the reference implementation and the fallback.
     """
     base = (
         select(StoreProfile.host_id)
@@ -739,3 +741,54 @@ def market_share(
                 cells.append((country, platform, "other", int(n)))
     return total, cells
 
+
+@dataclass(frozen=True)
+class MarketShare:
+    as_of: datetime
+    total: int
+    cells: list[tuple[str | None, str | None, str, int]]
+    totals: dict[tuple[str | None, str | None], int]
+
+
+def market_share_snapshot(
+    session: Session,
+    grant: Grant,
+    *,
+    countries: list[str],
+    platforms: list[str],
+    role: str | None,
+    min_cell: int,
+) -> MarketShare | None:
+    """`market_share` from the precomputed cells (ADR-0033); None before the first refresh.
+
+    The snapshot stores raw per-provider counts and the `other` merge computed
+    with its own `min_cell`; withholding of small cells happens here, so the
+    response equals the live aggregation whenever both use the same `min_cell`.
+    """
+    from payintel.stats import snapshot
+
+    cs = countries_in_segment(grant, countries)
+    ps = platforms_in_segment(grant, platforms)
+    snap = snapshot.load(
+        session,
+        role=role,
+        countries=cs,
+        platforms=ps,
+        segment_countries=None if grant.unrestricted_countries else sorted(grant.countries),
+        segment_platforms=None if grant.unrestricted_platforms else sorted(grant.platforms),
+    )
+    if snap is None:
+        return None
+    cells: list[tuple[str | None, str | None, str, int]] = []
+    other: list[tuple[str | None, str | None, str, int]] = []
+    for country, platform, provider, n in snap.providers:
+        if snap.totals.get((country, platform), 0) < min_cell:
+            continue  # withheld cell
+        if provider == snapshot.OTHER:
+            other.append((country, platform, provider, n))
+        elif n >= min_cell:
+            cells.append((country, platform, provider, n))
+    cells.extend(sorted(other, key=lambda c: (str(c[0]), str(c[1]))))
+    return MarketShare(
+        as_of=snap.computed_at, total=sum(snap.totals.values()), cells=cells, totals=snap.totals
+    )

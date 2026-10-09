@@ -53,3 +53,14 @@ def build_state(settings: Settings) -> AppState:
         dns_txt=resolvers.dns_txt_lookup(settings),
         http_get=resolvers.http_get,
     )
+
+
+def application() -> Any:
+    """ASGI factory for multi-process uvicorn (`payintel api serve --workers N`).
+
+    Each worker process builds its own engines and clients from the environment.
+    """
+    from payintel.api.app import create_app
+    from payintel.core.settings import get_settings
+
+    return create_app(build_state(get_settings()))

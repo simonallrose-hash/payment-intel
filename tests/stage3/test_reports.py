@@ -8,15 +8,17 @@ import zipfile
 import pytest
 from fastapi.testclient import TestClient
 from openpyxl import load_workbook
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from payintel.api.deps import AppState
 from payintel.core.clock import FixedClock
 from payintel.core.models.base import ProviderRole
+from payintel.core.models.stats import MarketShareCell
 from payintel.reports import aggregates
 from payintel.reports import service as reports
 from payintel.reports.wilson import wilson
-from tests.stage3.conftest import StoreSpec, World, login, make_store, staff_principal
+from tests.stage3.conftest import StoreSpec, World, auth, login, make_store, staff_principal
 
 pytestmark = pytest.mark.integration
 
@@ -155,3 +157,36 @@ def test_wilson_interval() -> None:
     lo, hi = wilson(100, 100)
     assert lo > 0.96 and hi == pytest.approx(1.0)
     assert wilson(5, 3) == wilson(3, 3)
+
+
+def test_market_share_snapshot_equals_live_aggregation(
+    client: TestClient,
+    db_session: Session,
+    world: World,
+    app_state: AppState,
+    fixed_clock: FixedClock,
+) -> None:
+    """NFR-P-05 / ADR-0033: the precomputed cells answer exactly like the live query."""
+    from payintel.stats import snapshot
+
+    _seed_market(db_session, fixed_clock)
+    headers = auth(world.api_key)
+    live = client.get("/v1/stats/market-share?country=DE", headers=headers).json()
+    assert live["cells"] and live["as_of"] == fixed_clock.now().isoformat().replace("+00:00", "Z")
+    fixed_clock.advance(seconds=3600)
+    r = snapshot.refresh(db_session, min_cell=30, now=fixed_clock.now())
+    db_session.flush()
+    assert r.rows > 0 and r.roles == 8
+    snap = client.get("/v1/stats/market-share?country=DE", headers=headers).json()
+    assert snap["cells"] == live["cells"] and snap["total_stores"] == live["total_stores"]
+    assert snap["as_of"] == fixed_clock.now().isoformat().replace("+00:00", "Z")
+    # role views are precomputed too, and the segment still applies (FR→403)
+    by_role = client.get("/v1/stats/market-share?country=DE&role=bnpl", headers=headers).json()
+    assert {c["provider_id"] for c in by_role["cells"]} <= {"klarna", "other"}
+    assert client.get("/v1/stats/market-share?country=FR", headers=headers).status_code == 403
+    # a second refresh replaces the snapshot instead of stacking rows
+    r2 = snapshot.refresh(db_session, min_cell=30, now=fixed_clock.now())
+    assert r2.rows == r.rows
+    assert db_session.execute(select(func.count()).select_from(MarketShareCell)).scalar_one() == (
+        r.rows
+    )
