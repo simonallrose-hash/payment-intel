@@ -144,7 +144,7 @@ def lookup(session: Session, grant: Grant, domain: str) -> StoreRow:
 def _provider_count_subq() -> Any:
     return (
         select(func.count(StoreProvider.id))
-        .where(StoreProvider.host_id == StoreProfile.host_id)
+        .where(StoreProvider.host_id == StoreProfile.host_id, StoreProvider.suppressed.is_(False))
         .correlate(StoreProfile)
         .scalar_subquery()
     )
@@ -161,13 +161,17 @@ def _apply_filters(q: Select[Any], grant: Grant, f: StoreFilters) -> Select[Any]
         for pid in f.providers:
             q = q.where(
                 exists().where(
-                    StoreProvider.host_id == StoreProfile.host_id, StoreProvider.provider_id == pid
+                    StoreProvider.host_id == StoreProfile.host_id,
+                    StoreProvider.provider_id == pid,
+                    StoreProvider.suppressed.is_(False),
                 )
             )
     for pid in f.without_providers:
         q = q.where(
             ~exists().where(
-                StoreProvider.host_id == StoreProfile.host_id, StoreProvider.provider_id == pid
+                StoreProvider.host_id == StoreProfile.host_id,
+                StoreProvider.provider_id == pid,
+                StoreProvider.suppressed.is_(False),
             )
         )
     if f.provider_roles:
@@ -175,6 +179,7 @@ def _apply_filters(q: Select[Any], grant: Grant, f: StoreFilters) -> Select[Any]
             exists().where(
                 StoreProvider.host_id == StoreProfile.host_id,
                 StoreProvider.role.in_(f.provider_roles),
+                StoreProvider.suppressed.is_(False),
             )
         )
     for mid in f.methods:
@@ -182,6 +187,7 @@ def _apply_filters(q: Select[Any], grant: Grant, f: StoreFilters) -> Select[Any]
             exists().where(
                 StorePaymentMethod.host_id == StoreProfile.host_id,
                 StorePaymentMethod.method_id == mid,
+                StorePaymentMethod.suppressed.is_(False),
             )
         )
     if f.providers_min is not None:
@@ -194,9 +200,10 @@ def _apply_filters(q: Select[Any], grant: Grant, f: StoreFilters) -> Select[Any]
             exists().where(
                 StoreProvider.host_id == StoreProfile.host_id,
                 StoreProvider.confidence.in_(allowed),
+                StoreProvider.suppressed.is_(False),
             )
         )
-    seen_parts: list[Any] = []
+    seen_parts: list[Any] = [StoreProvider.suppressed.is_(False)]
     if f.first_seen_from:
         seen_parts.append(StoreProvider.first_seen >= f.first_seen_from)
     if f.first_seen_to:
@@ -205,7 +212,7 @@ def _apply_filters(q: Select[Any], grant: Grant, f: StoreFilters) -> Select[Any]
         seen_parts.append(StoreProvider.last_seen >= f.last_seen_from)
     if f.last_seen_to:
         seen_parts.append(StoreProvider.last_seen <= f.last_seen_to)
-    if seen_parts:
+    if len(seen_parts) > 1:
         q = q.where(exists().where(StoreProvider.host_id == StoreProfile.host_id, *seen_parts))
     if f.changed_from or f.changed_to:
         parts: list[Any] = [
@@ -320,7 +327,7 @@ def build_store(
         r
         for r in session.execute(
             select(StoreProvider)
-            .where(StoreProvider.host_id == row.host_id)
+            .where(StoreProvider.host_id == row.host_id, StoreProvider.suppressed.is_(False))
             .order_by(StoreProvider.provider_id)
         ).scalars()
         if _conf_ok(r.confidence, min_confidence)
@@ -329,7 +336,10 @@ def build_store(
         r
         for r in session.execute(
             select(StorePaymentMethod)
-            .where(StorePaymentMethod.host_id == row.host_id)
+            .where(
+                StorePaymentMethod.host_id == row.host_id,
+                StorePaymentMethod.suppressed.is_(False),
+            )
             .order_by(StorePaymentMethod.method_id)
         ).scalars()
         if _conf_ok(r.confidence, min_confidence)
@@ -566,7 +576,10 @@ def market_share(
             StoreProvider.host_id,
         )
         .join(StoreProfile, StoreProfile.host_id == StoreProvider.host_id)
-        .where(StoreProvider.host_id.in_(select(hosts.c.host_id)))
+        .where(
+            StoreProvider.host_id.in_(select(hosts.c.host_id)),
+            StoreProvider.suppressed.is_(False),
+        )
         .order_by(StoreProfile.country, StoreProfile.platform_id, StoreProvider.provider_id)
     )
     if role:

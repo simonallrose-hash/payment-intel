@@ -111,6 +111,13 @@ class StoreProvider(Base):
     active_on_checkout: Mapped[bool] = mapped_column(Boolean, nullable=False)
     first_seen: Mapped[date] = mapped_column(Date, nullable=False)
     last_seen: Mapped[date] = mapped_column(Date, nullable=False)
+    suppressed: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default=text("false"),
+        comment="FR-QA-05: rejected by an analyst, hidden from clients",
+    )
     confirmations: Mapped[int] = mapped_column(
         Integer, nullable=False, default=1, server_default=text("1")
     )
@@ -146,6 +153,13 @@ class StorePaymentMethod(Base):
     confidence_score: Mapped[float] = mapped_column(Float, nullable=False)
     first_seen: Mapped[date] = mapped_column(Date, nullable=False)
     last_seen: Mapped[date] = mapped_column(Date, nullable=False)
+    suppressed: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default=text("false"),
+        comment="FR-QA-05: rejected by an analyst, hidden from clients",
+    )
     confirmations: Mapped[int] = mapped_column(
         Integer, nullable=False, default=1, server_default=text("1")
     )

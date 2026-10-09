@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf %}
+{% block title %}Review {{ finding.entity_id }}{% endblock %}
+{% block content %}
+<h1>{{ finding.hostname }} — {{ finding.entity_type }} <code>{{ finding.entity_id }}</code></h1>
+<p><a href="/admin/review">← queue</a> · <a href="/admin/domains?q={{ finding.hostname }}">internal store view</a></p>
+<div class="cols">
+<div>
+<table class="kv">
+<tr><th>Confidence</th><td>{{ finding.confidence }} ({{ "%.2f"|format(finding.confidence_score) }})</td></tr>
+<tr><th>Confirmations / misses</th><td>{{ finding.confirmations }} / {{ finding.misses }}</td></tr>
+<tr><th>First / last seen</th><td>{{ finding.first_seen }} / {{ finding.last_seen }}</td></tr>
+<tr><th>Segment</th><td>{{ finding.country or "—" }} / {{ finding.platform_id or "—" }}</td></tr>
+<tr><th>Visible to clients</th><td>{{ "no (suppressed)" if finding.suppressed else "yes" }}</td></tr>
+<tr><th>Gold label</th><td>{% if finding.gold_present is none %}none{% else %}{{ "present" if finding.gold_present else "absent" }}{% endif %}</td></tr>
+{% if finding.review %}<tr><th>Last decision</th><td>{{ finding.review.decision }} by {{ finding.review.reviewed_by }} at {{ finding.review.reviewed_at|dt }}{% if finding.review.note %} — {{ finding.review.note }}{% endif %}</td></tr>{% endif %}
+</table>
+<form method="post" action="/admin/review/{{ finding.entity_type }}/{{ finding.host_id }}/{{ finding.entity_id }}" class="card">{{ csrf(ui) }}
+<label>Note (optional) <input name="note" maxlength="500"></label>
+<button type="submit" name="decision" value="confirmed">Confirm (gold: present)</button>
+<button type="submit" name="decision" value="rejected" class="danger">Reject (gold: absent, hide from clients)</button>
+</form>
+</div>
+<div>
+<h2>Evidence</h2>
+{% if not ch_available %}<p class="muted">ClickHouse is not configured for this process; observations unavailable.</p>{% endif %}
+<table class="grid"><thead><tr><th>Scan</th><th>Signal</th><th>Value</th><th>Page</th><th>Rule</th><th>Conf.</th><th>Screenshot</th></tr></thead><tbody>
+{% for e in evidence %}
+<tr><td>{{ e.scan_ts[:19] }}</td><td>{{ e.signal_type }}</td><td><code>{{ e.signal_value[:120] }}</code></td><td>{{ e.page_type }}{% if e.page_url %} <span class="muted">{{ e.page_url[:80] }}</span>{% endif %}</td><td>{{ e.rule_id }} v{{ e.rule_version }}</td><td>{{ e.confidence }}</td>
+<td>{% if e.evidence_key in links %}<a href="{{ links[e.evidence_key] }}" rel="noopener">open</a>{% elif e.evidence_key %}<span class="muted">{{ e.evidence_key[-40:] }}</span>{% else %}—{% endif %}</td></tr>
+{% else %}<tr><td colspan="7" class="muted">No observations recorded for this finding.</td></tr>{% endfor %}
+</tbody></table>
+</div>
+</div>
+{% endblock %}

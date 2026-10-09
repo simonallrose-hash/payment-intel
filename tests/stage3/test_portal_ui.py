@@ -39,6 +39,7 @@ ADMIN_PAGES = [
     "/admin/domains?q=alpha-shop.de",
     "/admin/flags",
     "/admin/quality",
+    "/admin/review",
     "/admin/optout",
     "/admin/dsar",
     "/admin/exports",

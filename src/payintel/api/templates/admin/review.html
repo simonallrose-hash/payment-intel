@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Review queue{% endblock %}
+{% block content %}
+<h1>Manual review of findings</h1>
+<p class="muted">FR-QA-05: confirm or reject detected providers and payment methods. Every decision writes a gold label; rejected findings are hidden from clients until confirmed again.</p>
+<form method="get" action="/admin/review" class="inline">
+<label>Type <select name="entity_type"><option value="">all</option>{% for t in entity_types %}<option value="{{ t }}" {% if filters.entity_type == t %}selected{% endif %}>{{ t }}</option>{% endfor %}</select></label>
+<label>Entity <input name="entity_id" value="{{ filters.entity_id or '' }}" placeholder="stripe"></label>
+<label>Domain <input name="domain" value="{{ filters.domain or '' }}" placeholder="shop.de"></label>
+<label>Confidence up to <select name="max_confidence"><option value="">any</option>{% for c in ["low","medium","high"] %}<option value="{{ c }}" {% if filters.max_confidence == c %}selected{% endif %}>{{ c }}</option>{% endfor %}</select></label>
+<label><input type="checkbox" name="include_reviewed" value="true" {% if filters.include_reviewed %}checked{% endif %}> include reviewed</label>
+<button type="submit">Filter</button>
+</form>
+<h2>Queue ({{ findings|length }})</h2>
+<table class="grid"><thead><tr><th>Store</th><th>Type</th><th>Entity</th><th>Confidence</th><th>Score</th><th>✓/✗</th><th>First</th><th>Last</th><th>Segment</th><th></th></tr></thead><tbody>
+{% for f in findings %}
+<tr><td>{{ f.hostname }}</td><td>{{ f.entity_type }}</td><td>{{ f.entity_id }}{% if f.suppressed %} <span class="tag">suppressed</span>{% endif %}</td><td>{{ f.confidence }}</td><td>{{ "%.2f"|format(f.confidence_score) }}</td><td>{{ f.confirmations }}/{{ f.misses }}</td><td>{{ f.first_seen }}</td><td>{{ f.last_seen }}</td><td>{{ f.country or "—" }} / {{ f.platform_id or "—" }}</td>
+<td><a href="/admin/review/{{ f.entity_type }}/{{ f.host_id }}/{{ f.entity_id }}">review</a></td></tr>
+{% else %}<tr><td colspan="10" class="muted">Nothing to review.</td></tr>{% endfor %}
+</tbody></table>
+<h2>Recent decisions</h2>
+<table class="grid"><thead><tr><th>When</th><th>Store</th><th>Type</th><th>Entity</th><th>Decision</th><th>By</th><th>Note</th></tr></thead><tbody>
+{% for r, hostname in recent %}
+<tr><td>{{ r.reviewed_at|dt }}</td><td>{{ hostname }}</td><td>{{ r.entity_type }}</td><td><a href="/admin/review/{{ r.entity_type }}/{{ r.host_id }}/{{ r.entity_id }}">{{ r.entity_id }}</a></td><td>{{ r.decision }}</td><td>{{ r.reviewed_by }}</td><td class="muted">{{ (r.note or "")[:80] }}</td></tr>
+{% else %}<tr><td colspan="7" class="muted">No decisions yet.</td></tr>{% endfor %}
+</tbody></table>
+{% endblock %}

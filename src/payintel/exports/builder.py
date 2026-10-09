@@ -49,13 +49,16 @@ def snapshot_rows(
         for chunk in _chunks(ids, 1_000):
             for sp in session.execute(
                 select(StoreProvider)
-                .where(StoreProvider.host_id.in_(chunk))
+                .where(StoreProvider.host_id.in_(chunk), StoreProvider.suppressed.is_(False))
                 .order_by(StoreProvider.provider_id)
             ).scalars():
                 providers[sp.host_id].append(sp)
             for sm in session.execute(
                 select(StorePaymentMethod)
-                .where(StorePaymentMethod.host_id.in_(chunk))
+                .where(
+                    StorePaymentMethod.host_id.in_(chunk),
+                    StorePaymentMethod.suppressed.is_(False),
+                )
                 .order_by(StorePaymentMethod.method_id)
             ).scalars():
                 methods[sm.host_id].append(sm)

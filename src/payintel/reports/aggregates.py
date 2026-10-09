@@ -161,11 +161,17 @@ def build(session: Session, spec: ReportSpec, *, now: datetime, ch: Any = None) 
     if not host_ids:
         return report
     providers = list(
-        session.execute(select(StoreProvider).where(StoreProvider.host_id.in_(host_ids))).scalars()
+        session.execute(
+            select(StoreProvider).where(
+                StoreProvider.host_id.in_(host_ids), StoreProvider.suppressed.is_(False)
+            )
+        ).scalars()
     )
     methods = list(
         session.execute(
-            select(StorePaymentMethod).where(StorePaymentMethod.host_id.in_(host_ids))
+            select(StorePaymentMethod).where(
+                StorePaymentMethod.host_id.in_(host_ids), StorePaymentMethod.suppressed.is_(False)
+            )
         ).scalars()
     )
     mtypes = {m.id: m.type.value for m in session.execute(select(PaymentMethod)).scalars()}

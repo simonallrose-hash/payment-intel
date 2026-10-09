@@ -1,8 +1,9 @@
-"""`gold_label`: the hand-labelled gold set (FR-QA-01); `quality_alert`: FR-QA-06 alerts."""
+"""`gold_label` (FR-QA-01), `quality_alert` (FR-QA-06), `finding_review` (FR-QA-05)."""
 
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy import (
     BigInteger,
@@ -15,6 +16,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from payintel.core.models._types import enum_column
@@ -58,3 +60,31 @@ class QualityAlert(Base):
     detected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     acknowledged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     acknowledged_by: Mapped[str | None] = mapped_column(String(128), nullable=True)
+
+
+class FindingReview(Base):
+    """FR-QA-05: an analyst's decision on one finding (provider / payment method of a store)."""
+
+    __tablename__ = "finding_review"
+    __table_args__ = (
+        UniqueConstraint(
+            "host_id", "entity_type", "entity_id", name="uq_finding_review_host_entity"
+        ),
+        Index("ix_finding_review_reviewed_at", "reviewed_at"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    host_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("host.id", ondelete="CASCADE"), nullable=False
+    )
+    entity_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    entity_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    decision: Mapped[str] = mapped_column(
+        String(16), nullable=False, comment="confirmed | rejected"
+    )
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    evidence: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSONB, nullable=False, comment="Snapshot of the observations shown to the analyst"
+    )
+    reviewed_by: Mapped[str] = mapped_column(String(128), nullable=False)
+    reviewed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

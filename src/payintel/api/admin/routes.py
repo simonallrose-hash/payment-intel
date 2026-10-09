@@ -60,6 +60,7 @@ from payintel.exports import service as exports
 from payintel.history.read import read_store
 from payintel.quality import anomalies as anomalies_mod
 from payintel.quality import dashboard as dash_mod
+from payintel.quality import review as review_mod
 from payintel.quality import stops as stops_mod
 from payintel.quality.gold import gold_size
 from payintel.reports import aggregates
@@ -875,6 +876,96 @@ def flag_set(
     svc = FlagService(session, state.settings.flags, clock=state.clock)
     svc.set(key, enabled == "1", actor=ctx.principal.actor, ip=ctx.principal.ip)
     return ui.redirect("/admin/flags", msg=f"{key} = {'on' if enabled == '1' else 'off'}.")
+
+
+# --- manual review of findings (FR-QA-05) ---------------------------------------------------
+
+
+@router.get("/review", response_class=HTMLResponse)
+def review_queue(
+    request: Request,
+    session: SessionDep,
+    ctx: Analyst,
+    entity_type: str | None = None,
+    entity_id: str | None = None,
+    domain: str | None = None,
+    max_confidence: str | None = None,
+    include_reviewed: bool = False,
+) -> Any:
+    filters = review_mod.QueueFilters(
+        entity_type=entity_type or None,
+        entity_id=(entity_id or "").strip() or None,
+        domain=(domain or "").strip() or None,
+        max_confidence=max_confidence or None,
+        include_reviewed=include_reviewed,
+    )
+    return ui.render(
+        request,
+        "admin/review.html",
+        ctx=ctx,
+        findings=review_mod.queue(session, filters),
+        recent=review_mod.recent(session, limit=30),
+        filters=filters,
+        entity_types=review_mod.ENTITY_TYPES,
+    )
+
+
+@router.get("/review/{entity_type}/{host_id}/{entity_id}", response_class=HTMLResponse)
+def review_item(
+    request: Request,
+    state: StateDep,
+    session: SessionDep,
+    ctx: Analyst,
+    entity_type: str,
+    host_id: int,
+    entity_id: str,
+) -> Any:
+    finding = review_mod.get(session, entity_type, host_id, entity_id)
+    rows = review_mod.evidence(state.ch, entity_type, host_id, entity_id)
+    links: dict[str, str] = {}
+    if state.store is not None:
+        for r in rows:
+            if r.evidence_key and r.evidence_key not in links:
+                links[r.evidence_key] = state.store.presigned_get_url(
+                    state.settings.s3.bucket_artifacts, r.evidence_key, expires_seconds=600
+                )
+    return ui.render(
+        request,
+        "admin/review_item.html",
+        ctx=ctx,
+        finding=finding,
+        evidence=rows,
+        links=links,
+        ch_available=state.ch is not None,
+    )
+
+
+@router.post("/review/{entity_type}/{host_id}/{entity_id}")
+def review_decide(
+    state: StateDep,
+    session: SessionDep,
+    ctx: Analyst,
+    _csrf: ui.CsrfDep,
+    entity_type: str,
+    host_id: int,
+    entity_id: str,
+    decision: Annotated[str, Form()],
+    note: Annotated[str | None, Form()] = None,
+) -> Response:
+    rows = review_mod.evidence(state.ch, entity_type, host_id, entity_id)
+    review_mod.decide(
+        session,
+        entity_type=entity_type,
+        host_id=host_id,
+        entity_id=entity_id,
+        decision=decision,
+        note=(note or "").strip() or None,
+        evidence_rows=rows,
+        actor=ctx.principal.actor,
+        ip=ctx.principal.ip,
+        clock=state.clock,
+    )
+    return ui.redirect("/admin/review", msg=f"Finding {decision}; gold label written.")
 
 
 # --- quality (FR-QA-03, FR-QA-06) ------------------------------------------------------------
