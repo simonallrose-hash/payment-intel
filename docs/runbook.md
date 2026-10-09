@@ -143,8 +143,9 @@ payintel TO S3(...)` еженедельно. MinIO: версионировани
 - Диагностика: `scan_run.stop_reason` (`robots_disallow`, `http_403`,
   `read_timeout`, `egress_blocked: …`), логи JSON с `scan_run_id`.
 - Нагрузочный прогон NFR-P-01: `make bench-light` (локальный фикстурный
-  сервер, реальные ожидания politeness). Цель ≥20 доменов/с на сервер
-  достигается несколькими процессами; один процесс на 4 vCPU даёт ≈15/с.
+  сервер, реальные ожидания politeness; `BENCH_PROCESSES=4` — по процессу
+  на CPU, как `--scale worker-light=N` в compose). Результаты и расчёт
+  серверов — `docs/capacity.md`.
 
 ## 12. Сканер чекаута (4.4, FR-CW-01..14)
 
@@ -282,6 +283,18 @@ payintel TO S3(...)` еженедельно. MinIO: версионировани
   [--limit N] [--apply] [--csv findings.csv]` — пересчёт по сохранённым
   артефактам текущим набором правил; без `--apply` только отчёт о
   добавленном/исчезнувшем.
+- Доля рынка (`GET /v1/stats/market-share`) отдаётся из снимка
+  `market_share_cell` (ADR-0033, NFR-P-05). Cron на `app-1` раз в час:
+  `payintel stats refresh` (на 1 млн магазинов ≈ 1,5 мин; `as_of` в ответе
+  = время снимка). Без снимка API считает живым запросом — на большой базе
+  это десятки секунд, поэтому после первой миграции `refresh` обязателен.
+- Метрики Prometheus (NFR-P-07): `GET /metrics` отвечает только с
+  `Authorization: Bearer $PAYINTEL_SECRETS__METRICS_TOKEN` (без токена —
+  404, endpoint выключен); scrape-config Prometheus — `bearer_token`.
+  Гистограмма `payintel_api_request_seconds{route,method,status}` — по
+  шаблону маршрута, из неё считаются p95/p99 NFR-P-03..05. Notifier
+  экспортирует свои метрики на `payintel alerts dispatch --metrics-port
+  9108` (только 127.0.0.1; Prometheus ходит через сеть compose).
 - Анти-абьюз, re-KYC, лимиты по ASN — пп. 19–21.
 
 ## 15. Алерты (FR-AL-*)
@@ -293,6 +306,13 @@ payintel TO S3(...)` еженедельно. MinIO: версионировани
   попытки); перевыпуск секрета — удалить и создать webhook заново.
 - Дайджесты уходят в `alerts.digest_hour_utc` (07:00 UTC); вручную —
   `payintel alerts dispatch --once --force-digests`.
+- Задержка скан → событие → доставка (NFR-P-07, ≤ 6 ч): гистограмма
+  `payintel_alert_latency_seconds{channel}` (от `scan_run.finished_at` до
+  `delivered_at`) и gauge `payintel_alert_backlog_age_seconds` — возраст
+  самого старого события с недоставленным алертом. Правило алертинга:
+  `payintel_alert_backlog_age_seconds > 14400` (4 ч) — предупреждение,
+  `> 21600` — нарушение порога. Счётчик
+  `payintel_alert_deliveries_total{channel,outcome}` показывает ретраи.
 - Telegram: токен бота в `PAYINTEL_SECRETS__TELEGRAM_BOT_TOKEN`; клиент
   указывает chat id в правиле. Egress только на `api.telegram.org` и URL
   webhook клиента (приватные адреса запрещены).
