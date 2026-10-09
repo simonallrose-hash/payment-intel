@@ -531,8 +531,12 @@ def market_share(
     role: str | None,
     min_cell: int,
 ) -> tuple[int, list[tuple[str | None, str | None, str, int]]]:
-    """Stores per (country, platform, provider) in the segment; cells < min_cell are
-    merged into provider `other` (FR-RP-03, LR-19)."""
+    """Stores per (country, platform, provider) in the segment.
+
+    LR-19 / FR-RP-03: a (country, platform) cell with fewer than `min_cell`
+    stores is withheld entirely; inside a published cell, providers present in
+    fewer than `min_cell` stores are merged into `other` (distinct stores).
+    """
     base = (
         select(StoreProfile.host_id)
         .join(Host, Host.id == StoreProfile.host_id)
@@ -546,30 +550,43 @@ def market_share(
     if ps:
         base = base.where(StoreProfile.platform_id.in_(ps))
     hosts = base.subquery()
-    total = int(session.execute(select(func.count()).select_from(hosts)).scalar_one())
+    cell_sizes: dict[tuple[str | None, str | None], int] = {}
+    for country, platform, n in session.execute(
+        select(StoreProfile.country, StoreProfile.platform_id, func.count())
+        .where(StoreProfile.host_id.in_(select(hosts.c.host_id)))
+        .group_by(StoreProfile.country, StoreProfile.platform_id)
+    ):
+        cell_sizes[(country, platform)] = int(n)
+    total = sum(cell_sizes.values())
     q = (
         select(
             StoreProfile.country,
             StoreProfile.platform_id,
             StoreProvider.provider_id,
-            func.count(func.distinct(StoreProvider.host_id)),
+            StoreProvider.host_id,
         )
         .join(StoreProfile, StoreProfile.host_id == StoreProvider.host_id)
         .where(StoreProvider.host_id.in_(select(hosts.c.host_id)))
-        .group_by(StoreProfile.country, StoreProfile.platform_id, StoreProvider.provider_id)
         .order_by(StoreProfile.country, StoreProfile.platform_id, StoreProvider.provider_id)
     )
     if role:
         q = q.where(StoreProvider.role == role)
+    per_provider: dict[tuple[str | None, str | None, str], set[int]] = {}
+    for country, platform, provider, host_id in session.execute(q):
+        per_provider.setdefault((country, platform, provider), set()).add(int(host_id))
     cells: list[tuple[str | None, str | None, str, int]] = []
-    other: dict[tuple[str | None, str | None], int] = {}
-    for country, platform, provider, n in session.execute(q):
-        if int(n) >= min_cell:
-            cells.append((country, platform, provider, int(n)))
+    other: dict[tuple[str | None, str | None], set[int]] = {}
+    for (country, platform, provider), host_ids in sorted(
+        per_provider.items(), key=lambda kv: (str(kv[0][0]), str(kv[0][1]), kv[0][2])
+    ):
+        if cell_sizes.get((country, platform), 0) < min_cell:
+            continue  # withheld cell
+        if len(host_ids) >= min_cell:
+            cells.append((country, platform, provider, len(host_ids)))
         else:
-            other[(country, platform)] = other.get((country, platform), 0) + int(n)
-    for (country, platform), n in sorted(
+            other.setdefault((country, platform), set()).update(host_ids)
+    for (country, platform), host_ids in sorted(
         other.items(), key=lambda kv: (str(kv[0][0]), str(kv[0][1]))
     ):
-        cells.append((country, platform, "other", n))
+        cells.append((country, platform, "other", len(host_ids)))
     return total, cells

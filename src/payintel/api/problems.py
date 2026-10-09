@@ -111,7 +111,7 @@ def install(app: FastAPI) -> None:
             )
             return ui.html_error(request, 400, "Bad Request", msgs)
         return problem(
-            422,
+            400,
             "validation_error",
             "request validation failed",
             instance=str(request.url.path),

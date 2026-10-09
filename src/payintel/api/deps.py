@@ -7,6 +7,7 @@ in-memory rate-limit store, so nothing here touches global singletons.
 
 from __future__ import annotations
 
+import ipaddress
 import uuid
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
@@ -25,7 +26,7 @@ from payintel.core.s3 import ObjectStore
 from payintel.core.settings import Settings
 from payintel.entitlements.check import EntitlementDenied, check_ip, require_scope, resolve_grant
 from payintel.entitlements.model import DenialCode, Grant, Principal
-from payintel.entitlements.quotas import MemoryCounterStore, RateLimiter
+from payintel.entitlements.quotas import MemoryCounterStore, RateLimiter, check_record_quota
 
 
 @dataclass
@@ -78,10 +79,21 @@ SessionDep = Annotated[Session, Depends(get_session)]
 
 
 def client_ip(request: Request) -> str | None:
+    """First `X-Forwarded-For` hop (Caddy sets it) or the socket peer; None when
+    the value is not an IP address (e.g. the test client's "testclient")."""
     forwarded = request.headers.get("x-forwarded-for")
-    if forwarded:
-        return forwarded.split(",")[0].strip()
-    return request.client.host if request.client else None
+    raw = (
+        forwarded.split(",")[0].strip()
+        if forwarded
+        else (request.client.host if request.client else None)
+    )
+    if not raw:
+        return None
+    try:
+        ipaddress.ip_address(raw)
+    except ValueError:
+        return None
+    return raw
 
 
 def api_principal(
@@ -133,7 +145,15 @@ def api_access(
 ) -> Access:
     """Entitlements + rate limit for every /v1 call (FR-API-06, FR-API-07)."""
     grant = _resolve(session, state, principal)
-    state.limiter.check(grant.org_id, grant.api_rps, now=state.clock.now())
+    now = state.clock.now()
+    state.limiter.check(grant.org_id, grant.api_rps, now=now)
+    check_record_quota(
+        session,
+        grant.org_id,
+        daily_limit=grant.daily_records,
+        monthly_limit=grant.monthly_records,
+        now=now,
+    )
     request.state.grant = grant
     return Access(principal, grant)
 

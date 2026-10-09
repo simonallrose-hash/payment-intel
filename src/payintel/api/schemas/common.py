@@ -26,6 +26,12 @@ class Problem(Strict):
     code: str
     reason: str | None = None
     instance: str | None = None
+    errors: list[ValidationIssue] | None = None
+
+
+class ValidationIssue(Strict):
+    loc: list[str | int]
+    msg: str
 
 
 class PlatformRef(Strict):

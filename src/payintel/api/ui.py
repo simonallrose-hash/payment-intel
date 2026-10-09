@@ -84,10 +84,18 @@ class UiContext:
     principal: Principal
     grant: Grant | None = None
     denial: str | None = None
+    # Snapshots taken at construction: error pages are rendered after the request
+    # session rolled back, when the ORM rows above are expired/detached.
+    csrf_token: str = ""
+    email: str = ""
+
+    def __post_init__(self) -> None:
+        self.csrf_token = self.session_row.csrf_token
+        self.email = self.user.email
 
     @property
     def csrf(self) -> str:
-        return self.session_row.csrf_token
+        return self.csrf_token
 
     @property
     def is_staff(self) -> bool:

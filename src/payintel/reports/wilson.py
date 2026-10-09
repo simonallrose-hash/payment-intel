@@ -11,7 +11,7 @@ def wilson(successes: int, total: int, *, z: float = Z_95) -> tuple[float, float
     """95 % interval for `successes / total`; (0, 0) when total is 0."""
     if total <= 0:
         return 0.0, 0.0
-    p = successes / total
+    p = min(max(successes, 0), total) / total
     denom = 1 + z * z / total
     centre = (p + z * z / (2 * total)) / denom
     half = z * math.sqrt(p * (1 - p) / total + z * z / (4 * total * total)) / denom

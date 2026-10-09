@@ -44,7 +44,7 @@
   {% if ui %}
   <form class="inline" method="post" action="/portal/logout">
     <input type="hidden" name="csrf" value="{{ ui.csrf }}">
-    <span class="who">{{ ui.user.email }} · {{ ui.principal.role.value }}</span>
+    <span class="who">{{ ui.email }} · {{ ui.principal.role.value }}</span>
     <button type="submit" class="link">Sign out</button>
   </form>
   {% endif %}
