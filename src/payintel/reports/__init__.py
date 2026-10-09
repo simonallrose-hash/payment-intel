@@ -1,1 +1,1 @@
-"""Stage 1–3 package (see docs/plan in the project thread); intentionally empty at stage 0."""
+"""C Report: aggregates with cell suppression, Wilson intervals, XLSX/CSV (FR-RP-*)."""

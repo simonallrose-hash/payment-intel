@@ -77,6 +77,13 @@ class ReportJob(Base):
         server_default=ReportStatus.PENDING.value,
     )
     requested_by: Mapped[str] = mapped_column(String(128), nullable=False)
+    org_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("organization.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+        comment="Recipient organisation; NULL for internal reports (FR-RP-01)",
+    )
     xlsx_key: Mapped[str | None] = mapped_column(String(512), nullable=True)
     csv_key: Mapped[str | None] = mapped_column(String(512), nullable=True)
     summary: Mapped[dict[str, Any]] = mapped_column(
