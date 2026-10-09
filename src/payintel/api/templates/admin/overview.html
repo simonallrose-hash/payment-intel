@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Admin{% endblock %}
+{% block content %}
+<h1>Operations overview</h1>
+<div class="tiles">
+<a class="tile" href="/admin/orgs"><strong>{{ counts.orgs }}</strong> organisations<br><span class="muted">{% for k, v in counts.by_status.items() %}{{ k }} {{ v }}{% if not loop.last %} · {% endif %}{% endfor %}</span></a>
+<a class="tile" href="/admin/exports"><strong>{{ counts.exports_awaiting }}</strong> exports awaiting approval</a>
+<a class="tile" href="/admin/optout"><strong>{{ counts.optout_pending }}</strong> opt-out requests pending proof</a>
+<a class="tile" href="/admin/dsar"><strong>{{ counts.dsar_open }}</strong> open DSAR ({{ counts.dsar_overdue }} overdue)</a>
+<a class="tile" href="/admin/quality"><strong>{{ counts.quality_alerts }}</strong> quality alerts · gold set {{ counts.gold }}</a>
+<a class="tile" href="/admin/crawler">Crawler monitoring</a>
+<a class="tile" href="/admin/rules">Detection rules</a>
+<a class="tile" href="/admin/reports">Report constructor</a>
+</div>
+{% endblock %}

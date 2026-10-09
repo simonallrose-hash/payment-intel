@@ -1,0 +1,6 @@
+{% extends "base.html" %}
+{% block title %}Request received{% endblock %}
+{% block content %}
+<h1>Request received</h1>
+<p>Reference <strong>#{{ req.id }}</strong>, received {{ req.received_at|dt }}. We will answer by <strong>{{ req.due_at|dt }}</strong> at {{ req.contact }}.</p>
+{% endblock %}

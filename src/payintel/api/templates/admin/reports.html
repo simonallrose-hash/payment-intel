@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf %}
+{% block title %}Report constructor{% endblock %}
+{% block content %}
+<h1>Report constructor (C Report)</h1>
+<div class="cols">
+<div>
+<form method="post" action="/admin/reports" class="card">{{ csrf(ui) }}
+<label>Countries (ISO-2, required) <input name="countries" required placeholder="DE"></label>
+<label>Platforms (optional) <input name="platforms" placeholder="shopify, woocommerce"></label>
+<label>Verticals (optional) <input name="verticals"></label>
+<label>Period start <input name="period_start" type="date"></label>
+<label>Period end <input name="period_end" type="date"></label>
+<fieldset><legend>Metrics</legend>{% for m in metrics %}<label class="check"><input type="checkbox" name="metrics" value="{{ m }}" checked> {{ m }}</label>{% endfor %}</fieldset>
+<label>Deliver to organisation (optional) <select name="org_id"><option value="">internal only</option>{% for o in orgs %}<option value="{{ o.id }}">{{ o.legal_name }}</option>{% endfor %}</select></label>
+<button type="submit">Build XLSX + CSV</button>
+<p class="muted">Cells with fewer than {{ min_cell }} stores are merged into “other” or withheld (FR-RP-03, LR-19). Shares carry 95 % Wilson intervals; the Methodology sheet lists sample, coverage and limitations.</p>
+</form>
+</div>
+<div>
+<h2>Recent reports</h2>
+<table class="grid"><thead><tr><th>Built</th><th>Scope</th><th>Stores</th><th>Cells (withheld)</th><th>Status</th><th>By</th><th>Files</th></tr></thead><tbody>
+{% for j in jobs %}
+<tr><td>{{ j.created_at|dt }}</td><td>{{ j.spec.countries|join(", ") }}{% if j.spec.platforms %} · {{ j.spec.platforms|join(", ") }}{% endif %}</td><td>{{ j.summary.get("total_stores", "—") }}</td><td>{{ j.summary.get("cells", "—") }} ({{ j.summary.get("cells_withheld", "—") }})</td><td>{{ j.status.value }}{% if j.error %} <span class="muted">{{ j.error[:80] }}</span>{% endif %}</td><td>{{ j.requested_by }}</td>
+<td>{% if j.xlsx_key %}<a href="/admin/reports/{{ j.id }}/xlsx">XLSX</a>{% endif %} {% if j.csv_key %}<a href="/admin/reports/{{ j.id }}/csv">CSV</a>{% endif %}</td></tr>
+{% else %}<tr><td colspan="7" class="muted">No reports yet.</td></tr>{% endfor %}
+</tbody></table>
+</div>
+</div>
+{% endblock %}

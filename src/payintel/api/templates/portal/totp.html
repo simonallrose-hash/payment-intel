@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}Second factor{% endblock %}
+{% block content %}
+<h1>Enter your authenticator code</h1>
+<form method="post" action="/portal/login/totp" class="card narrow">
+  <input type="hidden" name="csrf" value="{{ ui.csrf }}">
+  <input type="hidden" name="next" value="{{ next or '/portal' }}">
+  <label>6-digit code <input name="code" inputmode="numeric" pattern="[0-9]{6}" required autocomplete="one-time-code" autofocus></label>
+  <button type="submit">Sign in</button>
+</form>
+{% endblock %}

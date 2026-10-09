@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Opt-out{% endblock %}
+{% block content %}
+<h1>Exclude a domain from PayIntel</h1>
+<p>Enter the domain you control. You will receive a token to publish either as a DNS TXT record at the apex or as a file under <code>/.well-known/</code>. Once we see the proof, the domain is excluded within 72 hours.</p>
+<form method="post" action="/optout" class="card">
+  <label>Domain <input name="domain" required placeholder="example.com"></label>
+  <label>Proof method
+    <select name="method">{% for m in methods %}<option value="{{ m }}">{{ m }}</option>{% endfor %}</select>
+  </label>
+  <label>Contact e-mail (optional) <input name="contact" type="email"></label>
+  <button type="submit">Get instructions</button>
+</form>
+{% endblock %}

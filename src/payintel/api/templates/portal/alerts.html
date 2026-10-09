@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf %}
+{% block title %}Alerts{% endblock %}
+{% block content %}
+<h1>Alerts</h1>
+<div class="cols">
+<div>
+<h2>Rules</h2>
+<table class="grid"><thead><tr><th>#</th><th>Events</th><th>Filters</th><th>Channel</th><th>Digest</th><th>Watchlist</th><th>On</th><th></th></tr></thead><tbody>
+{% for r in rules %}
+<tr><td>{{ r.id }}</td><td>{{ r.event_types|join(", ") }}</td>
+<td>{% if r.provider_id %}provider {{ r.provider_id }} {% endif %}{% if r.method_id %}method {{ r.method_id }} {% endif %}≥ {{ r.min_confidence }}</td>
+<td>{{ r.channel }}{% if r.webhook_id %} #{{ r.webhook_id }}{% endif %}{% if r.telegram_chat_id %} {{ r.telegram_chat_id }}{% endif %}</td>
+<td>{{ r.digest }}</td><td>{{ r.watchlist_id or "segment" }}</td><td>{{ "yes" if r.enabled else "no" }}</td>
+<td><form method="post" action="/portal/alerts/rules/{{ r.id }}/toggle" class="inline">{{ csrf(ui) }}<button class="link" type="submit">{{ "disable" if r.enabled else "enable" }}</button></form>
+<form method="post" action="/portal/alerts/rules/{{ r.id }}/delete" class="inline">{{ csrf(ui) }}<button class="link danger" type="submit">delete</button></form></td></tr>
+{% else %}<tr><td colspan="8" class="muted">No rules yet.</td></tr>{% endfor %}
+</tbody></table>
+<form method="post" action="/portal/alerts/rules" class="card">{{ csrf(ui) }}
+<label>Event types (comma-separated: {{ event_types|join(", ") }}) <input name="event_types" required placeholder="provider_added, provider_removed"></label>
+<label>Watchlist <select name="watchlist_id"><option value="">whole segment</option>{% for w in lists %}<option value="{{ w.id }}">{{ w.name }}</option>{% endfor %}</select></label>
+<label>Provider (optional) <input name="provider_id"></label>
+<label>Payment method (optional) <input name="method_id"></label>
+<label>Minimum confidence <select name="min_confidence">{% for c in ["low","medium","high"] %}<option value="{{ c }}" {% if c=="medium" %}selected{% endif %}>{{ c }}</option>{% endfor %}</select></label>
+<label>Channel <select name="channel">{% for c in channels %}<option value="{{ c }}">{{ c }}</option>{% endfor %}</select></label>
+<label>Webhook (for channel webhook) <select name="webhook_id"><option value="">—</option>{% for h in hooks %}<option value="{{ h.id }}">#{{ h.id }} {{ h.url }}</option>{% endfor %}</select></label>
+<label>Telegram chat id (for channel telegram) <input name="telegram_chat_id"></label>
+<label>Digest <select name="digest">{% for d in digests %}<option value="{{ d }}">{{ d }}</option>{% endfor %}</select></label>
+<button type="submit">Create rule</button>
+</form>
+</div>
+<div>
+<h2>Webhooks</h2>
+<table class="grid"><thead><tr><th>#</th><th>URL</th><th>Enabled</th><th></th></tr></thead><tbody>
+{% for h in hooks %}
+<tr><td>{{ h.id }}</td><td>{{ h.url }}</td><td>{{ "yes" if h.enabled else "no" }}</td>
+<td><form method="post" action="/portal/alerts/webhooks/{{ h.id }}/delete" class="inline">{{ csrf(ui) }}<button class="link danger" type="submit">delete</button></form></td></tr>
+{% else %}<tr><td colspan="4" class="muted">No webhooks.</td></tr>{% endfor %}
+</tbody></table>
+<form method="post" action="/portal/alerts/webhooks" class="card">{{ csrf(ui) }}
+<label>HTTPS URL <input name="url" type="url" pattern="https://.*" required></label>
+<button type="submit">Add webhook</button>
+<p class="muted">Deliveries carry <code>X-PayIntel-Signature: t=&lt;unix&gt;,v1=&lt;hmac-sha256&gt;</code> over <code>t.body</code>. 5 attempts within 24 h.</p>
+</form>
+<h2>Recent deliveries</h2>
+<table class="grid"><thead><tr><th>When</th><th>Rule</th><th>Channel</th><th>Status</th><th>Attempts</th><th>Error</th></tr></thead><tbody>
+{% for d, r in deliveries %}
+<tr><td>{{ d.created_at|dt }}</td><td>#{{ r.id }}</td><td>{{ d.channel }}</td><td>{{ d.status.value }}</td><td>{{ d.attempts }}</td><td class="muted">{{ (d.last_error or "")[:80] }}</td></tr>
+{% else %}<tr><td colspan="6" class="muted">Nothing delivered yet.</td></tr>{% endfor %}
+</tbody></table>
+</div>
+</div>
+{% endblock %}

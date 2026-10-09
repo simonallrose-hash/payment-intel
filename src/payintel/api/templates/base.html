@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}PayIntel{% endblock %} · PayIntel</title>
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="{% if ui and ui.is_staff %}/admin{% elif ui %}/portal{% else %}/bot{% endif %}">PayIntel</a>
+  <nav>
+  {% if ui and ui.is_staff %}
+    <a href="/admin/orgs">Organisations</a>
+    <a href="/admin/rules">Rules</a>
+    <a href="/admin/domains">Domains</a>
+    <a href="/admin/crawler">Crawler</a>
+    <a href="/admin/quality">Quality</a>
+    <a href="/admin/reports">Reports</a>
+    <a href="/admin/exports">Exports</a>
+    <a href="/admin/optout">Opt-out</a>
+    <a href="/admin/dsar">DSAR</a>
+    <a href="/admin/flags">Flags</a>
+    <a href="/admin/audit">Audit</a>
+    <a href="/admin/users">Staff</a>
+    <a href="/portal/docs">API docs</a>
+  {% elif ui %}
+    <a href="/portal/stores">Search</a>
+    <a href="/portal/watchlists">Watchlists</a>
+    <a href="/portal/alerts">Alerts</a>
+    <a href="/portal/exports">Exports</a>
+    <a href="/portal/reports">Reports</a>
+    <a href="/portal/keys">API keys</a>
+    <a href="/portal/users">Users</a>
+    <a href="/portal/usage">Usage</a>
+    <a href="/portal/docs">API docs</a>
+  {% else %}
+    <a href="/bot">About the crawler</a>
+    <a href="/optout">Opt-out</a>
+    <a href="/dsar">Data subject request</a>
+    <a href="/portal/login">Sign in</a>
+  {% endif %}
+  </nav>
+  {% if ui %}
+  <form class="inline" method="post" action="/portal/logout">
+    <input type="hidden" name="csrf" value="{{ ui.csrf }}">
+    <span class="who">{{ ui.user.email }} · {{ ui.principal.role.value }}</span>
+    <button type="submit" class="link">Sign out</button>
+  </form>
+  {% endif %}
+</header>
+<main>
+{% if msg %}<p class="flash">{{ msg }}</p>{% endif %}
+{% if error %}<p class="flash error">{{ error }}</p>{% endif %}
+{% block content %}{% endblock %}
+</main>
+<footer class="foot">
+  <span>{{ identity.company_domain }} · crawler info at <a href="/bot">/bot</a> · {{ now|dt }}</span>
+</footer>
+</body>
+</html>

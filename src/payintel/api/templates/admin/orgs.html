@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf %}
+{% block title %}Organisations{% endblock %}
+{% block content %}
+<h1>Organisations</h1>
+<form method="get" action="/admin/orgs" class="inline"><input name="q" value="{{ q or '' }}" placeholder="legal name"><button type="submit">Filter</button></form>
+<table class="grid"><thead><tr><th>Legal name</th><th>Country</th><th>Reg. no</th><th>Status</th><th>Created</th></tr></thead><tbody>
+{% for o in orgs %}
+<tr><td><a href="/admin/orgs/{{ o.id }}">{{ o.legal_name }}</a></td><td>{{ o.country }}</td><td>{{ o.reg_number or "—" }}</td><td><span class="tag">{{ o.status.value }}</span></td><td>{{ o.created_at|dt }}</td></tr>
+{% else %}<tr><td colspan="5" class="muted">No organisations.</td></tr>{% endfor %}
+</tbody></table>
+<form method="post" action="/admin/orgs" class="card narrow">{{ csrf(ui) }}
+<h2>New applicant</h2>
+<label>Legal name <input name="legal_name" required></label>
+<label>Country (ISO-2) <input name="country" required maxlength="2" minlength="2"></label>
+<label>Registration number <input name="reg_number"></label>
+<button type="submit">Create (status: applied)</button>
+</form>
+{% endblock %}

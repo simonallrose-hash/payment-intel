@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Detection rules{% endblock %}
+{% block content %}
+<h1>Detection rules</h1>
+<form method="get" action="/admin/rules" class="inline">
+<input name="q" value="{{ q }}" placeholder="rule id, target or pattern">
+<select name="target_type"><option value="">all targets</option>{% for t in target_types %}<option value="{{ t }}" {% if t==target_type %}selected{% endif %}>{{ t }}</option>{% endfor %}</select>
+<button type="submit">Filter</button> <a class="btn" href="/admin/rules/new">New rule</a>
+</form>
+<p class="muted">{{ rules|length }} rule(s), latest version each. Changes create a new version and take effect on the next worker start.</p>
+<table class="grid"><thead><tr><th>Rule</th><th>v</th><th>Target</th><th>Signal</th><th>Pattern</th><th>Weight</th><th>Scope</th><th>Enabled</th><th>Source</th></tr></thead><tbody>
+{% for r in rules %}
+<tr><td><a href="/admin/rules/{{ r.rule_id }}">{{ r.rule_id }}</a></td><td>{{ r.version }}</td><td>{{ r.target_type.value }}:{{ r.target_id }}</td><td>{{ r.signal_type.value }}</td><td><code>{{ r.pattern }}</code></td><td>{{ r.weight }}</td><td>{{ r.page_scope.value }}</td><td>{{ "yes" if r.enabled else "no" }}{% if r.needs_verification %} <span class="tag">needs_verification</span>{% endif %}</td><td class="muted">{{ r.source_file }}</td></tr>
+{% endfor %}
+</tbody></table>
+{% endblock %}

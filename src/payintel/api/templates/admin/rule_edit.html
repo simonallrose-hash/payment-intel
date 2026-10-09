@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf %}
+{% block title %}Rule {{ rule.rule_id if rule else "new" }}{% endblock %}
+{% block content %}
+<h1>{% if rule %}Rule {{ rule.rule_id }} (v{{ rule.version }}){% else %}New rule{% endif %}</h1>
+{% set d = draft if draft is defined and draft else rule %}
+<div class="cols">
+<div>
+<form method="post" action="/admin/rules/preview" class="card" id="rule-form">{{ csrf(ui) }}
+<label>Rule id <input name="rule_id" required value="{{ d.rule_id if d else '' }}" {% if rule %}readonly{% endif %}></label>
+<label>Target type <select name="target_type">{% for t in target_types %}<option value="{{ t }}" {% if d and d.target_type.value==t %}selected{% endif %}>{{ t }}</option>{% endfor %}</select></label>
+<label>Target id (reference id) <input name="target_id" required value="{{ d.target_id if d else '' }}"></label>
+<label>Signal type <select name="signal_type">{% for s in signal_types %}<option value="{{ s }}" {% if d and d.signal_type.value==s %}selected{% endif %}>{{ s }}</option>{% endfor %}</select></label>
+<label>Match kind (empty = default for the signal) <select name="match"><option value="">default</option>{% for m in match_kinds %}<option value="{{ m }}" {% if d and d.match is defined and d.match==m %}selected{% endif %}>{{ m }}</option>{% endfor %}</select></label>
+<label>Pattern <input name="pattern" required value="{{ d.pattern if d else '' }}"></label>
+<label>Weight (0–1] <input name="weight" type="number" step="0.05" min="0.05" max="1" value="{{ d.weight if d else 0.5 }}"></label>
+<label>Page scope <select name="page_scope">{% for p in page_scopes %}<option value="{{ p }}" {% if d and d.page_scope.value==p %}selected{% endif %}>{{ p }}</option>{% endfor %}</select></label>
+<label class="check"><input type="checkbox" name="enabled" value="1" {% if not d or d.enabled %}checked{% endif %}> enabled</label>
+<button type="submit">Preview on gold set</button>
+<button type="submit" formaction="/admin/rules/save">Save as new version</button>
+</form>
+{% if rule %}
+<form method="post" action="/admin/rules/{{ rule.rule_id }}/enabled" class="inline">{{ csrf(ui) }}
+<input type="hidden" name="enabled" value="{{ '0' if rule.enabled else '1' }}">
+<button type="submit" class="{{ 'danger' if rule.enabled else '' }}">{{ "Disable (delete)" if rule.enabled else "Enable" }}</button>
+</form>
+{% endif %}
+</div>
+<div>
+{% if preview %}
+<h2>Gold-set preview</h2>
+<table class="kv">
+<tr><th>Gold hosts for this target type</th><td>{{ preview.gold_hosts }}</td></tr>
+<tr><th>…with recorded signals</th><td>{{ preview.observed_hosts }}</td></tr>
+<tr><th>Fired on</th><td>{{ preview.fired }} host(s)</td></tr>
+<tr><th>True / false positives</th><td>{{ preview.tp }} / {{ preview.fp }}</td></tr>
+<tr><th>Missed (gold positives not fired)</th><td>{{ preview.fn }}</td></tr>
+<tr><th>Precision / recall</th><td>{{ preview.precision|pct }} / {{ preview.recall|pct }}</td></tr>
+<tr><th>Note</th><td class="muted">{{ preview.note }}</td></tr>
+</table>
+{% if preview.false_positive_hosts %}<p class="muted">False-positive host ids: {{ preview.false_positive_hosts|join(", ") }}</p>{% endif %}
+{% endif %}
+{% if versions is defined and versions %}
+<h2>Versions</h2>
+<table class="grid"><thead><tr><th>v</th><th>Pattern</th><th>Signal</th><th>Weight</th><th>Enabled</th><th>Source</th><th>Loaded</th></tr></thead><tbody>
+{% for v in versions %}<tr><td>{{ v.version }}</td><td><code>{{ v.pattern }}</code></td><td>{{ v.signal_type.value }}</td><td>{{ v.weight }}</td><td>{{ "yes" if v.enabled else "no" }}</td><td>{{ v.source_file }}</td><td>{{ v.loaded_at|dt }}</td></tr>{% endfor %}
+</tbody></table>
+{% endif %}
+</div>
+</div>
+{% endblock %}

@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Usage{% endblock %}
+{% block content %}
+<h1>Usage</h1>
+<table class="kv">
+<tr><th>Records today</th><td>{{ day }} / {{ grant.daily_records }}</td></tr>
+<tr><th>Records this month</th><td>{{ month }} / {{ grant.monthly_records }}</td></tr>
+<tr><th>Rate limit</th><td>{{ grant.api_rps }} requests per second</td></tr>
+</table>
+<h2>This month by endpoint</h2>
+<table class="grid"><thead><tr><th>Endpoint</th><th>Requests</th><th>Records</th></tr></thead><tbody>
+{% for e, n, rec in per_endpoint %}<tr><td><code>{{ e }}</code></td><td>{{ n }}</td><td>{{ rec or 0 }}</td></tr>{% else %}<tr><td colspan="3" class="muted">No requests this month.</td></tr>{% endfor %}
+</tbody></table>
+<h2>Last 200 requests</h2>
+<table class="grid"><thead><tr><th>When</th><th>Endpoint</th><th>Records</th><th>Status</th><th>Duration</th><th>IP</th><th>Key</th></tr></thead><tbody>
+{% for r in rows %}<tr><td>{{ r.ts|dt }}</td><td><code>{{ r.endpoint }}</code></td><td>{{ r.records }}</td><td>{{ r.params.get("status", "") }}</td><td>{{ r.duration_ms }} ms</td><td>{{ r.ip or "" }}</td><td>{{ (r.api_key_id|string)[:8] if r.api_key_id else "portal" }}</td></tr>{% endfor %}
+</tbody></table>
+{% endblock %}

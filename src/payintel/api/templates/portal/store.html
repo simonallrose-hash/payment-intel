@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% from "_macros.html" import conf %}
+{% block title %}{{ store.domain }}{% endblock %}
+{% block content %}
+<h1>{{ store.domain }}</h1>
+<p class="muted">as of {{ store.as_of|dt }} · profile {{ profile }} · <a href="{{ store.methodology_url }}">methodology</a></p>
+<div class="cols">
+<div>
+<table class="kv">
+<tr><th>Platform</th><td>{% if store.platform %}{{ store.platform.id }} {{ conf(store.platform.confidence) }}{% else %}—{% endif %}</td></tr>
+<tr><th>Country</th><td>{% if store.country %}{{ store.country.code }} {{ conf(store.country.confidence) }}{% else %}—{% endif %}</td></tr>
+{% if store.currency is defined %}<tr><th>Currency</th><td>{{ store.currency or "—" }}</td></tr>{% endif %}
+{% if store.vertical is defined %}<tr><th>Vertical</th><td>{{ store.vertical.id if store.vertical else "—" }}</td></tr>{% endif %}
+<tr><th>Checkout</th><td>{{ store.checkout.status or "—" }} · coverage {{ store.checkout.coverage or "—" }}{% if store.checkout.acquirer_hidden is defined and store.checkout.acquirer_hidden %} · acquirer hidden{% endif %}</td></tr>
+{% if store.traffic_rank is defined %}<tr><th>Traffic rank</th><td>{{ store.traffic_rank or "—" }}</td></tr>{% endif %}
+{% if store.last_checkout_scan_at is defined %}<tr><th>Last scans</th><td>light {{ store.last_light_scan_at|dt }} · checkout {{ store.last_checkout_scan_at|dt }}</td></tr>{% endif %}
+</table>
+<h2>Payment providers</h2>
+<table class="grid">
+<thead><tr><th>Provider</th><th>Role</th><th>Confidence</th><th>First seen</th><th>Last seen</th>{% if profile == "c1_full" %}<th>On checkout</th><th>Detection evidence</th>{% endif %}</tr></thead>
+<tbody>
+{% for p in store.providers %}
+<tr><td>{{ p.name }} <span class="muted">({{ p.id }})</span></td><td>{{ p.role }}</td><td>{{ conf(p.confidence) }}</td><td>{{ p.first_seen }}</td><td>{{ p.last_seen }}</td>
+{% if profile == "c1_full" %}<td>{{ "yes" if p.active_on_checkout else "no" }}</td>
+<td>{% for e in p.evidence %}<div><code>{{ e.signal_type }}</code> {{ e.value }} <span class="muted">({{ e.page_type }})</span></div>{% else %}<span class="muted">—</span>{% endfor %}</td>{% endif %}
+</tr>
+{% else %}<tr><td colspan="7" class="muted">No providers detected yet.</td></tr>{% endfor %}
+</tbody></table>
+<h2>Payment methods</h2>
+<table class="grid">
+<thead><tr><th>Method</th><th>Type</th><th>Confidence</th>{% if profile == "c1_full" %}<th>Via provider</th><th>First seen</th><th>Last seen</th>{% endif %}</tr></thead>
+<tbody>
+{% for m in store.payment_methods %}
+<tr><td>{{ m.id }}</td><td>{{ m.type }}</td><td>{{ conf(m.confidence) }}</td>{% if profile == "c1_full" %}<td>{{ m.provider_id or "—" }}</td><td>{{ m.first_seen }}</td><td>{{ m.last_seen }}</td>{% endif %}</tr>
+{% else %}<tr><td colspan="6" class="muted">No payment methods detected yet.</td></tr>{% endfor %}
+</tbody></table>
+{% if store.checkout_psp_hosts is defined %}
+<h2>PSP hosts on checkout</h2>
+<p>{% for h in store.checkout_psp_hosts %}<code>{{ h }}</code> {% else %}<span class="muted">none</span>{% endfor %}</p>
+{% endif %}
+</div>
+<div>
+<h2>Checkout screenshot</h2>
+{% if has_screenshot %}<img class="shot" src="/portal/stores/{{ store.domain }}/screenshot" alt="Checkout screenshot of {{ store.domain }}">{% else %}<p class="muted">No screenshot stored.</p>{% endif %}
+<h2>History</h2>
+<table class="grid">
+<thead><tr><th>When</th><th>Event</th><th>Entity</th>{% if profile == "c1_full" %}<th>Old → new</th>{% endif %}</tr></thead>
+<tbody>
+{% for h in history %}
+<tr><td>{{ h.detected_at|dt }}</td><td>{{ h.type }}</td><td>{{ h.entity or "—" }}</td>{% if profile == "c1_full" %}<td>{{ h.old_value or "" }} → {{ h.new_value or "" }}</td>{% endif %}</tr>
+{% else %}<tr><td colspan="4" class="muted">No changes recorded.</td></tr>{% endfor %}
+</tbody></table>
+</div>
+</div>
+{% endblock %}

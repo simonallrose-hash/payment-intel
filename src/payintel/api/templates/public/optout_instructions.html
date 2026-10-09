@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Opt-out for {{ req.domain }}{% endblock %}
+{% block content %}
+<h1>Opt-out for {{ req.domain }}</h1>
+{% if req.verified_at %}
+<p class="flash">Ownership confirmed on {{ req.verified_at|dt }}.{% if req.applied_at %} Exclusion applied on {{ req.applied_at|dt }}.{% else %} Exclusion will be applied within 72 hours.{% endif %}</p>
+{% else %}
+<p>Publish <strong>one</strong> of the proofs below, then press “Check now”. The token is valid until confirmed.</p>
+<table class="kv">
+<tr><th>DNS TXT at <code>{{ req.domain }}</code></th><td><code>{{ ins.txt_record }}</code></td></tr>
+<tr><th>Or a file</th><td><code>{{ ins.well_known_url }}</code> containing exactly <code>{{ ins.token }}</code></td></tr>
+<tr><th>Selected method</th><td>{{ req.method.value }}</td></tr>
+</table>
+<form method="post" action="/optout/verify/{{ req.token }}"><button type="submit">Check now</button></form>
+<p class="muted">Bookmark this page: <code>/optout/verify/{{ req.token }}</code></p>
+{% endif %}
+{% endblock %}

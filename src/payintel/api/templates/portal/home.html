@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Portal{% endblock %}
+{% block content %}
+<h1>{{ org.legal_name if org else "Portal" }}</h1>
+{% if ui.grant %}
+<table class="kv">
+<tr><th>Field profile</th><td>{{ ui.grant.profile.value }}</td></tr>
+<tr><th>Countries</th><td>{{ ui.grant.countries|join(", ") or "all" }}</td></tr>
+<tr><th>Platforms</th><td>{{ ui.grant.platforms|join(", ") or "all" }}</td></tr>
+<tr><th>API rate</th><td>{{ ui.grant.api_rps }} rps</td></tr>
+<tr><th>Records today / this month</th><td>{{ usage.day }} / {{ ui.grant.daily_records }} · {{ usage.month }} / {{ ui.grant.monthly_records }}</td></tr>
+<tr><th>Export limit</th><td>{{ ui.grant.export_max_rows }} rows, schedule {{ ui.grant.export_schedule }}</td></tr>
+<tr><th>Watchlist limit</th><td>{{ ui.grant.watchlist_limit }} domains</td></tr>
+<tr><th>Contract ends</th><td>{{ ui.grant.contract_ends_on }}</td></tr>
+</table>
+<p><a class="btn" href="/portal/stores">Search stores</a> <a class="btn" href="/portal/docs">API documentation</a></p>
+{% else %}
+<p class="flash error">Your organisation has no active entitlement ({{ ui.denial }}). Contact your account manager.</p>
+{% endif %}
+{% endblock %}

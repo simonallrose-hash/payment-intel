@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf %}
+{% block title %}DSAR{% endblock %}
+{% block content %}
+<h1>Data subject requests</h1>
+<table class="grid"><thead><tr><th>#</th><th>Received</th><th>Due</th><th>Kind</th><th>Subject</th><th>Contact</th><th>Status</th><th>Handler</th><th></th></tr></thead><tbody>
+{% for r in open_rows %}
+<tr class="{{ 'overdue' if r.id in overdue_ids else '' }}"><td>{{ r.id }}</td><td>{{ r.received_at|dt }}</td><td>{{ r.due_at|dt }}{% if r.id in overdue_ids %} <span class="tag">overdue</span>{% endif %}</td><td>{{ r.kind.value }}</td><td>{{ r.subject }}<br><span class="muted">{{ r.details or "" }}</span></td><td>{{ r.contact }}</td><td>{{ r.status.value }}</td><td>{{ r.handled_by or "—" }}</td>
+<td>{% if r.status.value == "open" %}<form method="post" action="/admin/dsar/{{ r.id }}/take" class="inline">{{ csrf(ui) }}<button type="submit" class="link">take</button></form>{% endif %}
+<form method="post" action="/admin/dsar/{{ r.id }}/close" class="inline">{{ csrf(ui) }}<input name="resolution" placeholder="resolution" required><button type="submit" class="link">close</button></form></td></tr>
+{% else %}<tr><td colspan="9" class="muted">No open requests.</td></tr>{% endfor %}
+</tbody></table>
+<h2>Closed</h2>
+<table class="grid"><thead><tr><th>#</th><th>Kind</th><th>Subject</th><th>Closed</th><th>By</th><th>Resolution</th></tr></thead><tbody>
+{% for r in closed %}<tr><td>{{ r.id }}</td><td>{{ r.kind.value }}</td><td>{{ r.subject }}</td><td>{{ r.closed_at|dt }}</td><td>{{ r.handled_by }}</td><td>{{ r.resolution }}</td></tr>{% endfor %}
+</tbody></table>
+{% endblock %}

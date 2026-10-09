@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Crawler{% endblock %}
+{% block content %}
+<h1>Crawler monitoring</h1>
+<h2>Queues</h2>
+<table class="grid"><thead><tr><th>Scan type</th><th>Due now</th><th>Leased</th><th>Planned total</th><th>Failing (≥3)</th></tr></thead><tbody>
+{% for t, q in queue.items() %}<tr><td>{{ t }}</td><td>{{ q.due }}</td><td>{{ q.locked }}</td><td>{{ q.total }}</td><td>{{ q.failing }}</td></tr>{% endfor %}
+</tbody></table>
+<h2>Throughput and blocks (last 24 h)</h2>
+<table class="grid"><thead><tr><th>Scan type</th><th>Scans / 24 h</th><th>Scans / last hour</th><th>Blocked share</th></tr></thead><tbody>
+{% for t, v in throughput.items() %}<tr><td>{{ t }}</td><td>{{ v.last_24h }}</td><td>{{ v.per_hour }}</td><td>{{ v.block_share|pct }}</td></tr>{% endfor %}
+</tbody></table>
+<h2>Outcomes by status (last 24 h)</h2>
+<table class="grid"><thead><tr><th>Scan type</th><th>Status</th><th>Count</th></tr></thead><tbody>
+{% for t, s, n in by_status %}<tr><td>{{ t }}</td><td>{{ s }}</td><td>{{ n }}</td></tr>{% else %}<tr><td colspan="3" class="muted">No scans in the window.</td></tr>{% endfor %}
+</tbody></table>
+<h2>Workers (last hour)</h2>
+<table class="grid"><thead><tr><th>Worker</th><th>Scans</th><th>Last activity</th><th>Avg duration</th></tr></thead><tbody>
+{% for w, n, last, avg in workers %}<tr><td>{{ w }}</td><td>{{ n }}</td><td>{{ last|dt }}</td><td>{{ "%.1f"|format(avg or 0) }} s</td></tr>{% else %}<tr><td colspan="4" class="muted">No worker activity in the last hour.</td></tr>{% endfor %}
+</tbody></table>
+<p class="muted">Host-level CPU/RAM come from the server monitoring stack (runbook §9); this page shows the application view.</p>
+{% endblock %}

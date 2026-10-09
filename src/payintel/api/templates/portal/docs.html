@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}API documentation{% endblock %}
+{% block content %}
+<h1>API documentation</h1>
+<p>Base URL <code>/v1</code>, authentication <code>Authorization: Bearer &lt;api key&gt;</code>, errors as <code>application/problem+json</code> (RFC 9457). Machine-readable spec: <a href="/openapi.json">/openapi.json</a> (OpenAPI 3.1). Lists are paginated with <code>cursor</code> / <code>next_cursor</code>, at most 1 000 items per page. Rate limit and quotas come from your entitlement; <code>429</code> carries <code>Retry-After</code>.</p>
+<table class="grid"><thead><tr><th>Method</th><th>Path</th><th>Summary</th><th>Parameters</th></tr></thead><tbody>
+{% for p in paths %}
+<tr><td><code>{{ p.method }}</code></td><td><code>{{ p.path }}</code></td><td>{{ p.summary }}<br><span class="muted">{{ p.description }}</span></td><td class="muted">{{ p.params|join(", ") }}</td></tr>
+{% endfor %}
+</tbody></table>
+<h2>Schemas</h2>
+<p class="muted">{{ schemas|join(", ") }}</p>
+<p class="muted">Field profiles: <code>c1_basic</code> and <code>c1_full</code> never contain third-party scripts, plugin lists or platform/plugin versions (these fields do not exist in the schemas).</p>
+{% endblock %}

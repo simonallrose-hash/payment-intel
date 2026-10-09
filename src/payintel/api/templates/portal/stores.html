@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% from "_macros.html" import conf %}
+{% block title %}Search stores{% endblock %}
+{% block content %}
+<h1>Search stores</h1>
+<form method="get" action="/portal/stores" class="filters">
+  <label>Country <input name="country" value="{{ q.get('country','') }}" placeholder="DE, AT"></label>
+  <label>Platform <input name="platform" value="{{ q.get('platform','') }}" placeholder="shopify"></label>
+  <label>Provider <input name="provider" value="{{ q.get('provider','') }}" placeholder="adyen"></label>
+  <label>Without provider <input name="without_provider" value="{{ q.get('without_provider','') }}"></label>
+  <label>Provider role <input name="provider_role" value="{{ q.get('provider_role','') }}" placeholder="gateway"></label>
+  <label>Payment method <input name="payment_method" value="{{ q.get('payment_method','') }}" placeholder="paypal"></label>
+  <label>Providers min <input name="providers_min" type="number" min="0" value="{{ q.get('providers_min','') }}"></label>
+  <label>Providers max <input name="providers_max" type="number" min="0" value="{{ q.get('providers_max','') }}"></label>
+  <label>Min confidence <select name="min_confidence">
+    {% for c in ["", "low", "medium", "high"] %}<option value="{{ c }}" {% if q.get('min_confidence','')==c %}selected{% endif %}>{{ c or "any" }}</option>{% endfor %}
+  </select></label>
+  <label>First seen from <input name="first_seen_from" type="date" value="{{ q.get('first_seen_from','') }}"></label>
+  <label>First seen to <input name="first_seen_to" type="date" value="{{ q.get('first_seen_to','') }}"></label>
+  <label>Last seen from <input name="last_seen_from" type="date" value="{{ q.get('last_seen_from','') }}"></label>
+  <label>Changed from <input name="changed_from" type="datetime-local" value="{{ q.get('changed_from','') }}"></label>
+  <label>Domain prefix <input name="domain_prefix" value="{{ q.get('domain_prefix','') }}"></label>
+  <label>Sort <select name="sort">
+    {% for s in ["domain", "traffic_rank", "updated_at"] %}<option value="{{ s }}" {% if q.get('sort','domain')==s %}selected{% endif %}>{{ s }}</option>{% endfor %}
+  </select></label>
+  <button type="submit">Search</button>
+</form>
+{% if searched %}
+<p class="muted">{{ items|length }} result(s) on this page · segment: {{ grant.countries|join(", ") or "all countries" }}, {{ grant.platforms|join(", ") or "all platforms" }}</p>
+<table class="grid">
+<thead><tr><th>Domain</th><th>Country</th><th>Platform</th><th>Providers</th><th>Methods</th><th>Checkout</th><th>As of</th></tr></thead>
+<tbody>
+{% for s in items %}
+<tr>
+<td><a href="/portal/stores/{{ s.domain }}">{{ s.domain }}</a></td>
+<td>{{ s.country.code if s.country else "—" }}</td>
+<td>{{ s.platform.id if s.platform else "—" }} {% if s.platform %}{{ conf(s.platform.confidence) }}{% endif %}</td>
+<td>{% for p in s.providers %}{{ p.id }} {{ conf(p.confidence) }}{% if not loop.last %}, {% endif %}{% endfor %}</td>
+<td>{% for m in s.payment_methods %}{{ m.id }}{% if not loop.last %}, {% endif %}{% endfor %}</td>
+<td>{{ s.checkout.status or "—" }} / {{ s.checkout.coverage or "—" }}</td>
+<td>{{ s.as_of|dt }}</td>
+</tr>
+{% else %}
+<tr><td colspan="7" class="muted">No stores match these filters inside your segment.</td></tr>
+{% endfor %}
+</tbody></table>
+{% if next_query %}<p><a class="btn" href="/portal/stores?{{ next_query }}">Next page →</a></p>{% endif %}
+{% endif %}
+{% endblock %}

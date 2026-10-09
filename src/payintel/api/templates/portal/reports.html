@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Reports{% endblock %}
+{% block content %}
+<h1>Reports</h1>
+<table class="grid"><thead><tr><th>Built</th><th>Scope</th><th>Stores</th><th>Status</th><th>Files</th></tr></thead><tbody>
+{% for j in jobs %}
+<tr><td>{{ j.created_at|dt }}</td><td>{{ j.spec.countries|join(", ") }}{% if j.spec.platforms %} · {{ j.spec.platforms|join(", ") }}{% endif %}</td>
+<td>{{ j.summary.get("total_stores", "—") }}</td><td>{{ j.status.value }}</td>
+<td>{% if j.xlsx_key %}<a href="/portal/reports/{{ j.id }}/xlsx">XLSX</a>{% endif %} {% if j.csv_key %}<a href="/portal/reports/{{ j.id }}/csv">CSV</a>{% endif %}</td></tr>
+{% else %}<tr><td colspan="5" class="muted">No reports delivered to your organisation yet.</td></tr>{% endfor %}
+</tbody></table>
+{% endblock %}

@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}Audit log{% endblock %}
+{% block content %}
+<h1>Audit log</h1>
+<form method="get" action="/admin/audit" class="inline"><input name="actor" value="{{ actor }}" placeholder="actor"><input name="action" value="{{ action }}" placeholder="action"><button type="submit">Filter</button> <button type="submit" name="verify" value="1">Verify hash chain</button></form>
+{% if chain %}<p class="flash {{ '' if chain.ok else 'error' }}">Chain {{ "intact" if chain.ok else "BROKEN at row " ~ chain.first_broken_id }} ({{ chain.rows }} rows checked).</p>{% endif %}
+<table class="grid"><thead><tr><th>#</th><th>When</th><th>Actor</th><th>Action</th><th>Object</th><th>Before</th><th>After</th><th>IP</th></tr></thead><tbody>
+{% for r in rows %}<tr><td>{{ r.id }}</td><td>{{ r.ts|dt }}</td><td>{{ r.actor }}</td><td>{{ r.action }}</td><td>{{ r.object_type }} {{ r.object_id }}</td><td class="muted">{{ r.before or "" }}</td><td class="muted">{{ r.after or "" }}</td><td>{{ r.ip or "" }}</td></tr>{% endfor %}
+</tbody></table>
+{% endblock %}

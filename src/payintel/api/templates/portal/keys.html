@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf %}
+{% block title %}API keys{% endblock %}
+{% block content %}
+<h1>API keys</h1>
+<table class="grid"><thead><tr><th>Name</th><th>Prefix</th><th>Scopes</th><th>Allowed IPs</th><th>Expires</th><th>Last used</th><th>Status</th><th></th></tr></thead><tbody>
+{% for k in keys %}
+<tr><td>{{ k.name }}</td><td><code>{{ k.prefix }}…</code></td><td>{{ k.scopes|join(", ") }}</td><td>{{ k.allowed_ips|join(", ") or "any" }}</td><td>{{ k.expires_at|dt }}</td><td>{{ k.last_used_at|dt }}</td>
+<td>{% if k.revoked_at %}revoked {{ k.revoked_at|dt }}{% else %}active{% endif %}</td>
+<td>{% if not k.revoked_at %}<form method="post" action="/portal/keys/{{ k.id }}/revoke" class="inline">{{ csrf(ui) }}<button class="link danger" type="submit">revoke</button></form>{% endif %}</td></tr>
+{% else %}<tr><td colspan="8" class="muted">No keys yet.</td></tr>{% endfor %}
+</tbody></table>
+<form method="post" action="/portal/keys" class="card">{{ csrf(ui) }}
+<label>Name <input name="name" required maxlength="128"></label>
+<fieldset><legend>Scopes</legend>{% for s in scopes %}<label class="check"><input type="checkbox" name="scopes" value="{{ s }}" {% if s.endswith(":read") %}checked{% endif %}> {{ s }}</label>{% endfor %}</fieldset>
+<label>Expires in days (optional) <input name="expires_in_days" type="number" min="1"></label>
+<label>Allowed IPs / CIDRs (optional) <input name="allowed_ips" placeholder="203.0.113.0/24"></label>
+<button type="submit">Issue key</button>
+<p class="muted">Use it as <code>Authorization: Bearer &lt;key&gt;</code>. The key is shown once.</p>
+</form>
+{% endblock %}

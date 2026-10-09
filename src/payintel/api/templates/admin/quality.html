@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf %}
+{% block title %}Quality{% endblock %}
+{% block content %}
+<h1>Quality dashboard</h1>
+<form method="get" action="/admin/quality" class="inline"><label>Window (days) <input name="days" type="number" min="1" max="90" value="{{ days }}"></label><button type="submit">Apply</button></form>
+<p class="muted">Gold set: {{ gold }} labelled hosts (target {{ gold_target }}).{% if note %} {{ note }}{% endif %}</p>
+{% if dash %}
+<h2>Checkout walk outcomes by platform</h2>
+<table class="grid"><thead><tr><th>Platform</th><th>Walks</th><th>Reached checkout</th><th>Reached payment step</th><th>Blocked</th></tr></thead><tbody>
+{% for o in dash.outcomes %}<tr><td>{{ o.platform_id }}</td><td>{{ o.walks }}</td><td>{{ o.to_checkout|pct }}</td><td>{{ o.to_payment|pct }}</td><td>{{ o.blocked|pct }}</td></tr>{% endfor %}
+{% if dash.overall %}<tr><th>all</th><td>{{ dash.overall.walks }}</td><td>{{ dash.overall.to_checkout|pct }}</td><td>{{ dash.overall.to_payment|pct }}</td><td>{{ dash.overall.blocked|pct }}</td></tr>{% endif %}
+</tbody></table>
+<h2>Confidence distribution</h2>
+<p>Providers: {% for k, v in dash.provider_confidence.items() %}{{ k }} {{ v }}{% if not loop.last %} · {% endif %}{% endfor %} — Methods: {% for k, v in dash.method_confidence.items() %}{{ k }} {{ v }}{% if not loop.last %} · {% endif %}{% endfor %}</p>
+<h2>Freshness</h2>
+<table class="kv">
+<tr><th>Profiles</th><td>{{ dash.freshness.profiles }}</td></tr>
+<tr><th>Light scan median age</th><td>{{ dash.freshness.light_median_days }} d · stale {{ dash.freshness.light_stale_share|pct }} · never {{ dash.freshness.light_never }}</td></tr>
+<tr><th>Checkout scan median age</th><td>{{ dash.freshness.checkout_median_days }} d · stale {{ dash.freshness.checkout_stale_share|pct }} · never {{ dash.freshness.checkout_never }}</td></tr>
+</table>
+<h2>Change events per day</h2>
+<p>{% for d in dash.events_per_day %}<span class="{{ 'tag' if d.spike else '' }}">{{ d.day.date() }}: {{ d.count }}</span>{% if not loop.last %} · {% endif %}{% endfor %}</p>
+{% endif %}
+{% if review %}
+<h2>Stop reasons ({{ review.total }} stops)</h2>
+<p>other share {{ review.other_share|pct }} · by reason: {% for k, v in review.by_reason.items() %}{{ k }} {{ v }}{% if not loop.last %} · {% endif %}{% endfor %}</p>
+<table class="grid"><thead><tr><th>Step</th><th>Reason</th><th>Platform</th><th>Adapter</th><th>Count</th><th>Share</th></tr></thead><tbody>
+{% for c in review.cells[:40] %}<tr><td>{{ c.step }}</td><td>{{ c.reason }}</td><td>{{ c.platform_id }}</td><td>{{ c.adapter }}</td><td>{{ c.count }}</td><td>{{ c.share|pct }}</td></tr>{% endfor %}
+</tbody></table>
+{% endif %}
+<h2>Quality alerts</h2>
+<table class="grid"><thead><tr><th>Detected</th><th>Kind</th><th>Subject</th><th>Message</th><th>Ack</th></tr></thead><tbody>
+{% for a in alerts %}
+<tr><td>{{ a.detected_at|dt }}</td><td>{{ a.kind }}</td><td>{{ a.subject }}</td><td>{{ a.message }}</td>
+<td>{% if a.acknowledged_at %}{{ a.acknowledged_by }} {{ a.acknowledged_at|dt }}{% else %}<form method="post" action="/admin/quality/alerts/{{ a.id }}/ack" class="inline">{{ csrf(ui) }}<button type="submit" class="link">acknowledge</button></form>{% endif %}</td></tr>
+{% else %}<tr><td colspan="5" class="muted">No alerts.</td></tr>{% endfor %}
+</tbody></table>
+{% endblock %}

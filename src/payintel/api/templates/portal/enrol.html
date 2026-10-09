@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Set up two-factor authentication{% endblock %}
+{% block content %}
+<h1>Set up two-factor authentication</h1>
+<p>Add this account to an authenticator app (Aegis, 1Password, Google Authenticator…) and enter the current code.</p>
+<table class="kv">
+<tr><th>Secret</th><td><code class="big">{{ secret }}</code></td></tr>
+<tr><th>otpauth URI</th><td><code>{{ uri }}</code></td></tr>
+</table>
+<form method="post" action="/portal/login/enrol" class="card narrow">
+  <input type="hidden" name="csrf" value="{{ ui.csrf }}">
+  <input type="hidden" name="secret" value="{{ secret }}">
+  <label>6-digit code <input name="code" inputmode="numeric" pattern="[0-9]{6}" required autocomplete="one-time-code"></label>
+  <button type="submit">Enable</button>
+</form>
+{% endblock %}

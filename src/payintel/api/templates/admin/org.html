@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf %}
+{% block title %}{{ org.legal_name }}{% endblock %}
+{% block content %}
+<h1>{{ org.legal_name }} <span class="tag">{{ org.status.value }}</span></h1>
+<p class="muted">{{ org.country }} · reg. {{ org.reg_number or "—" }} · created {{ org.created_at|dt }} · id <code>{{ org.id }}</code></p>
+<div class="cols">
+<div>
+<h2>Lifecycle</h2>
+<form method="post" action="/admin/orgs/{{ org.id }}/status" class="card">{{ csrf(ui) }}
+<label>Move to <select name="to">{% for t in transitions %}<option value="{{ t }}">{{ t }}</option>{% else %}<option value="">(terminal)</option>{% endfor %}</select></label>
+<label>Comment (required) <input name="comment" required></label>
+<button type="submit" {% if not transitions %}disabled{% endif %}>Apply</button>
+<p class="muted">Activation requires an approved KYC decision; compliance or admin role only.</p>
+</form>
+
+<h2>KYC dossier</h2>
+<form method="post" action="/admin/orgs/{{ org.id }}/kyc" class="card">{{ csrf(ui) }}
+<label>Address <input name="address" value="{{ dossier.address or '' }}"></label>
+<label>Website <input name="website" value="{{ dossier.website or '' }}"></label>
+<label>Contact person <input name="contact_name" value="{{ dossier.contact_name or '' }}"></label>
+<label>Contact title <input name="contact_title" value="{{ dossier.contact_title or '' }}"></label>
+<label>Purpose <select name="purpose"><option value="">—</option>{% for p in purposes %}<option value="{{ p }}" {% if dossier.purpose==p %}selected{% endif %}>{{ p }}</option>{% endfor %}</select></label>
+<label>Beneficial owners ≥ 25 % (one per line: <code>Name; 40%</code>) <textarea name="beneficiaries" rows="3">{% for b in dossier.beneficiaries or [] %}{{ b.name }}; {{ b.share }}%
+{% endfor %}</textarea></label>
+<button type="submit">Save dossier</button>
+</form>
+<form method="post" action="/admin/orgs/{{ org.id }}/kyc/document" enctype="multipart/form-data" class="card">{{ csrf(ui) }}
+<label>Upload document <input type="file" name="document" required></label><button type="submit">Store</button>
+<p class="muted">Stored: {% for d in dossier.documents or [] %}<code>{{ d }}</code> {% else %}none{% endfor %}</p>
+</form>
+<form method="post" action="/admin/orgs/{{ org.id }}/kyc/sanctions" class="card">{{ csrf(ui) }}
+<label>Sanctions screening result <select name="result">{% for s in sanctions %}<option value="{{ s }}" {% if dossier.sanctions_result==s %}selected{% endif %}>{{ s }}</option>{% endfor %}</select></label>
+<label>Source <input name="source" required value="{{ dossier.sanctions_source or '' }}" placeholder="OpenSanctions export 2026-10-01"></label>
+<label>Checked at (UTC, optional) <input name="checked_at" type="datetime-local"></label>
+<button type="submit">Record</button>
+<p class="muted">Last: {{ dossier.sanctions_result or "—" }} ({{ dossier.sanctions_checked_at|dt }})</p>
+</form>
+<form method="post" action="/admin/orgs/{{ org.id }}/kyc/video" class="inline">{{ csrf(ui) }}<button type="submit">Record video call now</button> <span class="muted">last: {{ dossier.video_call_at|dt }}</span></form>
+<form method="post" action="/admin/orgs/{{ org.id }}/kyc/decision" class="card">{{ csrf(ui) }}
+<label>Decision <select name="decision"><option value="approved">approved</option><option value="rejected">rejected</option></select></label>
+<label>Comment (required) <input name="comment" required></label>
+<button type="submit">Decide</button>
+<p class="muted">Current: {{ dossier.decision or "—" }} by {{ dossier.decided_by or "—" }} at {{ dossier.decided_at|dt }} — {{ dossier.decision_comment or "" }}</p>
+</form>
+</div>
+<div>
+<h2>Contracts and entitlements</h2>
+{% for c, e in contracts %}
+<div class="card">
+<p><strong>{{ c.number }}</strong> · {{ c.product.value }} · {{ c.starts_on }} → {{ c.ends_on }} · purposes {{ c.allowed_purposes|join(", ") or "—" }}{% if c.file_key %} · file <code>{{ c.file_key }}</code>{% endif %}</p>
+{% if e %}
+<p>Entitlement{% if not e.active %} <span class="tag">inactive</span>{% endif %}: {{ e.field_profile.value }} · countries {{ e.countries|join(", ") or "all" }} · platforms {{ e.platforms|join(", ") or "all" }} · {{ e.api_rps }} rps · {{ e.daily_records }}/day · {{ e.monthly_records }}/month · export ≤ {{ e.export_max_rows }} ({{ e.export_schedule }}) · watchlist {{ e.watchlist_limit }} · IPs {{ e.allowed_ips|join(", ") or "any" }}</p>
+<form method="post" action="/admin/orgs/{{ org.id }}/contracts/{{ c.id }}/entitlement/deactivate" class="inline">{{ csrf(ui) }}<button class="link danger" type="submit">deactivate</button></form>
+{% endif %}
+<details><summary>Set entitlement</summary>
+<form method="post" action="/admin/orgs/{{ org.id }}/contracts/{{ c.id }}/entitlement">{{ csrf(ui) }}
+<label>Field profile <select name="field_profile">{% for p in profiles %}<option value="{{ p }}" {% if p=="c2_risk" and not c2_enabled %}disabled{% endif %}>{{ p }}{% if p=="c2_risk" and not c2_enabled %} (feature_c2_enabled off){% endif %}</option>{% endfor %}</select></label>
+<label>Countries (empty = all) <input name="countries" value="{{ e.countries|join(', ') if e else '' }}"></label>
+<label>Platforms (empty = all) <input name="platforms" value="{{ e.platforms|join(', ') if e else '' }}"></label>
+<label>API rps <input name="api_rps" type="number" min="1" value="{{ e.api_rps if e else '' }}"></label>
+<label>Daily records <input name="daily_records" type="number" min="1" value="{{ e.daily_records if e else '' }}"></label>
+<label>Monthly records <input name="monthly_records" type="number" min="1" value="{{ e.monthly_records if e else '' }}"></label>
+<label>Export max rows <input name="export_max_rows" type="number" min="1" value="{{ e.export_max_rows if e else '' }}"></label>
+<label>Export schedule <select name="export_schedule">{% for s in ["monthly","weekly","none"] %}<option value="{{ s }}" {% if e and e.export_schedule==s %}selected{% endif %}>{{ s }}</option>{% endfor %}</select></label>
+<label>Watchlist limit <input name="watchlist_limit" type="number" min="0" value="{{ e.watchlist_limit if e else '' }}"></label>
+<label>Allowed IPs/CIDRs <input name="allowed_ips" value="{{ e.allowed_ips|join(', ') if e else '' }}"></label>
+<button type="submit">Save entitlement</button>
+</form></details>
+</div>
+{% else %}<p class="muted">No contracts.</p>{% endfor %}
+<form method="post" action="/admin/orgs/{{ org.id }}/contracts" enctype="multipart/form-data" class="card">{{ csrf(ui) }}
+<h3>New contract</h3>
+<label>Number <input name="number" required></label>
+<label>Product <select name="product">{% for p in products %}<option value="{{ p }}">{{ p }}</option>{% endfor %}</select></label>
+<label>Starts <input name="starts_on" type="date" required></label>
+<label>Ends <input name="ends_on" type="date" required></label>
+<label>Allowed purposes <input name="allowed_purposes" placeholder="market_research, sales_prospecting"></label>
+<label>Signed contract file <input type="file" name="contract_file"></label>
+<button type="submit">Create contract</button>
+</form>
+
+<h2>Users</h2>
+<table class="grid"><thead><tr><th>E-mail</th><th>Role</th><th>2FA</th><th>Last login</th></tr></thead><tbody>
+{% for u, m in members %}<tr><td>{{ u.email }}</td><td>{{ m.role.value }}</td><td>{{ "yes" if u.totp_confirmed_at else "no" }}</td><td>{{ u.last_login_at|dt }}</td></tr>{% else %}<tr><td colspan="4" class="muted">None.</td></tr>{% endfor %}
+</tbody></table>
+<form method="post" action="/admin/orgs/{{ org.id }}/users" class="card">{{ csrf(ui) }}
+<label>E-mail <input name="email" type="email" required></label>
+<label>Initial password <input name="password" type="password" minlength="12" required></label>
+<label>Role <select name="role">{% for r in org_roles %}<option value="{{ r }}" {% if r=="org_admin" %}selected{% endif %}>{{ r }}</option>{% endfor %}</select></label>
+<button type="submit">Create user</button>
+</form>
+
+<h2>API keys</h2>
+<table class="grid"><thead><tr><th>Name</th><th>Prefix</th><th>Scopes</th><th>Status</th><th>Last used</th></tr></thead><tbody>
+{% for k in keys %}<tr><td>{{ k.name }}</td><td><code>{{ k.prefix }}</code></td><td>{{ k.scopes|join(", ") }}</td><td>{{ "revoked" if k.revoked_at else "active" }}</td><td>{{ k.last_used_at|dt }}</td></tr>{% else %}<tr><td colspan="5" class="muted">None.</td></tr>{% endfor %}
+</tbody></table>
+
+<h2>Audit trail</h2>
+<table class="grid"><thead><tr><th>When</th><th>Actor</th><th>Action</th><th>After</th></tr></thead><tbody>
+{% for a in audit_rows %}<tr><td>{{ a.ts|dt }}</td><td>{{ a.actor }}</td><td>{{ a.action }}</td><td class="muted">{{ a.after }}</td></tr>{% endfor %}
+</tbody></table>
+</div>
+</div>
+{% endblock %}

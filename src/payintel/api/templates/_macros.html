@@ -1,0 +1,2 @@
+{% macro csrf(ui) %}<input type="hidden" name="csrf" value="{{ ui.csrf }}">{% endmacro %}
+{% macro conf(c) %}<span class="conf conf-{{ c }}">{{ c }}</span>{% endmacro %}

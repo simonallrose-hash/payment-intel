@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Data subject request{% endblock %}
+{% block content %}
+<h1>Data subject request (GDPR)</h1>
+<p>PayIntel processes business data about online stores. If you believe we hold personal data about you, submit a request; our compliance team answers within 30 days.</p>
+<form method="post" action="/dsar" class="card">
+  <label>Request type <select name="kind">{% for k in kinds %}<option value="{{ k }}">{{ k }}</option>{% endfor %}</select></label>
+  <label>Who or what the request concerns <input name="subject" required placeholder="name, domain or e-mail"></label>
+  <label>Your contact e-mail <input name="contact" type="email" required></label>
+  <label>Details <textarea name="details" rows="4"></textarea></label>
+  <button type="submit">Submit</button>
+</form>
+{% endblock %}

@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf %}
+{% block title %}Watchlist {{ wl.name }}{% endblock %}
+{% block content %}
+<h1>Watchlist: {{ wl.name }}</h1>
+<div class="cols">
+<div>
+<form method="post" action="/portal/watchlists/{{ wl.id }}/domains" enctype="multipart/form-data" class="card">{{ csrf(ui) }}
+<label>Domains (one per line or comma-separated) <textarea name="domains" rows="6"></textarea></label>
+<label>…or upload a CSV (first column = domain) <input type="file" name="csv_file" accept=".csv,text/csv"></label>
+<button type="submit">Add</button>
+</form>
+</div>
+<div>
+<table class="grid"><thead><tr><th>Domain</th><th>Added</th><th></th></tr></thead><tbody>
+{% for it in items %}
+<tr><td><a href="/portal/stores/{{ it.domain }}">{{ it.domain }}</a></td><td>{{ it.added_at|dt }}</td>
+<td><form method="post" action="/portal/watchlists/{{ wl.id }}/remove" class="inline">{{ csrf(ui) }}<input type="hidden" name="domain" value="{{ it.domain }}"><button class="link" type="submit">remove</button></form></td></tr>
+{% else %}<tr><td colspan="3" class="muted">Empty.</td></tr>{% endfor %}
+</tbody></table>
+</div>
+</div>
+{% endblock %}

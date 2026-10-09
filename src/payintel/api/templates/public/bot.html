@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}About the PayIntel crawler{% endblock %}
+{% block content %}
+<h1>About the PayIntel crawler</h1>
+<p>PayIntel observes the publicly visible payment infrastructure of online stores: which payment providers and payment methods a checkout offers. The crawler reads public pages, adds a product to a cart and walks to the payment step. <strong>It never places an order, never submits a payment and never enters real card data.</strong></p>
+<h2>Identification</h2>
+<table class="kv">
+<tr><th>User-Agent</th><td><code>{{ page.user_agent }}</code></td></tr>
+<tr><th>IP ranges</th><td>{% for r in page.ip_ranges %}<code>{{ r }}</code> {% else %}published on request{% endfor %}</td></tr>
+<tr><th>Contact</th><td><a href="mailto:{{ page.contact_email }}">{{ page.contact_email }}</a></td></tr>
+<tr><th>Operator</th><td>{{ page.company_domain }}</td></tr>
+</table>
+<h2>Politeness rules</h2>
+<ul>
+<li>At most {{ page.max_rps_per_host }} request(s) per second per host; back-off on errors.</li>
+<li>robots.txt is respected{% if page.respects_robots %} (yes){% endif %}; disallowed paths are not fetched.</li>
+<li>No orders, no payments, no real personal data{% if page.never_orders %} (guaranteed by code-level guardrails){% endif %}.</li>
+<li>Pages are fetched a few times per month per store.</li>
+</ul>
+<h2>Opt-out</h2>
+<p>Site owners can exclude a domain. Supported proofs: {{ page.optout_methods|join(", ") }}. Within 72 hours of a confirmed opt-out the domain leaves the scan queue and all client data.</p>
+<p><a class="btn" href="/optout">Request an opt-out</a> · <a href="/dsar">Data subject request (GDPR)</a></p>
+{% endblock %}

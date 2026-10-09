@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% block title %}{{ code }} {{ title }}{% endblock %}
+{% block content %}
+<h1>{{ code }} · {{ title }}</h1>
+<p class="muted">{{ detail or "" }}</p>
+<p><a href="{% if ui and ui.is_staff %}/admin{% elif ui %}/portal{% else %}/bot{% endif %}">Back</a></p>
+{% endblock %}

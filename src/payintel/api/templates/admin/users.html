@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf %}
+{% block title %}Staff{% endblock %}
+{% block content %}
+<h1>Staff users</h1>
+<table class="grid"><thead><tr><th>E-mail</th><th>Role</th><th>2FA</th><th>Last login</th></tr></thead><tbody>
+{% for u, m in members %}<tr><td>{{ u.email }}</td><td>{{ m.role.value }}</td><td>{{ "yes" if u.totp_confirmed_at else "no" }}</td><td>{{ u.last_login_at|dt }}</td></tr>{% endfor %}
+</tbody></table>
+<form method="post" action="/admin/users" class="card narrow">{{ csrf(ui) }}
+<label>E-mail <input name="email" type="email" required></label>
+<label>Initial password <input name="password" type="password" minlength="12" required></label>
+<label>Role <select name="role">{% for r in roles %}<option value="{{ r }}">{{ r }}</option>{% endfor %}</select></label>
+<button type="submit">Create staff user</button>
+<p class="muted">staff_admin only.</p>
+</form>
+{% endblock %}

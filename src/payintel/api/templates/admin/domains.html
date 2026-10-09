@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Domain lookup{% endblock %}
+{% block content %}
+<h1>Internal domain lookup</h1>
+<form method="get" action="/admin/domains" class="inline"><input name="q" value="{{ q }}" placeholder="example.com" required><button type="submit">Search</button></form>
+<p class="muted">Full internal view including AS-23 fields (third-party hosts, plugins, versions) and lineage. staff_analyst / staff_admin only.</p>
+{% if results %}
+<p>{% for d in results %}<a href="/admin/domains?q={{ d.etld1 }}">{{ d.etld1 }}</a> <span class="tag">{{ d.status.value }}</span>{% if not loop.last %} · {% endif %}{% endfor %}</p>
+{% endif %}
+{% if store %}
+<h2>{{ store.domain }} <span class="tag">{{ store.status }}</span>{% if store.optout %} <span class="tag">opt-out</span>{% endif %}{% if store.czds_only %} <span class="tag">CZDS-only: never in C1</span>{% endif %}</h2>
+<p class="muted">host {{ store.hostname }} (#{{ store.host_id }}) · sources {{ store.sources|join(", ") or "—" }}</p>
+<div class="cols">
+<div>
+<table class="kv">{% for k, v in store.profile.items() %}<tr><th>{{ k }}</th><td>{{ v if v is not none else "—" }}</td></tr>{% endfor %}</table>
+<h3>Providers</h3>
+<table class="grid"><thead><tr><th>Provider</th><th>Role</th><th>Conf.</th><th>Score</th><th>Checkout</th><th>First</th><th>Last</th><th>✓/✗</th></tr></thead><tbody>
+{% for p in store.providers %}<tr><td>{{ p.provider_id }}</td><td>{{ p.role }}</td><td>{{ p.confidence }}</td><td>{{ "%.2f"|format(p.confidence_score) }}</td><td>{{ "yes" if p.active_on_checkout else "no" }}</td><td>{{ p.first_seen }}</td><td>{{ p.last_seen }}</td><td>{{ p.confirmations }}/{{ p.misses }}</td></tr>{% endfor %}
+</tbody></table>
+<h3>Payment methods</h3>
+<table class="grid"><thead><tr><th>Method</th><th>Provider</th><th>Conf.</th><th>First</th><th>Last</th></tr></thead><tbody>
+{% for m in store.methods %}<tr><td>{{ m.method_id }}</td><td>{{ m.provider_id or "—" }}</td><td>{{ m.confidence }}</td><td>{{ m.first_seen }}</td><td>{{ m.last_seen }}</td></tr>{% endfor %}
+</tbody></table>
+</div>
+<div>
+<h3>Third-party hosts on checkout (AS-23, internal)</h3>
+<table class="grid"><thead><tr><th>Host</th><th>Category</th><th>Provider</th><th>Requests</th><th>First</th><th>Last</th></tr></thead><tbody>
+{% for h in store.third_party_hosts %}<tr><td>{{ h.hostname }}</td><td>{{ h.category }}</td><td>{{ h.provider_id or "—" }}</td><td>{{ h.requests }}</td><td>{{ h.first_seen }}</td><td>{{ h.last_seen }}</td></tr>{% else %}<tr><td colspan="6" class="muted">None recorded.</td></tr>{% endfor %}
+</tbody></table>
+<h3>Recent events</h3>
+<table class="grid"><thead><tr><th>When</th><th>Type</th><th>Entity</th><th>Old → new</th></tr></thead><tbody>
+{% for e in store.recent_events %}<tr><td>{{ e.detected_at }}</td><td>{{ e.event_type }}</td><td>{{ e.entity_id or "" }}</td><td>{{ e.old_value or "" }} → {{ e.new_value or "" }}</td></tr>{% endfor %}
+</tbody></table>
+<h3>Scan runs</h3>
+<table class="grid"><thead><tr><th>Started</th><th>Type</th><th>Status</th><th>Stop</th><th>Worker</th><th>Ruleset</th><th>Artefacts</th></tr></thead><tbody>
+{% for r in store.runs %}<tr><td>{{ r.started_at }}</td><td>{{ r.type }}</td><td>{{ r.status }}</td><td>{{ r.stop }}</td><td>{{ r.worker }}</td><td>{{ r.ruleset }}</td><td class="muted">{{ r.artifacts or "" }}</td></tr>{% endfor %}
+</tbody></table>
+</div>
+</div>
+{% elif q %}
+<p class="muted">No exact match for <code>{{ q }}</code>{% if not results %} and no similar domains{% endif %}.</p>
+{% endif %}
+{% endblock %}

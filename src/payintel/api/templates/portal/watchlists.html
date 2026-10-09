@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf %}
+{% block title %}Watchlists{% endblock %}
+{% block content %}
+<h1>Watchlists</h1>
+<p class="muted">{{ total }} of {{ limit }} domains used across all lists.</p>
+<table class="grid"><thead><tr><th>Name</th><th>Domains</th><th>Created</th><th></th></tr></thead><tbody>
+{% for wl, n in lists %}
+<tr><td><a href="/portal/watchlists/{{ wl.id }}">{{ wl.name }}</a></td><td>{{ n }}</td><td>{{ wl.created_at|dt }}</td>
+<td><form method="post" action="/portal/watchlists/{{ wl.id }}/delete" class="inline">{{ csrf(ui) }}<button class="danger" type="submit">Delete</button></form></td></tr>
+{% else %}<tr><td colspan="4" class="muted">No watchlists yet.</td></tr>{% endfor %}
+</tbody></table>
+<form method="post" action="/portal/watchlists" class="card narrow">{{ csrf(ui) }}
+<label>New watchlist name <input name="name" required maxlength="128"></label>
+<button type="submit">Create</button></form>
+{% endblock %}

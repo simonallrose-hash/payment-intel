@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf %}
+{% block title %}Opt-out requests{% endblock %}
+{% block content %}
+<h1>Opt-out requests</h1>
+<h2>Pending proof</h2>
+<table class="grid"><thead><tr><th>Requested</th><th>Domain</th><th>Method</th><th>Contact</th><th></th></tr></thead><tbody>
+{% for r in pending %}
+<tr><td>{{ r.requested_at|dt }}</td><td>{{ r.domain }}</td><td>{{ r.method.value }}</td><td>{{ r.contact or "—" }}</td>
+<td><form method="post" action="/admin/optout/{{ r.id }}/verify" class="inline">{{ csrf(ui) }}<button type="submit">check proof</button></form>
+<form method="post" action="/admin/optout/{{ r.id }}/manual" class="inline">{{ csrf(ui) }}<button type="submit" class="link">mark verified manually</button></form></td></tr>
+{% else %}<tr><td colspan="5" class="muted">Nothing pending.</td></tr>{% endfor %}
+</tbody></table>
+<h2>Verified</h2>
+<table class="grid"><thead><tr><th>Domain</th><th>Verified</th><th>Applied</th><th>Notes</th></tr></thead><tbody>
+{% for r in recent %}<tr><td>{{ r.domain }}</td><td>{{ r.verified_at|dt }}</td><td>{{ r.applied_at|dt }}</td><td class="muted">{{ r.notes or "" }}</td></tr>{% endfor %}
+</tbody></table>
+{% endblock %}

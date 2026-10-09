@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf %}
+{% block title %}Exports{% endblock %}
+{% block content %}
+<h1>Exports</h1>
+<p class="muted">Limit per export: {{ grant.export_max_rows }} rows (larger exports need compliance approval) · scheduled {{ grant.export_schedule }} snapshots · links valid 72 hours · every file carries canary records and a watermark.</p>
+<table class="grid"><thead><tr><th>Requested</th><th>Type</th><th>Format</th><th>Status</th><th>Rows</th><th>Expires</th><th></th></tr></thead><tbody>
+{% for j in jobs %}
+<tr><td>{{ j.created_at|dt }}</td><td>{{ j.type.value }}</td><td>{{ j.format.value }}</td><td>{{ j.status.value }}</td><td>{{ j.rows if j.rows is not none else "—" }}</td><td>{{ j.expires_at|dt }}</td>
+<td>{% if j.status.value == "done" %}<a href="/portal/exports/{{ j.id }}/download">download</a>{% endif %}</td></tr>
+{% else %}<tr><td colspan="7" class="muted">No exports yet.</td></tr>{% endfor %}
+</tbody></table>
+<form method="post" action="/portal/exports" class="card">{{ csrf(ui) }}
+<label>Type <select name="type">{% for t in types %}<option value="{{ t }}">{{ t }}</option>{% endfor %}</select></label>
+<label>Format <select name="format">{% for f in formats %}<option value="{{ f }}">{{ f }}</option>{% endfor %}</select></label>
+<label>Since (increment only) <input name="since" type="date"></label>
+<label>Countries (optional, within your segment) <input name="countries" placeholder="DE, AT"></label>
+<label>Platforms (optional) <input name="platforms"></label>
+<button type="submit">Request export</button>
+</form>
+{% endblock %}
