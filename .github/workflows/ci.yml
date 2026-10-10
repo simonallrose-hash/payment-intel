@@ -46,7 +46,11 @@ jobs:
           python-version: "3.12"
       - run: uv sync --all-groups
       - name: pip-audit (NFR-S-10)
-        run: uv run pip-audit --strict
+        # the locked dependency set, not the editable project itself (pip-audit
+        # cannot audit a distribution that is not on PyPI)
+        run: |
+          uv export --format requirements-txt --all-groups --no-emit-project --no-hashes -o /tmp/requirements.txt
+          uv run pip-audit --strict -r /tmp/requirements.txt
 
   test:
     runs-on: ubuntu-24.04   # Docker is available for testcontainers
