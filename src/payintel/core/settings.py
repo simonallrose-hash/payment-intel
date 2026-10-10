@@ -51,6 +51,11 @@ class S3Settings(BaseModel):
     region: str = "eu-central-1"
     bucket_artifacts: str = "payintel-artifacts"
     bucket_exports: str = "payintel-exports"
+    server_side_encryption: str = Field(
+        default="",
+        description="`AES256` (SSE-S3) or `aws:kms` sent with every put (NFR-S-07); empty for "
+        "a MinIO without KES. Production sets AES256 with KES configured on data-1.",
+    )
 
 
 class SecretsSettings(BaseModel):
@@ -270,6 +275,22 @@ class QualitySettings(BaseModel):
     target_platform_accuracy: float = Field(default=0.97, description="NFR-Q-04")
     target_country_accuracy: float = Field(default=0.90, description="NFR-Q-05")
     gold_set_target_size: int = Field(default=500, description="FR-QA-01")
+    target_platforms: tuple[str, ...] = Field(
+        default=("woocommerce", "magento2", "shopware6", "prestashop"),
+        description="NFR-Q-06 / AC-02: platforms whose checkout reach share is gated",
+    )
+    min_checkout_reach_share: float = Field(default=0.60, description="NFR-Q-06, AC-02")
+    max_light_stale_share: float = Field(
+        default=0.05, description="NFR-Q-07: share of e-commerce profiles older than 7 days"
+    )
+    checkout_freshness_days: int = Field(default=35, description="NFR-Q-08")
+    max_checkout_stale_share: float = Field(default=0.10, description="NFR-Q-08")
+    watchlist_freshness_days: int = Field(default=8, description="NFR-Q-08 (watchlist)")
+    max_watchlist_stale_share: float = Field(default=0.10, description="NFR-Q-08 (watchlist)")
+    max_false_event_share: float = Field(
+        default=0.02, description="NFR-Q-09: rejected share of manually reviewed change events"
+    )
+    event_review_sample_size: int = Field(default=200, description="NFR-Q-09 sample size")
     report_min_cell_size: int = Field(default=30, description="FR-RP-03, LR-19")
     stop_reason_other_max_share: float = Field(default=0.05, description="FR-QA-06")
     stop_reason_alert_delta_pp: float = Field(default=5.0, description="FR-QA-06")

@@ -29,7 +29,8 @@ class Identity:
     locale: str
     first_name: str
     last_name: str
-    email: str
+    email: str  # guest checkout: `checkout-probe+<scan_run_id>@<company>` (FR-CW-05)
+    account_email: str  # store account, stable per host so the account is reused (AS-25)
     phone: str
     street: str
     house_number: str
@@ -107,8 +108,19 @@ class IdentityProvider:
         cc = (country or "").upper()
         return cc if cc in self.sets else DEFAULT_COUNTRY
 
-    def for_country(self, country: str | None, *, email_token: str, variant: int = 0) -> Identity:
-        """Deterministic identity for a country; `variant` rotates names/addresses."""
+    def for_country(
+        self,
+        country: str | None,
+        *,
+        email_token: str,
+        account_token: str | None = None,
+        variant: int = 0,
+    ) -> Identity:
+        """Deterministic identity for a country; `variant` rotates names/addresses.
+
+        `email_token` is the per-walk token (the scan run id, FR-CW-05); `account_token`
+        is the per-host token of the system account (FR-CW-12), defaulting to the former.
+        """
         cc = self.resolve_country(country)
         doc = self.sets[cc]
 
@@ -127,6 +139,7 @@ class IdentityProvider:
             first_name=pick(doc["first_names"]),
             last_name=pick(doc["last_names"]),
             email=probe_email(email_token, self.company_domain),
+            account_email=probe_email(account_token or email_token, self.company_domain),
             phone=phone,
             street=addr["street"],
             house_number=str(addr["house_number"]),

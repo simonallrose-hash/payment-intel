@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -10,7 +11,13 @@ from payintel.core.models.base import DomainStatus, ScanType
 from payintel.core.settings import ScanSettings
 from payintel.scheduler.backoff import next_attempt, retry_delay
 from payintel.scheduler.planner import heavy_scan_excluded, interval_for
-from payintel.scheduler.politeness import MemoryRateLimiter, etld1_key, host_key, ip_key
+from payintel.scheduler.politeness import (
+    MemoryRateLimiter,
+    browser_slot,
+    etld1_key,
+    host_key,
+    ip_key,
+)
 from payintel.scheduler.priority import (
     MANUAL_PRIORITY,
     PriorityInputs,
@@ -102,3 +109,32 @@ def test_memory_slots_per_etld1() -> None:
         return a, b, c
 
     assert run_sync(run()) == (True, False, True)
+
+
+def test_browser_slot_serialises_walks_on_one_etld1() -> None:
+    """FR-SC-06: the second walk on the same eTLD+1 waits until the first releases its slot;
+    a walk on another eTLD+1 is not delayed."""
+    lim = MemoryRateLimiter()
+    sleeps: list[float] = []
+    order: list[str] = []
+
+    async def fake_sleep(seconds: float) -> None:
+        sleeps.append(seconds)
+        await asyncio.sleep(0)
+
+    async def walk(name: str, etld1: str, hold: float) -> None:
+        async with browser_slot(lim, etld1, max_slots=1, ttl_seconds=60, sleep=fake_sleep):
+            order.append(f"{name}:start")
+            await asyncio.sleep(hold)
+            order.append(f"{name}:end")
+
+    async def run() -> None:
+        await asyncio.gather(
+            walk("a", "brand.de", 0.02), walk("b", "BRAND.de", 0.0), walk("c", "other.de", 0.0)
+        )
+
+    run_sync(run())
+    assert order.index("a:end") < order.index("b:start")  # b waited for a
+    assert order.index("c:start") < order.index("a:end")  # c ran concurrently
+    assert sleeps and all(s == 0.5 for s in sleeps)
+    assert run_sync(lim.take_slot(etld1_key("brand.de"), 1, 60))  # every slot was released

@@ -32,6 +32,7 @@ import json
 import uuid
 from collections.abc import Awaitable, Callable
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Any
@@ -40,6 +41,7 @@ from urllib.parse import urljoin, urlsplit
 from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
+from payintel.core import metrics
 from payintel.core.clock import SYSTEM_CLOCK, Clock
 from payintel.core.flags import FlagService
 from payintel.core.logging import get_logger, log_context
@@ -86,10 +88,13 @@ from payintel.history.materialize import ProfileUpdate, upsert_profile
 from payintel.history.writer import ObservationBuffer
 from payintel.scheduler import queue
 from payintel.scheduler.planner import interval_for
+from payintel.scheduler.politeness import MemoryRateLimiter, RateLimiter, browser_slot
 
 log = get_logger("payintel.crawl.checkout")
 
 ROBOTS_MAX_BYTES = 512 * 1024
+SLOT_POLL_SECONDS = 0.5  # FR-SC-06: how often a waiting walk re-checks the eTLD+1 slot
+SLOT_TTL_GRACE_SECONDS = 60
 HAR_SCRUBBED_HEADERS = frozenset(
     {"cookie", "set-cookie", "authorization", "proxy-authorization", "x-csrf-token", "x-xsrf-token"}
 )
@@ -166,6 +171,7 @@ class CheckoutContext:
     walker: CheckoutWalker
     identities: IdentityProvider
     accounts: AccountManager | None
+    limiter: RateLimiter = field(default_factory=MemoryRateLimiter)
     clock: Clock = SYSTEM_CLOCK
     worker_id: str = "worker-checkout-0"
     base_scheme: str = "https"
@@ -200,7 +206,6 @@ class CheckoutScanner:
 
     def __init__(self, ctx: CheckoutContext) -> None:
         self.ctx = ctx
-        self._etld1_locks: dict[str, asyncio.Lock] = {}
 
     # --- lease-time reads ----------------------------------------------------------
     def _load(self, session: Session, plan: ScanPlan) -> _Lease:
@@ -286,19 +291,28 @@ class CheckoutScanner:
         body = r.text() if r.error is None and r.status == 200 else None
         return parse_robots(body, None if r.error else r.status, agent_token=self.ctx.agent_token)
 
-    def _lock_for(self, etld1: str) -> asyncio.Lock:
-        # FR-SC-06: at most `max_browser_sessions_per_etld1` (=1) walks per eTLD+1 per worker.
-        lock = self._etld1_locks.get(etld1)
-        if lock is None:
-            lock = self._etld1_locks[etld1] = asyncio.Lock()
-        return lock
+    def _browser_slot(self, etld1: str) -> AbstractAsyncContextManager[None]:
+        """FR-SC-06: at most `max_browser_sessions_per_etld1` (=1) concurrent walks per
+        eTLD+1 across all worker processes (see `politeness.browser_slot`)."""
+        s = self.ctx.settings
+        return browser_slot(
+            self.ctx.limiter,
+            etld1,
+            max_slots=s.scan.max_browser_sessions_per_etld1,
+            ttl_seconds=int(s.checkout.walk_timeout_seconds) * 2 + SLOT_TTL_GRACE_SECONDS,
+            poll_seconds=SLOT_POLL_SECONDS,
+        )
 
     async def _browser_phase(self, lease: _Lease) -> CheckoutOutcome:
         t0 = asyncio.get_running_loop().time()
         prefix = f"checkout/{lease.etld1}/{lease.run_id}/"
         base = f"{self.ctx.base_scheme}://{lease.hostname}/"
+        # FR-CW-05: guest e-mail carries the scan run id; the system account (AS-25) keeps
+        # the per-host address so it can be reused by later walks (FR-CW-12).
         identity = self.ctx.identities.for_country(
-            lease.profile_country, email_token=f"h{lease.host_id}"
+            lease.profile_country,
+            email_token=str(lease.run_id),
+            account_token=f"h{lease.host_id}",
         )
         # FR-CW-11: decided once, before the walk; never revisited after a block (LR-03)
         geo = geo_mod.choose(
@@ -346,7 +360,7 @@ class CheckoutScanner:
             trace=lease.trace,
             hosted=self.ctx.reference.hosted_checkouts.match,
         )
-        async with self._lock_for(etld1):
+        async with self._browser_slot(etld1):
             walk = await self.ctx.walker.walk(inp)
         normalised: Stop | None = None
         if walk.stop is not None:
@@ -523,6 +537,8 @@ class CheckoutScanner:
                 )
             )
             session.flush()
+        metrics.CHECKOUT_WALKS_TOTAL.labels(o.status.value).inc()
+        metrics.CHECKOUT_WALK_SECONDS.observe(o.duration_ms / 1000)
         self._write_artifacts(o)
         known_hosts = set(
             session.execute(

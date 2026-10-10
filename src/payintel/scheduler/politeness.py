@@ -11,8 +11,10 @@ tests and `make bench-light`.
 
 from __future__ import annotations
 
+import asyncio
 import time
-from collections.abc import Callable
+from collections.abc import AsyncIterator, Awaitable, Callable
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from typing import Any, Protocol
 
@@ -188,3 +190,28 @@ def ip_key(ip: str) -> str:
 
 def etld1_key(etld1: str) -> str:
     return "etld1:" + etld1.lower()
+
+
+@asynccontextmanager
+async def browser_slot(
+    limiter: RateLimiter,
+    etld1: str,
+    *,
+    max_slots: int,
+    ttl_seconds: int,
+    poll_seconds: float = 0.5,
+    sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
+) -> AsyncIterator[None]:
+    """Hold one of `max_slots` browser sessions for an eTLD+1 (FR-SC-06).
+
+    The slot lives in the shared limiter (Redis in production), so the bound holds across
+    worker processes and servers; it expires after `ttl_seconds` so a crashed worker never
+    blocks a shop for good. Waiters poll every `poll_seconds`.
+    """
+    key = etld1_key(etld1)
+    while not await limiter.take_slot(key, max(1, max_slots), ttl_seconds):
+        await sleep(poll_seconds)
+    try:
+        yield
+    finally:
+        await limiter.release_slot(key)

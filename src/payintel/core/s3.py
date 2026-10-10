@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from collections.abc import Sequence
+from typing import TYPE_CHECKING, Any
 
 import boto3
 from botocore.config import Config
@@ -13,6 +14,7 @@ from payintel.core.settings import S3Settings
 
 if TYPE_CHECKING:
     from mypy_boto3_s3.client import S3Client
+    from mypy_boto3_s3.type_defs import LifecycleRuleTypeDef
 
 
 def make_s3_client(settings: S3Settings) -> S3Client:
@@ -31,11 +33,23 @@ def make_s3_client(settings: S3Settings) -> S3Client:
     )
 
 
-class ObjectStore:
-    """Thin wrapper: put/get/presign with timeouts and uniform errors."""
+def make_object_store(settings: S3Settings) -> ObjectStore:
+    """Store configured from settings (SSE mode included)."""
+    return ObjectStore(
+        make_s3_client(settings), server_side_encryption=settings.server_side_encryption
+    )
 
-    def __init__(self, client: S3Client) -> None:
+
+class ObjectStore:
+    """Thin wrapper: put/get/presign with timeouts and uniform errors.
+
+    `server_side_encryption` (NFR-S-07) is sent with every put; `ensure_lifecycle`
+    provisions the retention of raw artefacts (FR-LS-04, FR-CW-08, LR-08).
+    """
+
+    def __init__(self, client: S3Client, *, server_side_encryption: str = "") -> None:
         self._client = client
+        self._sse = server_side_encryption
 
     def ensure_bucket(self, bucket: str) -> None:
         try:
@@ -47,10 +61,51 @@ class ObjectStore:
                 raise StorageError(f"cannot create bucket {bucket}", bucket=bucket) from exc
 
     def put_bytes(self, bucket: str, key: str, data: bytes, *, content_type: str) -> None:
+        extra: dict[str, Any] = {}
+        if self._sse:
+            extra["ServerSideEncryption"] = self._sse
         try:
-            self._client.put_object(Bucket=bucket, Key=key, Body=data, ContentType=content_type)
+            self._client.put_object(
+                Bucket=bucket, Key=key, Body=data, ContentType=content_type, **extra
+            )
         except ClientError as exc:
             raise StorageError("put_object failed", bucket=bucket, key=key) from exc
+
+    def ensure_lifecycle(self, bucket: str, *, days: int, prefixes: Sequence[str]) -> None:
+        """Expire objects under each prefix after `days` (raw HTML/HAR/screenshots: 90 days)."""
+        rules: list[LifecycleRuleTypeDef] = [
+            {
+                "ID": f"expire-{prefix.strip('/') or 'all'}",
+                "Status": "Enabled",
+                "Filter": {"Prefix": prefix},
+                "Expiration": {"Days": days},
+            }
+            for prefix in prefixes
+        ]
+        try:
+            self._client.put_bucket_lifecycle_configuration(
+                Bucket=bucket, LifecycleConfiguration={"Rules": rules}
+            )
+        except ClientError as exc:
+            raise StorageError("put_bucket_lifecycle failed", bucket=bucket) from exc
+
+    def lifecycle_days(self, bucket: str) -> dict[str, int]:
+        """Prefix → expiration days of the enabled rules (empty when none is configured)."""
+        try:
+            resp = self._client.get_bucket_lifecycle_configuration(Bucket=bucket)
+        except ClientError as exc:
+            if exc.response.get("Error", {}).get("Code") == "NoSuchLifecycleConfiguration":
+                return {}
+            raise StorageError("get_bucket_lifecycle failed", bucket=bucket) from exc
+        out: dict[str, int] = {}
+        for rule in resp.get("Rules", []):
+            if rule.get("Status") != "Enabled":
+                continue
+            prefix = rule.get("Filter", {}).get("Prefix", rule.get("Prefix", ""))
+            days = rule.get("Expiration", {}).get("Days")
+            if days is not None:
+                out[prefix] = int(days)
+        return out
 
     def get_bytes(self, bucket: str, key: str) -> bytes:
         try:

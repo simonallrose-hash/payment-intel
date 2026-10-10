@@ -13,6 +13,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
+from urllib.parse import urlsplit, urlunsplit
 
 from payintel.core.reference_loader import StopReasonTaxonomy
 from payintel.crawl.checkout.types import StepTiming, Stop, WalkStep
@@ -21,8 +22,18 @@ SCREENSHOT_NAME = "stop.jpg"
 DOM_NAME = "stop.html.gz"
 
 
+def strip_query(url: str) -> str:
+    """Stop records keep the page URL without query string or fragment (FR-CW-13):
+    session tokens, cart ids and tracking parameters never reach the journal."""
+    if not url:
+        return url
+    parts = urlsplit(url)
+    return urlunsplit((parts.scheme, parts.netloc, parts.path, "", ""))
+
+
 def normalise_stop(stop: Stop, taxonomy: StopReasonTaxonomy, *, detail_max_chars: int) -> Stop:
-    """Coerce a stop into the taxonomy; `other` always carries a non-empty detail."""
+    """Coerce a stop into the taxonomy; `other` always carries a non-empty detail;
+    the page URL loses its query and fragment."""
     detail = " ".join((stop.detail or "").split())
     reason = stop.reason
     if not taxonomy.is_valid(stop.step.value, reason, detail or None):
@@ -36,7 +47,7 @@ def normalise_stop(stop: Stop, taxonomy: StopReasonTaxonomy, *, detail_max_chars
         step=stop.step,
         reason=reason,
         detail=detail[:detail_max_chars],
-        page_url=stop.page_url[:2048],
+        page_url=strip_query(stop.page_url)[:2048],
         element_selector=stop.element_selector[:255],
         element_text=" ".join(stop.element_text.split())[:255],
         http_status=max(0, min(int(stop.http_status or 0), 65535)),

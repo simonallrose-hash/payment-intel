@@ -114,3 +114,13 @@ def test_parse_source_validates_path(tmp_path: Path) -> None:
         list(parse_source(DomainSourceKind.TRANCO, tmp_path / "missing.csv"))
     with pytest.raises(ValidationError):
         list(parse_source(DomainSourceKind.CRAWL_LINK, FIX / "manual_sample.csv"))
+
+
+def test_psl_snapshot_carries_its_publication_date() -> None:
+    """FR-DS-04: the monthly refresh is checked against the `// VERSION:` header."""
+    from datetime import date
+
+    from payintel.discovery.psl import SuffixList
+
+    psl = SuffixList()
+    assert psl.version_date is not None and psl.version_date >= date(2026, 1, 1)

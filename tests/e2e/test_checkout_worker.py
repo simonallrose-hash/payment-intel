@@ -21,6 +21,7 @@ from clickhouse_connect.driver.client import Client
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session, sessionmaker
 
+from payintel.core import metrics
 from payintel.core.clock import FixedClock
 from payintel.core.models.base import (
     ChangeEventType,
@@ -158,9 +159,15 @@ async def test_reached_payment_step_persists_everything(
     sim.reset("woo-de")
     _prepare(db_session, fixed_clock, ["woo-de.de"])
     plan = _lease(db_session, fixed_clock, "woo-de.de")
+    walks_before = metrics.CHECKOUT_WALKS_TOTAL.labels("reached_payment_step")._value.get()
     out = await _scan(scanner, db_session, plan)
 
     assert out.status == ScanStatus.REACHED_PAYMENT_STEP and out.coverage == Coverage.PAYMENT_STEP
+    # NFR-C-02: every finished walk is counted and timed for the cost-per-scan metric
+    assert metrics.CHECKOUT_WALKS_TOTAL.labels("reached_payment_step")._value.get() == (
+        walks_before + 1
+    )
+    assert metrics.CHECKOUT_WALK_SECONDS._sum.get() > 0
     assert out.stop is None and out.walk is not None and out.walk.adapter == "woocommerce"
     providers = {p.target_id for p in out.providers}
     assert "stripe" in providers, providers

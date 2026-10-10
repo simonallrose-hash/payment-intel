@@ -49,6 +49,17 @@ def test_payment_values_loader_rejects_luhn_valid_in_invalid_list(tmp_path: Path
         _load(p)
 
 
+def test_guest_email_is_per_run_and_account_email_is_per_host() -> None:
+    """FR-CW-05: guest address carries the scan run id; AS-25 account address is stable."""
+    prov = IdentityProvider(company_domain="payintel.example", company_phone="+44 20 7946 0000")
+    ident = prov.for_country("DE", email_token="11111111-2222-3333-4444-555555555555")
+    assert ident.email == "checkout-probe+11111111-2222-3333-4444-555555555555@payintel.example"
+    assert ident.account_email == ident.email
+    with_account = prov.for_country("DE", email_token="run-1", account_token="h42")
+    assert with_account.email == "checkout-probe+run-1@payintel.example"
+    assert with_account.account_email == "checkout-probe+h42@payintel.example"
+
+
 def test_identities_are_synthetic_and_cover_target_countries() -> None:
     sets = load_identity_sets()
     assert {"DE", "GB", "US", "FR", "NL", "ES", "IT", "PL", "PT", "SE", "DK"} <= set(sets)

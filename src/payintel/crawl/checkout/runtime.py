@@ -114,10 +114,11 @@ def build_checkout_context(
         resolve or (system_resolve if allow_private else unbound_resolve(settings)),
         allow_private=allow_private,
     )
+    limiter = limiter or MemoryRateLimiter()
     fetcher = Fetcher(
         user_agent=settings.identity.user_agent,
         guard=guard,
-        limiter=limiter or MemoryRateLimiter(),
+        limiter=limiter,
         connect_timeout=settings.light.connect_timeout_seconds,
         read_timeout=settings.light.read_timeout_seconds,
         max_bytes=settings.light.max_page_bytes,
@@ -148,6 +149,7 @@ def build_checkout_context(
         fetcher=fetcher,
         buffer=ObservationBuffer(ch_client),
         writer=ArtifactWriter(store, settings.s3.bucket_artifacts),
+        limiter=limiter,
         walker=walker,
         identities=IdentityProvider(
             company_domain=settings.identity.company_domain,

@@ -959,7 +959,7 @@ class _Run:
         password = await self._first_visible(self.adapter.login_fields.get("password", ()))
         if email is None or password is None:
             raise self._stop(WalkStep.CHECKOUT, "login_failed", "login form fields not found")
-        if cred.email != self.gp.identity.email:
+        if cred.email != self.gp.identity.account_email:
             raise self._stop(
                 WalkStep.CHECKOUT, "login_failed", "stored account e-mail is not the probe address"
             )
@@ -1017,7 +1017,7 @@ class _Run:
             await self._fill_address()
             email = await self._first_visible(self.adapter.fields.get(BuyerField.EMAIL, ()))
             if email is not None:
-                await self.gp.fill_credential(email, "email", self.gp.identity.email)
+                await self.gp.fill_credential(email, "email", self.gp.identity.account_email)
             await self.gp.fill_credential(pw_field, "password", password)
             confirm = await self._first_visible(self.adapter.register_fields.get("confirm", ()))
             if confirm is not None:
@@ -1038,12 +1038,12 @@ class _Run:
             text = await self.gp.body_text()
             if cap := has_captcha_widget(html):
                 self.registration = RegistrationEvent(
-                    self.gp.identity.email, password, StoreAccountStatus.FAILED, "captcha"
+                    self.gp.identity.account_email, password, StoreAccountStatus.FAILED, "captcha"
                 )
                 raise self._stop(WalkStep.REGISTRATION, "registration_captcha", f"widget: {cap}")
             if m := self._text_has(text, "email_verification"):
                 self.registration = RegistrationEvent(
-                    self.gp.identity.email,
+                    self.gp.identity.account_email,
                     password,
                     StoreAccountStatus.PENDING_VERIFICATION,
                     "email_verification",
@@ -1051,14 +1051,17 @@ class _Run:
                 raise self._stop(WalkStep.REGISTRATION, "email_verification_pending", f"'{m}'")
             if m := self._text_has(text, "sms_verification"):
                 self.registration = RegistrationEvent(
-                    self.gp.identity.email, password, StoreAccountStatus.FAILED, "sms"
+                    self.gp.identity.account_email, password, StoreAccountStatus.FAILED, "sms"
                 )
                 raise self._stop(WalkStep.REGISTRATION, "registration_sms_required", f"'{m}'")
             if await self._first_visible(self.adapter.register_form) is not None and (
                 await self._first_visible(("input[type=password]",)) is not None
             ):
                 self.registration = RegistrationEvent(
-                    self.gp.identity.email, password, StoreAccountStatus.FAILED, "form_rejected"
+                    self.gp.identity.account_email,
+                    password,
+                    StoreAccountStatus.FAILED,
+                    "form_rejected",
                 )
                 raise self._stop(
                     WalkStep.REGISTRATION,
@@ -1066,10 +1069,10 @@ class _Run:
                     "registration form still shown after submit",
                 )
             self.registration = RegistrationEvent(
-                self.gp.identity.email, password, StoreAccountStatus.ACTIVE, "registered"
+                self.gp.identity.account_email, password, StoreAccountStatus.ACTIVE, "registered"
             )
             self.used_account = True
-            self.journal.add("registered", email=self.gp.identity.email)
+            self.journal.add("registered", email=self.gp.identity.account_email)
             if not await self._address_fields_visible() and not await self._payment_visible():
                 await self._goto(self.checkout_url or self.gp.url, WalkStep.CHECKOUT)
                 await self._resolve_after_login()

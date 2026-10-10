@@ -61,3 +61,34 @@ def test_account_roundtrip(db_session: Session, fixed_clock: FixedClock) -> None
     other = SecretBox.from_base64(base64.b64encode(os.urandom(32)).decode())
     with pytest.raises(InvalidTag):
         AccountManager(other, company_domain="x").get(db_session, host.id)
+
+
+def test_delete_wipes_the_ciphertext_and_keeps_a_deleted_row(
+    db_session: Session, fixed_clock: FixedClock
+) -> None:
+    """FR-CW-12: opt-out / complaint forgets the account; the walker never reuses it."""
+    ingest(
+        db_session,
+        [SourceRecord("gone-shop.de", rank=1)],
+        source=DomainSourceKind.MANUAL,
+        origin="t",
+        clock=fixed_clock,
+    )
+    host = db_session.execute(select(Host).where(Host.hostname == "gone-shop.de")).scalar_one()
+    box = SecretBox.from_base64(base64.b64encode(os.urandom(32)).decode())
+    mgr = AccountManager(box, company_domain="payintel.example")
+    now = datetime(2026, 10, 8, tzinfo=UTC)
+    mgr.create(
+        db_session,
+        host_id=host.id,
+        scan_run_id=None,
+        status=StoreAccountStatus.ACTIVE,
+        password=mgr.new_password(),
+        now=now,
+    )
+    assert AccountManager.delete(db_session, host.id, actor="compliance", now=now) is True
+    assert mgr.get(db_session, host.id) is None
+    row = db_session.scalar(select(StoreAccount).where(StoreAccount.host_id == host.id))
+    assert row is not None and row.status == StoreAccountStatus.DELETED
+    assert row.password_encrypted == "" and row.email.startswith("checkout-probe+h")
+    assert AccountManager.delete(db_session, host.id, actor="compliance", now=now) is False

@@ -19,7 +19,7 @@ from payintel.core.ch import make_ch_client
 from payintel.core.clock import SYSTEM_CLOCK
 from payintel.core.db import get_engine
 from payintel.core.logging import get_logger
-from payintel.core.s3 import ObjectStore, make_s3_client
+from payintel.core.s3 import make_object_store
 from payintel.core.settings import Settings
 from payintel.entitlements.quotas import RateLimiter, RedisCounterStore
 
@@ -36,7 +36,7 @@ def build_state(settings: Settings) -> AppState:
     except Exception as exc:
         log.warning("clickhouse unavailable; evidence and dashboards degrade", error=str(exc))
         ch = None
-    store = ObjectStore(make_s3_client(settings.s3))
+    store = make_object_store(settings.s3)
     store.ensure_bucket(settings.s3.bucket_exports)
     store.ensure_bucket(settings.s3.bucket_artifacts)
     redis = Redis.from_url(settings.redis.url)

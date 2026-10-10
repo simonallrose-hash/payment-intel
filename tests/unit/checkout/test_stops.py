@@ -35,6 +35,23 @@ def test_normalise_keeps_valid_and_coerces_unknown_codes() -> None:
     assert TAX.is_valid(s.step.value, s.reason, s.detail)
 
 
+def test_normalise_strips_query_and_fragment_from_page_url() -> None:
+    """FR-CW-13: the journal keeps the URL without parameters (no cart ids, no tokens)."""
+    s = normalise_stop(
+        Stop(
+            WalkStep.CHECKOUT,
+            "captcha",
+            "x",
+            page_url="https://shop.test/checkout/?token=abc123&cart=9#step-2",
+        ),
+        TAX,
+        detail_max_chars=500,
+    )
+    assert s.page_url == "https://shop.test/checkout/"
+    s = normalise_stop(Stop(WalkStep.CART, "other", "y", page_url=""), TAX, detail_max_chars=500)
+    assert s.page_url == ""
+
+
 def test_stop_row_matches_clickhouse_columns() -> None:
     ctx = StopContext(
         scan_run_id=uuid.uuid4(),

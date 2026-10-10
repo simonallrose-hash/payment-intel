@@ -97,6 +97,7 @@ def test_cli_stage3_commands(
         result = runner.invoke(app, ["exports", "run", "--once"])
         assert result.exit_code == 0, (result.output, result.exception)
         assert "scheduled=0 built=0 failed=0" in result.output
+        assert "optout verified=0 applied=0" in result.output  # FR-OO-02 hourly check
 
         out = tmp_path / "reports"
         result = runner.invoke(app, ["report", "build", "--country", "de", "--out", str(out)])

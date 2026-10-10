@@ -19,6 +19,8 @@ from datetime import datetime
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from payintel.core import audit
+from payintel.core.clock import FixedClock
 from payintel.core.crypto import SecretBox
 from payintel.core.models.base import StoreAccountStatus
 from payintel.core.models.scans import StoreAccount
@@ -88,6 +90,29 @@ class AccountManager:
             acc.last_used_at = now
         session.flush()
         return Credentials(email, password, acc.id, status)
+
+    @staticmethod
+    def delete(session: Session, host_id: int, *, actor: str, now: datetime) -> bool:
+        """Forget the system account of a host (opt-out, complaint, FR-CW-12): the ciphertext
+        is wiped, the row stays as `deleted` so the walker never registers again by accident.
+        The shop-side account is closed by the operator (runbook §17)."""
+        acc = session.scalar(select(StoreAccount).where(StoreAccount.host_id == host_id))
+        if acc is None or acc.status == StoreAccountStatus.DELETED:
+            return False
+        acc.status = StoreAccountStatus.DELETED
+        acc.password_encrypted = ""
+        acc.last_used_at = now
+        session.flush()
+        audit.record(
+            session,
+            actor=actor,
+            action="store_account.delete",
+            object_type="host",
+            object_id=str(host_id),
+            after={"email": acc.email, "status": acc.status.value},
+            clock=FixedClock(at=now),
+        )
+        return True
 
     @staticmethod
     def touch(

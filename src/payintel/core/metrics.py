@@ -47,6 +47,26 @@ ALERT_DELIVERIES_TOTAL = Counter(
 )
 
 
+CHECKOUT_WALKS_TOTAL = Counter(
+    "payintel_checkout_walks_total",
+    "Finished checkout walks by scan status (NFR-C-02: cost per heavy scan = "
+    "server cost / rate(walks)).",
+    ["status"],
+)
+
+CHECKOUT_WALK_SECONDS = Histogram(
+    "payintel_checkout_walk_seconds",
+    "Wall time of one checkout walk, browser phase only (NFR-P-02, NFR-C-02).",
+    buckets=(1, 2, 3, 5, 8, 13, 20, 30, 45, 60, 90, 120),
+)
+
+LIGHT_SCANS_TOTAL = Counter(
+    "payintel_light_scans_total",
+    "Finished light scans by status (NFR-P-01 throughput, NFR-C-02).",
+    ["status"],
+)
+
+
 def render(registry: CollectorRegistry = REGISTRY) -> tuple[bytes, str]:
     """Exposition body and its content type for the API endpoint."""
     return generate_latest(registry), CONTENT_TYPE_LATEST

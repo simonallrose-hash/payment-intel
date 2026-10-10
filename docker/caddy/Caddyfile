@@ -1,8 +1,13 @@
-# Reverse proxy with automatic TLS (NFR-S-01). SITE_ADDRESS is ":80" in dev
-# and the public hostname in production (Caddy obtains ACME certificates).
+# Reverse proxy with automatic TLS (NFR-S-01). SITE_ADDRESS is "localhost" in dev
+# (internal CA, HTTPS only) and the public hostname in production (ACME).
 {$SITE_ADDRESS}
 
 encode zstd gzip
+
+# NFR-S-01: TLS 1.2 is the floor, TLS 1.3 preferred; older protocols are never offered.
+tls {
+    protocols tls1.2 tls1.3
+}
 
 header {
     Strict-Transport-Security "max-age=31536000; includeSubDomains"

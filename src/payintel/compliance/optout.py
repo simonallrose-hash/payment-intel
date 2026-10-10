@@ -25,7 +25,8 @@ from payintel.core.clock import Clock
 from payintel.core.errors import NotFoundError, ValidationError
 from payintel.core.models.audit import OptoutRequest
 from payintel.core.models.base import DomainStatus, OptoutMethod
-from payintel.core.models.domains import Domain
+from payintel.core.models.domains import Domain, Host
+from payintel.crawl.checkout.accounts import AccountManager
 from payintel.scheduler.planner import remove_optout_plans
 
 TXT_PREFIX = "payintel-optout="
@@ -143,6 +144,12 @@ def apply_verified(session: Session, *, clock: Clock) -> int:
             domain.status = DomainStatus.OPTOUT
             domain.status_reason = f"optout request {req.id}"
             domain.status_changed_at = now
+            # FR-CW-12: the system account on that shop is forgotten (ciphertext wiped);
+            # the operator closes it on the shop side (runbook §17)
+            for host_id in session.execute(
+                select(Host.id).where(Host.domain_id == domain.id)
+            ).scalars():
+                AccountManager.delete(session, int(host_id), actor="system:optout", now=now)
         req.applied_at = now
     session.flush()
     if pending:
@@ -157,6 +164,23 @@ def apply_verified(session: Session, *, clock: Clock) -> int:
             clock=clock,
         )
     return len(pending)
+
+
+def verify_pending(
+    session: Session, *, dns_txt: DnsTxtLookup, http_get: HttpGet, clock: Clock
+) -> tuple[int, int]:
+    """One verification pass: check every pending proof, then apply what got verified.
+
+    Run hourly by `payintel exports run` and on demand by `payintel optout verify-pending`,
+    so a published proof is honoured well inside the 72-hour bound (FR-OO-02).
+    Returns `(verified, applied)`.
+    """
+    verified = 0
+    for req in pending_requests(session):
+        if verify(session, req, dns_txt=dns_txt, http_get=http_get, clock=clock):
+            verified += 1
+    applied = apply_verified(session, clock=clock)
+    return verified, applied
 
 
 def pending_requests(session: Session) -> list[OptoutRequest]:

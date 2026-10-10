@@ -21,6 +21,7 @@ from urllib.parse import urljoin, urlsplit
 
 from sqlalchemy.orm import Session, sessionmaker
 
+from payintel.core import metrics
 from payintel.core.clock import SYSTEM_CLOCK, Clock
 from payintel.core.logging import get_logger, log_context
 from payintel.core.models.base import (
@@ -477,6 +478,7 @@ class LightScanner:
                 )
             )
             session.flush()
+            metrics.LIGHT_SCANS_TOTAL.labels(o.status.value).inc()
         for meta in o.script_meta:
             record_script(session, host_id=host.id, meta=meta, now=now)
         self._write_artifacts(o)

@@ -13,6 +13,7 @@ from typing import Annotated
 import typer
 from alembic import command as alembic_command
 from alembic.config import Config as AlembicConfig
+from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
 from payintel.api.app import create_app
@@ -22,10 +23,18 @@ from payintel.core.clock import SYSTEM_CLOCK
 from payintel.core.db import get_engine, session_scope
 from payintel.core.flags import FlagService
 from payintel.core.logging import configure_logging, get_logger
-from payintel.core.models.base import ConfidenceLevel, DomainSourceKind, Role, ScanType
+from payintel.core.models.base import (
+    ConfidenceLevel,
+    DomainSourceKind,
+    Role,
+    ScanType,
+    StoreAccountStatus,
+)
+from payintel.core.models.domains import Host
+from payintel.core.models.scans import StoreAccount
 from payintel.core.reference_loader import load_reference, sync_reference
-from payintel.core.s3 import ObjectStore, make_s3_client
-from payintel.core.settings import get_settings
+from payintel.core.s3 import ObjectStore, make_object_store
+from payintel.core.settings import Settings, get_settings
 from payintel.crawl.light.runtime import build_context
 from payintel.crawl.light.worker import LightScanner, run_batch, run_pipeline
 from payintel.detect import admin as rule_admin
@@ -57,6 +66,7 @@ dsar_app = typer.Typer(no_args_is_help=True, help="GDPR data subject requests (F
 users_app = typer.Typer(no_args_is_help=True, help="Portal and staff users")
 keys_app = typer.Typer(no_args_is_help=True, help="API keys (FR-API-02)")
 orgs_app = typer.Typer(no_args_is_help=True, help="Organisations (FR-KYC-01)")
+accounts_app = typer.Typer(no_args_is_help=True, help="System shop accounts (FR-CW-12, AS-25)")
 abuse_app = typer.Typer(no_args_is_help=True, help="Anti-abuse detectors and canaries (FR-AB-*)")
 crawler_app = typer.Typer(no_args_is_help=True, help="Crawler limits and complaints (FR-OO-04)")
 stats_app = typer.Typer(no_args_is_help=True, help="Precomputed statistics (NFR-P-05)")
@@ -72,6 +82,7 @@ app.add_typer(dsar_app, name="dsar")
 app.add_typer(users_app, name="users")
 app.add_typer(keys_app, name="keys")
 app.add_typer(orgs_app, name="orgs")
+app.add_typer(accounts_app, name="accounts")
 app.add_typer(gold_app, name="gold")
 app.add_typer(flags_app, name="flags")
 app.add_typer(audit_app, name="audit")
@@ -162,7 +173,7 @@ def redetect(
 
     settings = get_settings()
     reference = load_reference()
-    store = ObjectStore(make_s3_client(settings.s3))
+    store = make_object_store(settings.s3)
     reader = rd.ArtifactReader(store, settings.s3.bucket_artifacts)
     results: list[rd.RedetectResult] = []
     now = SYSTEM_CLOCK.now()
@@ -265,6 +276,15 @@ def eval_cmd(
         result = eval_mod.evaluate(session, ch=ch, min_confidence=ConfidenceLevel(min_confidence))
     for line in eval_mod.summary_lines(result):
         typer.echo(line)
+    checks = eval_mod.targets(result, settings.quality)
+    for check in checks:
+        typer.echo(check.line())
+    if result.gold_hosts < settings.quality.gold_set_target_size:
+        typer.echo(
+            f"WARN gold set has {result.gold_hosts} labelled hosts, target "
+            f"{settings.quality.gold_set_target_size} (FR-QA-01): NFR-Q figures are not "
+            "representative yet"
+        )
     verdict = eval_mod.gate(result, min_psp_precision=threshold)
     typer.echo(f"gate: {'PASS' if verdict.passed else 'FAIL'} - {verdict.reason}")
     if report is not None:
@@ -274,6 +294,8 @@ def eval_cmd(
             "reason": verdict.reason,
             "threshold": threshold,
         }
+        payload["targets"] = [c.as_dict() for c in checks]
+        payload["gold_set_target_size"] = settings.quality.gold_set_target_size
         report.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
         typer.echo(f"report written to {report}")
     if not verdict.passed:
@@ -315,6 +337,54 @@ def audit_verify() -> None:
 
 
 # --- stage 1: discovery -------------------------------------------------------
+
+
+@discovery_app.command("fetch")
+def discovery_fetch(
+    source: Annotated[str, typer.Option(help="tranco | ct | commoncrawl")],
+    out: Annotated[Path, typer.Option(help="Directory for the downloaded file")] = Path(
+        "var/sources"
+    ),
+    url: Annotated[
+        str | None,
+        typer.Option(help="Override: Tranco zip URL or Common Crawl vertices.txt.gz URL"),
+    ] = None,
+    log_url: Annotated[
+        str | None, typer.Option(help="CT log base URL, e.g. https://oak.ct.letsencrypt.org/2026h1")
+    ] = None,
+    max_entries: Annotated[int, typer.Option(help="CT: leaves per run")] = 50_000,
+) -> None:
+    """FR-DS-01: download a source with the project's own clients, then `discovery import`.
+
+    Tranco: today's top-1M CSV. CT: RFC 6962 `get-sth`/`get-entries` on one log with a
+    cursor file per log (certstream-shaped JSONL). Common Crawl: the host-graph
+    `vertices.txt.gz` of the crawl named by `--url` (see the index page in the runbook)."""
+    from payintel.discovery import fetch as fetch_mod
+
+    with fetch_mod.make_client() as client:
+        if source == "tranco":
+            path = fetch_mod.fetch_tranco(client, out, url=url or fetch_mod.TRANCO_URL)
+            typer.echo(f"tranco: {path} ({path.stat().st_size} bytes)")
+        elif source == "ct":
+            if not log_url:
+                typer.echo("--log-url is required for ct")
+                sys.exit(2)
+            r = fetch_mod.fetch_ct(client, log_url, out, max_entries=max_entries)
+            typer.echo(
+                f"ct: {r.log_url} entries {r.start}..{r.next_index} of {r.tree_size}, "
+                f"{r.certificates} certificates, {r.precerts_skipped} precerts skipped → {r.out}"
+            )
+        elif source == "commoncrawl":
+            if not url:
+                typer.echo(
+                    f"--url is required for commoncrawl (index: {fetch_mod.COMMONCRAWL_INDEX})"
+                )
+                sys.exit(2)
+            path = fetch_mod.fetch_gzip(client, url, out / "commoncrawl-vertices.txt")
+            typer.echo(f"commoncrawl: {path} ({path.stat().st_size} bytes)")
+        else:
+            typer.echo("source must be tranco, ct or commoncrawl")
+            sys.exit(2)
 
 
 @discovery_app.command("import")
@@ -383,6 +453,26 @@ def discovery_update_psl(
     typer.echo(f"psl: {candidate.rule_count} rules written to {PSL_PATH} (commit the change)")
 
 
+@discovery_app.command("psl-check")
+def discovery_psl_check(
+    max_age_days: Annotated[int, typer.Option(help="Fail when the snapshot is older")] = 45,
+) -> None:
+    """FR-DS-04: exit 1 when the repository PSL snapshot is older than `--max-age-days`
+    (the list is refreshed monthly; run from the monthly cron or CI)."""
+    from payintel.discovery.psl import SuffixList
+
+    psl = SuffixList()
+    version = psl.version_date
+    if version is None:
+        typer.echo("psl: snapshot has no VERSION header")
+        sys.exit(1)
+    age = (SYSTEM_CLOCK.now().date() - version).days
+    typer.echo(f"psl: version {version.isoformat()}, {age} days old (limit {max_age_days})")
+    if age > max_age_days:
+        typer.echo("psl: STALE - download the list and run `payintel discovery update-psl`")
+        sys.exit(1)
+
+
 # --- stage 1: scheduler -------------------------------------------------------
 
 
@@ -443,13 +533,21 @@ def worker_light(
             help="LOCAL TEST STANDS ONLY: system resolver and private targets allowed (NFR-S-09)"
         ),
     ] = False,
+    metrics_port: Annotated[
+        int | None, typer.Option(help="Expose Prometheus metrics on 127.0.0.1:<port> (NFR-C-02)")
+    ] = None,
 ) -> None:
     """Lease light tasks and scan them (4.3); observations go to ClickHouse, artefacts to S3."""
     from redis.asyncio import Redis
 
+    from payintel.core import metrics
+
     settings = get_settings()
-    store = ObjectStore(make_s3_client(settings.s3))
+    if metrics_port is not None:
+        metrics.start_exporter(metrics_port)
+    store = make_object_store(settings.s3)
     store.ensure_bucket(settings.s3.bucket_artifacts)
+    _ensure_artifact_retention(store, settings)
     ch = make_ch_client(settings.clickhouse)
     redis = Redis.from_url(settings.redis.url)
     factory = sessionmaker(bind=get_engine(), expire_on_commit=False)
@@ -509,13 +607,84 @@ def quality_dashboard(
             now=SYSTEM_CLOCK.now(),
             days=days,
             light_cycle_days=settings.scan.light_interval_days_ecommerce,
-            checkout_cycle_days=settings.scan.checkout_interval_days,
+            checkout_cycle_days=settings.quality.checkout_freshness_days,
+            watchlist_cycle_days=settings.quality.watchlist_freshness_days,
         )
+    found = dash_mod.breaches(d, settings.quality)
     if as_json:
-        typer.echo(json.dumps(d.as_dict(), ensure_ascii=False, indent=2))
+        payload = d.as_dict()
+        payload["breaches"] = [b.__dict__ for b in found]
+        typer.echo(json.dumps(payload, ensure_ascii=False, indent=2))
     else:
         for line in dash_mod.summary_lines(d):
             typer.echo(line)
+        for b in found:
+            typer.echo(f"WARN {b.code} {b.message}")
+
+
+@quality_app.command("thresholds")
+def quality_thresholds(
+    days: Annotated[int, typer.Option(help="Window in days")] = 7,
+) -> None:
+    """NFR-Q-06…09: write a quality alert for every ТЗ 7.2 threshold the window violates."""
+    from payintel.quality import dashboard as dash_mod
+
+    settings = get_settings()
+    ch = make_ch_client(settings.clickhouse)
+    now = SYSTEM_CLOCK.now()
+    with session_scope(get_engine()) as session:
+        d = dash_mod.dashboard(
+            session,
+            ch,
+            now=now,
+            days=days,
+            light_cycle_days=settings.scan.light_interval_days_ecommerce,
+            checkout_cycle_days=settings.quality.checkout_freshness_days,
+            watchlist_cycle_days=settings.quality.watchlist_freshness_days,
+        )
+        found = dash_mod.breaches(d, settings.quality)
+        created = dash_mod.record_breaches(session, found, now=now, window_days=days)
+        for a in created:
+            typer.echo(f"{a.kind} {a.subject}: {a.message}")
+    typer.echo(f"{len(found)} breach(es), {len(created)} new alert(s)")
+
+
+@quality_app.command("event-sample")
+def quality_event_sample(
+    n: Annotated[int | None, typer.Option(help="Sample size; default settings")] = None,
+    days: Annotated[int, typer.Option(help="Window in days")] = 30,
+    csv_path: Annotated[Path | None, typer.Option("--csv", help="Write CSV here")] = None,
+) -> None:
+    """NFR-Q-09: random unreviewed change events with their evidence pointers for manual
+    review; verdicts go back with `quality event-review`."""
+    from payintel.quality import dashboard as dash_mod
+
+    settings = get_settings()
+    size = settings.quality.event_review_sample_size if n is None else n
+    with session_scope(get_engine()) as session:
+        events = dash_mod.event_sample(session, n=size, days=days, now=SYSTEM_CLOCK.now())
+        text = dash_mod.event_sample_csv(session, events)
+    if csv_path is not None:
+        csv_path.write_text(text, encoding="utf-8")
+        typer.echo(f"{len(events)} events written to {csv_path}")
+    else:
+        typer.echo(text, nl=False)
+
+
+@quality_app.command("event-review")
+def quality_event_review(
+    event_id: Annotated[int, typer.Argument(help="change_event.id")],
+    decision: Annotated[str, typer.Argument(help="accepted | rejected")],
+    actor: Annotated[str, typer.Option(help="Reviewer (recorded on the event)")] = "cli",
+) -> None:
+    """NFR-Q-09: record the analyst's verdict on one sampled change event."""
+    from payintel.quality import dashboard as dash_mod
+
+    with session_scope(get_engine()) as session:
+        e = dash_mod.review_event(
+            session, event_id, decision=decision, actor=actor, now=SYSTEM_CLOCK.now()
+        )
+        typer.echo(f"event {e.id} {e.event_type.value} {e.entity_id}: {decision} by {actor}")
 
 
 @quality_app.command("stops")
@@ -622,18 +791,25 @@ def worker_checkout(
             help="LOCAL TEST STANDS ONLY: system resolver and private targets allowed (NFR-S-09)"
         ),
     ] = False,
+    metrics_port: Annotated[
+        int | None, typer.Option(help="Expose Prometheus metrics on 127.0.0.1:<port> (NFR-C-02)")
+    ] = None,
 ) -> None:
     """Lease checkout tasks and walk them in a real browser (4.4): never past the payment step."""
     from redis.asyncio import Redis
 
+    from payintel.core import metrics
     from payintel.crawl.checkout.runtime import build_browser_pool, build_checkout_context
     from payintel.crawl.checkout.worker import CheckoutScanner
     from payintel.crawl.checkout.worker import run_batch as run_checkout_batch
     from payintel.crawl.checkout.worker import run_pipeline as run_checkout_pipeline
 
     settings = get_settings()
-    store = ObjectStore(make_s3_client(settings.s3))
+    if metrics_port is not None:
+        metrics.start_exporter(metrics_port)
+    store = make_object_store(settings.s3)
     store.ensure_bucket(settings.s3.bucket_artifacts)
+    _ensure_artifact_retention(store, settings)
     ch = make_ch_client(settings.clickhouse)
     redis = Redis.from_url(settings.redis.url)
     factory = sessionmaker(bind=get_engine(), expire_on_commit=False)
@@ -683,6 +859,19 @@ def worker_checkout(
 
 
 # --- stage 3: API, portal, alerts, exports, reports, compliance ------------------
+
+
+RAW_ARTIFACT_PREFIXES = ("light/", "checkout/")
+
+
+def _ensure_artifact_retention(store: ObjectStore, settings: Settings) -> None:
+    """Raw HTML/HAR/screenshots expire after `retention.raw_artifacts_days` (FR-LS-04,
+    FR-CW-08, LR-08): the bucket rule is (re)applied at every worker start."""
+    store.ensure_lifecycle(
+        settings.s3.bucket_artifacts,
+        days=settings.retention.raw_artifacts_days,
+        prefixes=RAW_ARTIFACT_PREFIXES,
+    )
 
 
 def _cli_principal(actor: str) -> Principal:
@@ -854,7 +1043,7 @@ def abuse_usage_report(
         if year and quarter
         else usage_mod.Quarter.of(now.date()).previous()
     )
-    store = ObjectStore(make_s3_client(settings.s3))
+    store = make_object_store(settings.s3)
     store.ensure_bucket(settings.s3.bucket_exports)
     with session_scope(get_engine()) as session:
         rows = usage_mod.build_all(
@@ -875,17 +1064,36 @@ def exports_run(
     once: Annotated[bool, typer.Option("--once", help="One pass, then exit")] = False,
     interval: Annotated[float, typer.Option(help="Seconds between passes")] = 60.0,
     limit: Annotated[int, typer.Option(help="Jobs per pass")] = 10,
+    optout_interval: Annotated[
+        float, typer.Option(help="Seconds between opt-out proof checks (FR-OO-02)")
+    ] = 3600.0,
 ) -> None:
-    """Schedule periodic exports and build pending jobs into S3 (FR-EX-03/04/05)."""
+    """Schedule periodic exports and build pending jobs into S3 (FR-EX-03/04/05).
+
+    The same loop verifies pending opt-out proofs every `--optout-interval` seconds
+    (runbook §17), so a published TXT record or well-known file is applied within
+    the hour, not only when an operator runs `payintel optout verify-pending`.
+    """
+    from payintel.compliance import optout, resolvers
     from payintel.exports.worker import run_once
 
     settings = get_settings()
-    store = ObjectStore(make_s3_client(settings.s3))
+    store = make_object_store(settings.s3)
     store.ensure_bucket(settings.s3.bucket_exports)
-    factory = sessionmaker(bind=get_engine(), expire_on_commit=False)
+    engine = get_engine()
+    factory = sessionmaker(bind=engine, expire_on_commit=False)
+    dns_txt = resolvers.dns_txt_lookup(settings)
+    next_optout_check = time.monotonic()
     while True:
         r = run_once(factory, settings=settings, clock=SYSTEM_CLOCK, store=store, limit=limit)
         typer.echo(f"scheduled={r.scheduled} built={r.built} failed={len(r.failed)}")
+        if time.monotonic() >= next_optout_check:
+            next_optout_check = time.monotonic() + optout_interval
+            with session_scope(engine) as session:
+                verified, applied = optout.verify_pending(
+                    session, dns_txt=dns_txt, http_get=resolvers.http_get, clock=SYSTEM_CLOCK
+                )
+            typer.echo(f"optout verified={verified} applied={applied}")
         if once:
             return
         time.sleep(interval)
@@ -948,15 +1156,10 @@ def optout_verify_pending() -> None:
 
     settings = get_settings()
     dns_txt = resolvers.dns_txt_lookup(settings)
-    verified = 0
     with session_scope(get_engine()) as session:
-        for req in optout.pending_requests(session):
-            if optout.verify(
-                session, req, dns_txt=dns_txt, http_get=resolvers.http_get, clock=SYSTEM_CLOCK
-            ):
-                verified += 1
-                typer.echo(f"verified: {req.domain}")
-        applied = optout.apply_verified(session, clock=SYSTEM_CLOCK)
+        verified, applied = optout.verify_pending(
+            session, dns_txt=dns_txt, http_get=resolvers.http_get, clock=SYSTEM_CLOCK
+        )
     typer.echo(f"verified {verified}, applied {applied}")
 
 
@@ -968,6 +1171,43 @@ def optout_apply() -> None:
     with session_scope(get_engine()) as session:
         applied = optout.apply_verified(session, clock=SYSTEM_CLOCK)
     typer.echo(f"applied {applied}")
+
+
+@accounts_app.command("delete")
+def accounts_delete(
+    hostname: Annotated[str, typer.Argument(help="Host whose system account to forget")],
+    actor: Annotated[str, typer.Option(help="Audit actor")] = "cli",
+) -> None:
+    """FR-CW-12: wipe the stored password of the shop account (opt-out, complaint, closure).
+
+    Prints the account e-mail so the operator can close the account on the shop side."""
+    from payintel.crawl.checkout.accounts import AccountManager
+
+    with session_scope(get_engine()) as session:
+        host = session.execute(
+            select(Host).where(Host.hostname == hostname.strip().lower())
+        ).scalar_one_or_none()
+        if host is None:
+            typer.echo(f"unknown host {hostname}")
+            sys.exit(2)
+        acc = session.scalar(select(StoreAccount).where(StoreAccount.host_id == host.id))
+        if not AccountManager.delete(session, host.id, actor=actor, now=SYSTEM_CLOCK.now()):
+            typer.echo(f"{hostname}: no active system account")
+            return
+        typer.echo(f"{hostname}: account {acc.email if acc else ''} marked deleted, password wiped")
+
+
+@accounts_app.command("list")
+def accounts_list(
+    status: Annotated[str | None, typer.Option(help="Filter by status")] = None,
+) -> None:
+    """System shop accounts with status and last use (never the password)."""
+    with session_scope(get_engine()) as session:
+        q = select(StoreAccount, Host.hostname).join(Host, Host.id == StoreAccount.host_id)
+        if status:
+            q = q.where(StoreAccount.status == StoreAccountStatus(status))
+        for acc, hostname in session.execute(q.order_by(Host.hostname)).all():
+            typer.echo(f"{hostname}\t{acc.email}\t{acc.status.value}\t{acc.last_used_at}")
 
 
 @dsar_app.command("list")
@@ -1217,6 +1457,36 @@ def users_create(
             clock=SYSTEM_CLOCK,
         )
         typer.echo(f"{user.id} {user.email} {role}")
+
+
+@users_app.command("list")
+def users_list() -> None:
+    """Access review (LR-18): every user with role, organisation, last login and state."""
+    from payintel.compliance import users
+
+    with session_scope(get_engine()) as session:
+        for user, membership in users.all_users(session):
+            state = "disabled" if users.is_disabled(user) else "active"
+            last = user.last_login_at.date().isoformat() if user.last_login_at else "-"
+            typer.echo(
+                f"{user.email}\t{membership.role.value}\t{membership.org_id or '-'}\t"
+                f"last_login={last}\t{state}"
+            )
+
+
+@users_app.command("disable")
+def users_disable(
+    email: Annotated[str, typer.Option(help="E-mail of the user to disable")],
+    actor: Annotated[str, typer.Option(help="Audit actor")] = "cli",
+) -> None:
+    """Lock the account permanently and revoke its sessions (LR-18 access review)."""
+    from payintel.compliance import users
+
+    with session_scope(get_engine()) as session:
+        user = users.disable_user(
+            session, email=email, actor=_cli_principal(actor).actor, clock=SYSTEM_CLOCK
+        )
+        typer.echo(f"{user.id} {user.email} disabled")
 
 
 @keys_app.command("issue")

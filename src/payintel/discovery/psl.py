@@ -8,7 +8,9 @@ refuses a file that does not look like the PSL.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
+from datetime import date
 from functools import lru_cache
 from pathlib import Path
 
@@ -35,12 +37,20 @@ class Split:
         return self.hostname.rsplit(".", 1)[-1]
 
 
+_VERSION = re.compile(r"^// VERSION: (\d{4})-(\d{2})-(\d{2})", re.M)
+
+
 class SuffixList:
     def __init__(self, path: Path = PSL_PATH) -> None:
         text = path.read_text(encoding="utf-8")
         rules = [ln for ln in text.splitlines() if ln and not ln.startswith("//")]
         if len(rules) < _MIN_RULES or "// ===BEGIN ICANN DOMAINS===" not in text:
             raise ReferenceError_(f"{path} does not look like the Public Suffix List")
+        m = _VERSION.search(text)
+        # publication date from the `// VERSION:` header (FR-DS-04 monthly refresh check)
+        self.version_date: date | None = (
+            date(int(m.group(1)), int(m.group(2)), int(m.group(3))) if m else None
+        )
         # Private-section rules (github.io, …) are kept: a shop on `brand.myshopify.com`
         # is a separate registrable name and must not collapse into `myshopify.com`.
         self._psl = PublicSuffixList(source=text.splitlines(keepends=True), accept_unknown=False)
