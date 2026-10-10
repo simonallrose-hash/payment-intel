@@ -35,4 +35,5 @@
 - [ADR-0031](0031-trace-rerun.md) — Повторный проход с трассировкой Playwright из админки (FR-QA-06)
 - [ADR-0032](0032-hosted-checkouts.md) — Хостед-чекауты провайдеров: распознаём и атрибутируем, но не проходим; Shopify — не хостед-чекаут
 - [ADR-0033](0033-market-share-snapshot.md) — Доля рынка (`/v1/stats/market-share`) из предрасчитанного снимка `market_share_cell` (`payintel stats refresh`), NFR-P-05
+- [ADR-0035](0035-confidence-two-signals.md) — Что считается «двумя независимыми сигналами» для `high` (FR-DT-04)
 - [ADR-0034](0034-load-stand.md) — Нагрузочный стенд NFR-P: синтетический миллион магазинов, собственный нагрузчик, что исправлено по результатам (AC-12)

@@ -68,7 +68,7 @@ API, ни экспортом.
 
 | Метод и путь | Scope | Назначение |
 |---|---|---|
-| `GET /v1/stores` | stores:read | Поиск: `country`, `platform`, `provider`, `without_provider`, `provider_role`, `payment_method`, `providers_min/max`, `min_confidence`, `first_seen_from/to`, `last_seen_from/to`, `changed_from/to`, `domain_prefix`, `sort=domain|traffic_rank|last_seen`, `cursor`, `limit≤1000` (FR-API-03/05) |
+| `GET /v1/stores` | stores:read | Поиск: `country`, `platform`, `provider`, `without_provider`, `provider_role`, `payment_method`, `providers_min/max`, `min_confidence`, `first_seen_from/to`, `last_seen_from/to`, `changed_from/to`, `domain_prefix`, `sort=domain|traffic_rank|updated_at`, `cursor`, `limit≤1000` (FR-API-03/05) |
 | `GET /v1/stores/{domain}` | stores:read | Карточка магазина по профилю (FR-API-04) |
 | `GET /v1/stores/{domain}/history` | stores:read | История изменений магазина (FR-HI-05) |
 | `GET /v1/changes` | changes:read | Лента изменений: `since`, `until`, `event_type`, `country`, `platform`, курсор |
@@ -98,7 +98,9 @@ API, ни экспортом.
 - Статусы: `awaiting_approval → pending → building → done | failed`;
   `download_url` — подписанная ссылка на 72 ч, повторный `GET` выдаёт новую.
 - Содержимое соответствует профилю полей; строки упорядочены водяным знаком;
-  3–10 канареечных записей; метаданные (`payintel.export_id`,
+  3–10 канареечных записей в `full_snapshot` и `increment` (в
+  `market_aggregates` доменов нет, поэтому канареек нет — только порядок
+  строк и `_meta`, ADR-0018); метаданные (`payintel.export_id`,
   `payintel.watermark`, `payintel.org_id`, `payintel.methodology`) — в
   Parquet key-value metadata, в CSV — первая строка-комментарий `# …`
   (читайте с `comment="#"`), в агрегатах — поле `_meta`.

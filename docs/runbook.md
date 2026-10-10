@@ -1,4 +1,4 @@
-# Runbook (этапы 0–3)
+# Runbook
 
 Эксплуатационные процедуры для всего, что существует: хранилища, discovery,
 сканеры, API/портал, алерты, экспорты, отчёты, compliance.
@@ -17,6 +17,21 @@
 остальных). Секреты берутся из `.env`, файл не хранится в репозитории
 (NFR-S-06); контейнеры приложения запускаются non-root, read-only FS,
 `cap_drop: ALL`.
+
+Сегментация (NFR-S-08). В compose четыре сети: `edge` (только Caddy),
+`app` (api, notifier, exporter, audit-verify, Postgres, Redis), `crawl`
+(Unbound, `worker-light`, `worker-checkout`) и `data` (ClickHouse, MinIO).
+Сервис попадает только в те сети, к которым обращается: воркеры не видят
+Redis/Postgres иначе как через `app`, Caddy не видит ничего, кроме `api`.
+Между серверами трафик Postgres (5432), Redis (6379), ClickHouse (8123) и
+MinIO (9000) идёт только по приватной сети (Hetzner vSwitch или WireGuard);
+на публичных интерфейсах файрвол пропускает только 22 (с allow-list IP
+администраторов), 80 и 443 на `app-1`. Браузеры Playwright работают в
+контейнере `worker-checkout` на `crawl-1`: это не отдельный изолированный
+сегмент, как просит NFR-S-08, поэтому компенсирующие меры обязательны —
+egress-фильтр на каждый переход (NFR-S-09, ADR-0010), контейнер без
+capabilities и без доступа к `data`-сети напрямую, кроме ClickHouse/MinIO,
+отдельный `.env` на `crawl-1` без ключей шифрования портала.
 
 ## 2. Миграции (NFR-M-04)
 
@@ -70,11 +85,37 @@ uv run payintel eval --report eval-report.json        # exit 1 при precision 
 `uv run payintel audit verify` (exit 1 при разрыве цепочки). При разрыве:
 зафиксировать `first_broken_id`, снять дамп, разбираться как с инцидентом.
 
-## 7. Резервные копии
+Ежедневная проверка: сервис `audit-verify` профиля `app-1` раз в сутки
+выполняет `payintel audit verify`; при разрыве пишет в stdout строку
+`AUDIT CHAIN BROKEN`. Правило алерта (Loki/Promtail или `docker logs`
+через cron): любая строка `AUDIT CHAIN BROKEN` → страница дежурному и
+заявка на инцидент. Ручная проверка после восстановления из бэкапа
+обязательна (п. 7).
 
-Postgres: `pg_dump -Fc` ежедневно, хранить 30 дней. ClickHouse: `BACKUP DATABASE
-payintel TO S3(...)` еженедельно. MinIO: версионирование бакетов. Проверка
-восстановления — раз в квартал на одноразовой БД.
+## 7. Резервные копии (NFR-R-02…R-04, AC-13)
+
+Цели: RPO ≤ 24 ч для всех данных, RPO 0 для `audit_log` и договоров,
+RTO ≤ 8 ч (процедура — п. 18). Хранить 30 дней, копии — в другом ДЦ и у
+другого провайдера.
+
+| Что | Как | Когда | Куда |
+| --- | --- | --- | --- |
+| Postgres (все таблицы) | `pg_dump -Fc payintel` | ежедневно 02:00 UTC | локально 1 день + Storage Box (другой ДЦ, `rclone`/`borg`) + S3-бакет другого провайдера |
+| Postgres WAL | `archive_command` → `wal-g wal-push` (или `pgBackRest`) | непрерывно | тот же Storage Box; даёт RPO 0 для `audit_log` и `contract` |
+| ClickHouse `payintel` | `BACKUP DATABASE payintel TO S3('…/ch/<дата>')` (инкремент от воскресного полного: `SETTINGS base_backup = …`) | ежедневно 03:00 UTC | бакет другого провайдера |
+| MinIO: артефакты | версионирование бакета + `mc mirror --watch` | непрерывно | второй MinIO/S3 у другого провайдера |
+| MinIO: экспорты, KYC, договоры, отчёты | `mc mirror` | ежедневно | то же; договоры и KYC-документы — в зашифрованном `age`-архиве |
+| `.env`, ключи `age`, TOTP-семя админов | вручную | при каждой смене | password-менеджер компании + бумажный конверт (п. 18) |
+
+Шифрование: дампы и архивы шифруются `age -r <публичный ключ>` до
+отправки; бакеты бэкапов — с SSE (`PAYINTEL_S3__SERVER_SIDE_ENCRYPTION=AES256`
+для собственного MinIO, SSE-KMS у провайдера). Ротация: 30 суточных копий,
+WAL — 30 дней, удаление по lifecycle бакета.
+
+Ежемесячная проверка восстановления (NFR-R-04): в первый понедельник
+месяца на одноразовом сервере выполняется п. 18 целиком, время
+фиксируется в журнале `ops/restore-drills.md` (дата, кто, длительность,
+расхождения); цель — уложиться в 8 ч.
 
 ## 8. Открытые юридические вопросы (ТЗ 2.6, ADR-0001, ADR-0008)
 
@@ -96,7 +137,30 @@ payintel TO S3(...)` еженедельно. MinIO: версионировани
 3. Public Suffix List лежит в репозитории (`reference/public_suffix_list.dat`).
    Обновление: скачать `https://publicsuffix.org/list/public_suffix_list.dat`,
    выполнить `payintel discovery update-psl <файл>` (валидирует ≥5000 правил и
-   секцию ICANN), закоммитить. Частота — раз в квартал.
+   секцию ICANN), закоммитить. Частота — раз в месяц (FR-DS-04); cron на
+   `app-1` первого числа: `payintel discovery psl-check --max-age-days 45`
+   (exit 1 и строка `STALE` по дате `// VERSION:` в файле → задача на
+   обновление).
+5. Автоматическая загрузка источников (FR-DS-01): `payintel discovery fetch
+   --source tranco|commoncrawl|ct [--out var/sources]` скачивает файл в
+   формате, который принимает `import` (Tranco — сегодняшний
+   `top-1m.csv.zip`; Common Crawl — `vertices.txt.gz` выбранного индекса,
+   `--url` со страницы `https://data.commoncrawl.org/projects/hyperlinkgraph/index.html`;
+   CT — RFC 6962 `get-sth`/`get-entries` лога `--log-url`, курсор на лог
+   хранится в `--out`, хосты берутся из SAN сертификатов, precert
+   пропускаются, `--max-entries` на запуск). Затем `payintel discovery
+   import <файл> --source …`. Cron на `app-1`: Tranco — ежедневно, CT —
+   каждый час (инкрементально по курсору), Common Crawl — при выходе
+   нового индекса (раз в 1–2 месяца).
+6. Проверка AC-01 (≥ 1 млн e-commerce доменов из ≥ 2 источников):
+   ```sql
+   SELECT count(*) FROM domain d
+    WHERE d.status = 'ecommerce'
+      AND (SELECT count(DISTINCT s.source) FROM domain_source s
+            WHERE s.domain_id = d.id AND s.source <> 'czds') >= 2;
+   ```
+   Отдельно `GROUP BY country` по `store_profile.country` даёт разбивку по
+   странам для приёмки.
 4. DNS: `payintel discovery resolve --limit N` опрашивает хосты без проверки
    или старше `scan.no_dns_recheck_days` через Unbound
    (`PAYINTEL_DISCOVERY__DNS_NAMESERVERS`, `__DNS_PORT`). Главный хост без
@@ -136,7 +200,9 @@ payintel TO S3(...)` еженедельно. MinIO: версионировани
 - Артефакты: `s3://<bucket>/light/<etld1>/<scan_run_id>/manifest.json`,
   `pages/<тип>.html.gz`, скрипты `js/<aa>/<sha256>.js.gz`. HTML и заголовки
   проходят санитайзер (email/телефоны → маски), cookie/authorization не
-  сохраняются. Lifecycle 90 дней задаётся на бакете (LR-08).
+  сохраняются. Lifecycle `retention.raw_artifacts_days` (90) на префиксы
+  `light/` и `checkout/` воркер ставит на бакет сам при старте
+  (`ObjectStore.ensure_lifecycle`, LR-08); проверка — `mc ilm ls`.
 - Наблюдения: `obs_scan`, `obs_tech`, `obs_provider`, `obs_payment_method`
   батчами (10 000 строк или 5 с); `store_profile`/`store_provider`
   материализуются в той же транзакции, что `scan_run`.
@@ -190,7 +256,7 @@ payintel TO S3(...)` еженедельно. MinIO: версионировани
   (журнал действий, шаги, запросы, находки, стоп), `payment_step.html.gz`,
   `payment_block.html.gz`, `screenshot.jpg` (≤300 КБ), `har.json.gz` (без
   cookie, authorization и тел), при стопе `stop.jpg` + `stop.html.gz`.
-  Lifecycle 90 дней на бакете (LR-08).
+  Lifecycle 90 дней на бакете ставит воркер при старте (п. 11, LR-08).
 - Наблюдения: `obs_scan` (`scan_type=checkout`), `obs_scan_stop`,
   `obs_provider` (с `active_on_checkout`), `obs_payment_method`, `obs_tech`,
   `obs_checkout_host`; состояние: `scan_run`, `store_profile`
@@ -294,7 +360,22 @@ payintel TO S3(...)` еженедельно. MinIO: версионировани
   Гистограмма `payintel_api_request_seconds{route,method,status}` — по
   шаблону маршрута, из неё считаются p95/p99 NFR-P-03..05. Notifier
   экспортирует свои метрики на `payintel alerts dispatch --metrics-port
-  9108` (только 127.0.0.1; Prometheus ходит через сеть compose).
+  9108` (только 127.0.0.1; Prometheus ходит через сеть compose). Воркеры —
+  `payintel worker-light --metrics-port 9109` и `worker-checkout
+  --metrics-port 9110`: `payintel_light_scans_total{status}`,
+  `payintel_checkout_walks_total{status}`, `payintel_checkout_walk_seconds`
+  (NFR-C-02, стоимость прохода — `docs/capacity.md` §8).
+- Загрузка серверов (FR-ADM-03): `/admin/crawler` показывает очереди,
+  пропускную способность и ошибки; CPU/RAM/диск серверов — из
+  `node_exporter` на каждом хосте (пакет `prometheus-node-exporter`,
+  порт 9100 только в приватной сети) в той же Grafana, что и метрики
+  выше. В саму админку хостовые метрики не выводятся: контейнер `api`
+  видит только свой cgroup.
+- Пороги качества (NFR-Q-01…09): `payintel quality thresholds` печатает
+  текущие значения и нарушения, `/admin/quality` показывает их красным;
+  `payintel quality event-sample --days 7 --csv sample.csv` даёт выборку
+  200 событий на ревью, `quality event-review <id> accepted|rejected`
+  фиксирует решение, доля отклонённых считается в дашборде (NFR-Q-09).
 - Анти-абьюз, re-KYC, лимиты по ASN — пп. 19–21.
 
 ## 15. Алерты (FR-AL-*)
@@ -361,16 +442,50 @@ payintel TO S3(...)` еженедельно. MinIO: версионировани
 - Владелец домена подаёт заявку на `/optout`, получает токен и публикует
   `payintel-optout=<token>` как TXT у apex или в
   `https://<домен>/.well-known/payintel-optout.txt`.
-- `payintel optout verify-pending` (в `exporter`, раз в час) проверяет
-  доказательства; при успехе домен сразу исчезает из API/экспортов
+- Проверку доказательств раз в час выполняет цикл `payintel exports run`
+  (`--optout-interval`, по умолчанию 3600 с); вручную — `payintel optout
+  verify-pending`. При успехе домен сразу исчезает из API/экспортов
   (lineage guard) и `apply` снимает планы сканирования (в пределах 72 ч,
   FR-OO-02). Ручное подтверждение (письмо): `/admin/optout`.
+- Аккаунты, созданные сканером в магазине владельца (FR-CW-12): при
+  применении opt-out `AccountManager.delete` переводит `store_account` в
+  `deleted`, стирает шифротекст пароля и пишет `store_account.delete` в
+  аудит; сканер больше не входит в магазин. Удаление самого аккаунта на
+  стороне магазина (кнопка «удалить аккаунт» или письмо в поддержку
+  магазина) — ручной шаг `staff_compliance` в течение 72 ч, фиксируется в
+  `optout_request.note`. Вручную: `payintel accounts list`,
+  `payintel accounts delete <hostname>`.
 - DSAR (`/dsar`) создаёт заявку; `staff_compliance` берёт и закрывает её в
   `/admin/dsar` в срок 30 дней; `payintel dsar list` для контроля.
 
-## 18. Бэкапы и восстановление ключей
+## 18. Восстановление на чистом сервере (NFR-R-03, AC-13) и ключи
 
-К п. 7 добавляются таблицы `portal_session`, `api_key`, `export_job`,
+Норматив — 8 ч от решения о восстановлении до рабочего API. Шаги (время —
+по drill на стенде 1 млн магазинов; на целевых серверах быстрее):
+
+1. (15 мин) Поднять ОС, Docker, приватную сеть; склонировать репозиторий
+   нужного тега; восстановить `.env` и ключи `age` из password-менеджера.
+2. (10 мин) `docker compose --profile app-1 up -d postgres redis`,
+   `--profile data-1 up -d clickhouse minio`.
+3. (1–2 ч на 10 ГБ) Postgres: `pg_restore -d payintel --no-owner <дамп>`,
+   затем WAL до нужной точки (`wal-g backup-fetch` + `recovery_target_time`),
+   если нужен RPO 0 для `audit_log`.
+4. (30 мин) `payintel audit verify` — цепочка должна быть целой до
+   `first_broken_id = NULL`; разрыв = восстанавливать более ранний WAL.
+5. (1–3 ч на 1 ТБ) ClickHouse: `RESTORE DATABASE payintel FROM S3('…')`.
+6. (параллельно) MinIO: `mc mirror` из зеркала обратно; проверить
+   `mc ilm ls` (lifecycle пересоздаст воркер при старте).
+7. (5 мин) `docker compose run --rm migrate` (ничего не должно
+   примениться), `payintel stats refresh`.
+8. (10 мин) `up -d` остальных сервисов; проверки: `/healthz`,
+   `GET /v1/stores/{domain}` тестовым ключом, `/admin/quality`, одна
+   выгрузка `payintel exports run --once`.
+9. Записать drill в `ops/restore-drills.md`.
+
+Ключи: `PAYINTEL_SECRETS__ENCRYPTION_KEY` и `API_KEY_PEPPER` без копии
+невосстановимы — TOTP и ключи клиентов придётся перевыпустить.
+
+В дампы входят (п. 7) таблицы `portal_session`, `api_key`, `export_job`,
 `canary`, `audit_log` (цепочка хэшей проверяется после восстановления:
 `payintel audit verify`). Файлы экспортов и отчётов — в бакете
 `PAYINTEL_S3__BUCKET_EXPORTS`, KYC-документы и контракты — там же под
@@ -442,3 +557,22 @@ payintel TO S3(...)` еженедельно. MinIO: версионировани
   Снятие после разбора — только `staff_admin`: `payintel crawler lift
   AS12345 --note "…"` или кнопка «Lift» (аудит `asn_limit.lift`).
 
+## 22. Пересмотр доступов и ответственный за злоупотребления (LR-18, FR-AB-01)
+
+- Ответственный за злоупотребления (abuse officer) — роль `staff_compliance`
+  с явным назначением в `ops/roles.md` (имя, замена на время отпуска).
+  Он разбирает `abuse_incident`, обращения на `/bot` и жалобы хостеров
+  (п. 21), решает о `suspend`/`restrict` организации и ведёт переписку
+  с клиентом; каждое решение — запись в `audit_log` через админку.
+- Квартальный пересмотр доступов (первая неделя квартала):
+  1. `payintel users list` (роль, организация, последний вход, состояние)
+     → для каждого пользователя подтвердить роль и необходимость;
+     лишних — `payintel users disable --email …` (блокирует вход навсегда
+     и отзывает сессии портала, запись `user.disable` в аудите).
+  2. `/admin/orgs` → для каждой организации: договор не истёк, entitlement
+     соответствует договору, ключи API (`/portal/keys` глазами staff) —
+     неиспользуемые > 90 дней (`api_key.last_used_at`) отзываются.
+  3. Доступ к серверам: список SSH-ключей на `app-1/crawl-1/data-1`
+     сверяется со списком сотрудников; лишние удаляются.
+  4. Результат — запись в `ops/access-reviews.md` (дата, кто проверял,
+     что изменено) и строка `audit_log` `access_review.completed`.
