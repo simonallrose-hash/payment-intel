@@ -9,6 +9,7 @@ from contextlib import contextmanager
 from typing import Any, TextIO
 
 import structlog
+from structlog._config import BoundLoggerLazyProxy  # what get_logger() returns
 
 CONTEXT_KEYS = ("request_id", "scan_run_id", "org_id")
 
@@ -40,8 +41,11 @@ def configure_logging(
 
 
 def get_logger(name: str) -> Any:
-    """Bound logger carrying the component name as `logger`."""
-    return structlog.get_logger().bind(logger=name)
+    """Lazy logger carrying the component name as `logger`.
+
+    A lazy proxy (not `.bind()`) so module-level loggers follow a later
+    `configure_logging` or `structlog.testing.capture_logs`."""
+    return BoundLoggerLazyProxy(None, initial_values={"logger": name})
 
 
 @contextmanager

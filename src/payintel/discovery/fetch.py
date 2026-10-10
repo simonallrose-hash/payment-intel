@@ -11,6 +11,7 @@ certstream-shaped JSONL `sources/ct.py` already parses.
 from __future__ import annotations
 
 import base64
+import contextlib
 import gzip
 import io
 import json
@@ -132,11 +133,9 @@ def domains_from_leaf(leaf_input_b64: str) -> list[str] | None:
     except ValueError:
         return []
     names: list[str] = []
-    try:
+    with contextlib.suppress(x509.ExtensionNotFound):
         san = cert.extensions.get_extension_for_oid(ExtensionOID.SUBJECT_ALTERNATIVE_NAME)
         names.extend(san.value.get_values_for_type(x509.DNSName))  # type: ignore[attr-defined]
-    except x509.ExtensionNotFound:
-        pass
     for attr in cert.subject.get_attributes_for_oid(NameOID.COMMON_NAME):
         value = attr.value if isinstance(attr.value, str) else attr.value.decode("utf-8", "ignore")
         if "." in value and value not in names:

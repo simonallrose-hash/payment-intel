@@ -433,7 +433,7 @@ class GuardedPage:
         if not self.flags.allow_account_registration:
             self.journal.add("fill_refused", field=kind, reason="allow_account_registration=false")
             return False
-        if kind == "email" and value != self.identity.email:
+        if kind == "email" and value not in (self.identity.email, self.identity.account_email):
             self.journal.add(
                 "fill_refused", field=kind, reason="account e-mail must be the probe address"
             )
