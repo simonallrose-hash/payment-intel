@@ -63,12 +63,18 @@ jobs:
       - name: Chromium for the checkout e2e tests (FR-CW-01)
         run: uv run playwright install --with-deps chromium
       - name: Tests with coverage (NFR-M-01)
-        run: make test
+        run: make test 2>&1 | tee test.log
+      - name: Failures as annotations (readable without downloading the log)
+        if: failure()
+        run: |
+          grep -E '^(FAILED|ERROR) |^E  |Error|[0-9]+ (passed|failed)' test.log | head -60 | sed 's/^/::error::/' || true
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: coverage
-          path: coverage.json
+          path: |
+            coverage.json
+            test.log
 
   eval:
     # FR-QA-02 / AC-03: gold-set metrics as a CI artifact; the job fails when
