@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from payintel.core.clock import Clock
 from payintel.core.flags import FlagService
-from payintel.core.logging import get_logger
+from payintel.core.logging import get_logger, log_context
 from payintel.core.models.base import ExportStatus
 from payintel.core.models.exports import ExportJob
 from payintel.core.s3 import ObjectStore
@@ -51,10 +51,13 @@ def run_once(
             job = session.get(ExportJob, job_id)
             if job is None or job.status != ExportStatus.PENDING:
                 continue
-            flags = FlagService(session, settings.flags, clock=clock)
-            grant = resolve_grant(session, job.org_id, today=clock.now().date(), flags=flags)
-            service.run_job(session, job, grant=grant, store=store, settings=settings, clock=clock)
-            session.commit()
+            with log_context(org_id=str(job.org_id)):  # NFR-M-05
+                flags = FlagService(session, settings.flags, clock=clock)
+                grant = resolve_grant(session, job.org_id, today=clock.now().date(), flags=flags)
+                service.run_job(
+                    session, job, grant=grant, store=store, settings=settings, clock=clock
+                )
+                session.commit()
             result.built += 1
         except EntitlementDenied as exc:
             session.rollback()

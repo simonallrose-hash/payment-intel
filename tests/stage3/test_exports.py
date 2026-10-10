@@ -146,11 +146,20 @@ def test_aggregates_export_and_segment_restriction(
         "/v1/exports", json={"type": "market_aggregates", "countries": ["FR"]}, headers=headers
     )
     assert r.status_code == 403 and r.json()["reason"] == "outside_segment"
-    r = client.post("/v1/exports", json={"type": "market_aggregates"}, headers=headers)
+    r = client.post(
+        "/v1/exports", json={"type": "market_aggregates", "format": "csv"}, headers=headers
+    )
     assert r.status_code == 202
     _run_all(db_session, app_state, export_store)
     job = db_session.get(ExportJob, __import__("uuid").UUID(r.json()["id"]))
-    assert job is not None and job.status == ExportStatus.DONE
+    assert job is not None and job.status == ExportStatus.DONE and job.file_key
+    # FR-EX-05 / ADR-0018: aggregates carry no domains, hence no canaries, but keep the
+    # watermark order and the per-export metadata.
+    assert job.canary_ids == [] and job.watermark_id
+    data = export_store.get_bytes(app_state.settings.s3.bucket_exports, job.file_key)
+    meta, rows = csv_mod.read_csv(data)
+    assert meta["payintel.export_id"] == str(job.id) and meta["payintel.watermark"]
+    assert all("domain" not in row for row in rows)  # only cells, never stores
 
 
 def test_export_above_limit_needs_compliance_approval(

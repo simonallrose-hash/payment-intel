@@ -27,10 +27,11 @@ from payintel.core.models.base import (
     Product,
     Role,
     ScanType,
+    StoreAccountStatus,
 )
 from payintel.core.models.domains import Domain
 from payintel.core.models.orgs import Organization
-from payintel.core.models.scans import ScanPlan
+from payintel.core.models.scans import ScanPlan, StoreAccount
 from payintel.entitlements.check import EntitlementDenied
 from payintel.entitlements.model import Principal
 from payintel.scheduler import planner
@@ -200,6 +201,19 @@ def test_c2_profile_refused_while_flag_off(
         clock=fixed_clock,
     )
     flags = FlagService(db_session, app_state.settings.flags, clock=fixed_clock)
+    # FR-EX-03: only the schedules the exporter implements are accepted
+    with pytest.raises(ValidationError):
+        contracts_mod.set_entitlement(
+            db_session,
+            contract,
+            contracts_mod.EntitlementSpec(
+                field_profile=FieldProfile.C1_BASIC, export_schedule="weekly"
+            ),
+            principal=comp,
+            settings=app_state.settings,
+            flags=flags,
+            clock=fixed_clock,
+        )
     spec = contracts_mod.EntitlementSpec(field_profile=FieldProfile.C2_RISK)
     with pytest.raises(C2DisabledError):
         contracts_mod.set_entitlement(
@@ -368,6 +382,15 @@ def test_optout_dns_txt_excludes_domain_from_queue_and_api(
     assert client.get("/v1/stores/alpha-shop.de", headers=headers).status_code == 200
     planner.ensure_plans(db_session, ScanType.LIGHT, s=app_state.settings.scan, clock=fixed_clock)
     host = world.hosts["alpha-shop.de"]
+    db_session.add(
+        StoreAccount(
+            host_id=host.id,
+            email="checkout-probe+h1@payintel.example",
+            password_encrypted="v1:cipher",
+            status=StoreAccountStatus.ACTIVE,
+        )
+    )
+    db_session.flush()
     assert db_session.execute(select(ScanPlan).where(ScanPlan.host_id == host.id)).first()
     # public form → instructions
     r = client.post(
@@ -391,6 +414,10 @@ def test_optout_dns_txt_excludes_domain_from_queue_and_api(
     domain = db_session.get(Domain, host.domain_id)
     assert domain is not None and domain.optout and domain.status == DomainStatus.OPTOUT
     assert db_session.execute(select(ScanPlan).where(ScanPlan.host_id == host.id)).first() is None
+    # FR-CW-12: the system account of the shop is forgotten with the opt-out
+    acc = db_session.scalar(select(StoreAccount).where(StoreAccount.host_id == host.id))
+    assert acc is not None and acc.status == StoreAccountStatus.DELETED
+    assert acc.password_encrypted == ""
     assert client.get("/v1/stores/alpha-shop.de", headers=headers).status_code == 404
     assert "alpha-shop.de" not in {
         s["domain"] for s in client.get("/v1/stores", headers=headers).json()["items"]
@@ -519,3 +546,38 @@ def test_contract_end_cuts_access_automatically(
     r = client.get("/v1/usage", headers=headers)
     assert r.status_code == 403 and r.json()["reason"] == "contract_not_in_term"
     _ = staff_principal
+
+
+def test_disabled_user_loses_sessions_and_cannot_log_in(
+    client: TestClient,
+    db_session: Session,
+    world: World,
+    app_state: AppState,
+    fixed_clock: FixedClock,
+) -> None:
+    """LR-18 access review: `users disable` revokes the portal session and blocks login."""
+    from payintel.compliance import users as users_mod
+    from tests.stage3.conftest import PASSWORD
+
+    login(client, world.staff_support_email, state=app_state, session=db_session)
+    assert client.get("/admin/orgs").status_code == 200
+    user = users_mod.disable_user(
+        db_session, email=world.staff_support_email, actor="cli", clock=fixed_clock
+    )
+    db_session.commit()
+    assert users_mod.is_disabled(user)
+    r = client.get("/admin/orgs", follow_redirects=False)
+    assert r.status_code in (303, 401, 403)
+    client.cookies.clear()
+    r = client.post(
+        "/portal/login",
+        data={"email": world.staff_support_email, "password": PASSWORD},
+        follow_redirects=False,
+    )
+    assert r.status_code == 423
+    with pytest.raises(ConflictError):
+        users_mod.disable_user(
+            db_session, email=world.staff_support_email, actor="cli", clock=fixed_clock
+        )
+    row = db_session.execute(select(AuditLog).where(AuditLog.action == "user.disable")).scalar_one()
+    assert row.after is not None and row.after["sessions_revoked"] == 1

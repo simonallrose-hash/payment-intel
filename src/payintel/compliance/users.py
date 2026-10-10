@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import uuid
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from payintel.api.auth import sessions as sessions_mod
 from payintel.api.auth.passwords import hash_password
 from payintel.core import audit
 from payintel.core.clock import Clock
@@ -16,6 +18,9 @@ from payintel.core.models.base import Role
 from payintel.entitlements.model import ORG_ROLES, STAFF_ROLES, Principal
 
 MIN_PASSWORD = 12
+# LR-18 / NFR-S-04: a disabled user is a permanently locked one (no schema change);
+# `register_success` never runs for them because the login check comes first.
+DISABLED_UNTIL = datetime(9999, 12, 31, tzinfo=UTC)
 
 
 def create_user(
@@ -119,3 +124,41 @@ def set_role(
         after={"role": role.value},
         clock=clock,
     )
+
+
+def is_disabled(user: User) -> bool:
+    return user.locked_until is not None and user.locked_until >= DISABLED_UNTIL
+
+
+def disable_user(session: Session, *, email: str, actor: str, clock: Clock) -> User:
+    """Access review (LR-18): lock the account for good and revoke its portal sessions."""
+    user = session.execute(
+        select(User).where(User.email == email.strip().lower())
+    ).scalar_one_or_none()
+    if user is None:
+        raise NotFoundError("user not found")
+    if is_disabled(user):
+        raise ConflictError("user already disabled", email=user.email)
+    now = clock.now()
+    user.locked_until = DISABLED_UNTIL
+    revoked = sessions_mod.revoke_all(session, user.id, now=now)
+    session.flush()
+    audit.record(
+        session,
+        actor=actor,
+        action="user.disable",
+        object_type="user",
+        object_id=str(user.id),
+        after={"email": user.email, "sessions_revoked": revoked},
+        clock=clock,
+    )
+    return user
+
+
+def all_users(session: Session) -> list[tuple[User, Membership]]:
+    rows = session.execute(
+        select(User, Membership)
+        .join(Membership, Membership.user_id == User.id)
+        .order_by(User.email)
+    ).all()
+    return [(u, m) for u, m in rows]

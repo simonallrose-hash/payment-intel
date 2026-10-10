@@ -12,9 +12,9 @@ from payintel.api.schemas import c1_basic, c1_full
 from payintel.core.errors import C2DisabledError
 from payintel.core.models.base import FieldProfile
 
-# Keys that must never appear in any C1 payload (AC-07). The test
-# `tests/integration/test_api_c1_forbidden_keys.py` scans serialised responses
-# and exports recursively for these.
+# Keys that must never appear in any C1 payload (AC-07). The tests
+# `tests/stage3/test_api_access.py::test_no_forbidden_keys_in_c1_full/_basic`
+# and `tests/stage3/test_exports.py` scan serialised responses and exports for these.
 FORBIDDEN_C1_KEYS: frozenset[str] = frozenset(
     {
         "third_party_hosts",

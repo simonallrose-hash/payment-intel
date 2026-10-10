@@ -198,3 +198,17 @@ def test_country_detection() -> None:
         ).country
         == "NL"
     )
+
+
+def test_two_signal_types_without_checkout_stay_low(ruleset: RuleSet) -> None:
+    """ADR-0035: two independent signal types on the homepage are not `high` for a provider."""
+    home = PageSignals(
+        page_type="homepage",
+        url="https://x.test/",
+        script_srcs=["https://js.stripe.com/v3/"],
+        js_globals={"Stripe"},
+    )
+    scores = aggregate(match_page(ruleset, home))
+    stripe = next(s for s in scores if s.target_id == "stripe")
+    assert len(stripe.signal_types) >= 2
+    assert stripe.confidence == ConfidenceLevel.LOW and not stripe.active_on_checkout

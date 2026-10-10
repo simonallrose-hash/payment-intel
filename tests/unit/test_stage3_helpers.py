@@ -3,6 +3,7 @@ signatures, API-key parsing, CSRF, lockout, TOTP and rule-draft validation."""
 
 from __future__ import annotations
 
+import io
 import uuid
 from datetime import UTC, date, datetime, timedelta
 
@@ -229,3 +230,21 @@ def test_rule_draft_validation() -> None:
         validate(_draft(signal_type=SignalType.HTML_PATTERN, pattern="(unclosed"))
     rule = _draft().as_rule(3)
     assert rule.version == 3 and rule.match == "host_suffix" and rule.source_file == "admin"
+
+
+def test_parquet_is_written_in_row_groups() -> None:
+    """NFR-P-06: the writer streams row groups; the file reads back identically."""
+    import pyarrow.parquet as pq
+
+    from payintel.exports import parquet
+    from payintel.exports.schema import fields_for
+
+    fields = fields_for("full_snapshot", FieldProfile.C1_BASIC)
+    rows = [{"domain": f"s{i}.de", "country": "DE"} for i in range(7)]
+    data = parquet.write_parquet(rows, fields, {"export_id": "x"}, rows_per_group=3)
+    meta = pq.read_metadata(io.BytesIO(data))
+    assert meta.num_row_groups == 3 and meta.num_rows == 7
+    assert [r["domain"] for r in parquet.read_rows(data)] == [f"s{i}.de" for i in range(7)]
+    assert parquet.read_metadata(data)["export_id"] == "x"
+    empty = parquet.write_parquet([], fields, {"export_id": "e"}, rows_per_group=3)
+    assert parquet.read_rows(empty) == [] and parquet.read_metadata(empty)["export_id"] == "e"

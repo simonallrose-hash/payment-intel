@@ -8,6 +8,7 @@ a stable `reason`. Every C1 payload is scanned for AS-23 keys.
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 import pytest
@@ -274,7 +275,9 @@ def test_filters(client: TestClient, world: World) -> None:
     headers = auth(world.api_key)
 
     def domains(q: str) -> set[str]:
-        return {s["domain"] for s in client.get(f"/v1/stores?{q}", headers=headers).json()["items"]}
+        r = client.get(f"/v1/stores?{q}", headers=headers)
+        assert r.status_code == 200, (q, r.text)
+        return {s["domain"] for s in r.json()["items"]}
 
     assert domains("provider=stripe") == {"beta-store.de"}
     assert domains("without_provider=adyen") == {"beta-store.de", "gamma-market.de"}
@@ -289,6 +292,35 @@ def test_filters(client: TestClient, world: World) -> None:
         "gamma-market.de",
     }
     assert domains("changed_from=2026-10-07T00:00:00Z") == set()
+
+
+def test_filters_by_confidence_and_dates(client: TestClient, world: World) -> None:
+    """FR-API-04: the remaining filters (providers first_seen 2026-09-08, last_seen 2026-10-06).
+    A separate test because the fixed clock keeps every call in one rate-limit window."""
+    headers = auth(world.api_key)
+
+    def domains(q: str) -> set[str]:
+        r = client.get(f"/v1/stores?{q}", headers=headers)
+        assert r.status_code == 200, (q, r.text)
+        return {s["domain"] for s in r.json()["items"]}
+
+    assert domains("providers_max=1") == {"alpha-shop.de", "gamma-market.de"}
+    assert domains("min_confidence=high") == {"alpha-shop.de", "beta-store.de", "gamma-market.de"}
+    assert domains("first_seen_from=2026-09-08") == {
+        "alpha-shop.de",
+        "beta-store.de",
+        "gamma-market.de",
+    }
+    assert domains("first_seen_from=2026-09-09") == set()
+    assert domains("first_seen_to=2026-09-07") == set()
+    assert domains("last_seen_from=2026-10-06&last_seen_to=2026-10-06") == {
+        "alpha-shop.de",
+        "beta-store.de",
+        "gamma-market.de",
+    }
+    assert domains("last_seen_to=2026-10-05") == set()
+    r = client.get("/v1/stores?min_confidence=certain", headers=headers)
+    assert r.status_code == 400
 
 
 # --- rate limit, quota, usage journal ------------------------------------------------------
@@ -359,3 +391,78 @@ def test_metrics_endpoint_needs_scrape_token_and_counts_requests(
     assert 'payintel_api_request_seconds_count{method="GET",route="/v1/stores/{domain}"' in body
     assert "payintel_alert_latency_seconds" in body and "payintel_alert_backlog_age_seconds" in body
     assert "pik_" not in body  # never a key or a domain in the exposition
+
+
+def test_every_request_logs_request_id_and_org_id(client: TestClient, world: World) -> None:
+    """NFR-M-05: one structured line per request carries the organisation id."""
+    import structlog.testing
+
+    with structlog.testing.capture_logs() as records:
+        r = client.get("/v1/stores/alpha-shop.de", headers=auth(world.api_key))
+    assert r.status_code == 200
+    line = next(rec for rec in records if rec["event"] == "request")
+    assert line["org_id"] == str(world.org.id) and line["route"] == "/v1/stores/{domain}"
+    assert line["status"] == 200 and r.headers["X-Request-Id"]
+
+
+def test_api_keeps_serving_profiles_when_clickhouse_is_down(
+    client: TestClient, world: World, app_state: AppState
+) -> None:
+    """NFR-R-06: ClickHouse errors degrade evidence to an empty list; profiles come from
+    Postgres and the request still succeeds."""
+    from payintel.api.read import ClickHouseEvidence
+
+    class _Down:
+        def query(self, *args: object, **kwargs: object) -> object:
+            raise ConnectionError("clickhouse unreachable")
+
+    app_state.evidence = ClickHouseEvidence(_Down())
+    r = client.get("/v1/stores/alpha-shop.de", headers=auth(world.api_key))
+    assert r.status_code == 200
+    body = r.json()
+    assert body["providers"][0]["id"] == "adyen" and body["providers"][0]["evidence"] == []
+    r = client.get("/v1/stores", headers=auth(world.api_key), params={"provider": "adyen"})
+    assert r.status_code == 200 and r.json()["items"]
+
+
+def test_no_route_is_reachable_without_authentication(client: TestClient, world: World) -> None:
+    """NFR-S-04: every /v1, /portal and /admin route answers an anonymous request with a
+    denial (401/403) or a redirect to the login page, never with content.
+
+    Routes that are public by design are listed explicitly; a new unprotected endpoint
+    fails this test."""
+    public = {
+        "/portal/login",
+        "/portal/login/totp",
+        "/portal/login/enrol",
+        "/portal/logout",
+        "/v1/openapi.json",
+        "/v1/docs",
+    }
+    checked = 0
+    offenders: list[str] = []
+    stack: list[Any] = list(client.app.routes)  # type: ignore[attr-defined]
+    flat: list[Any] = []
+    while stack:
+        route = stack.pop()
+        inner = getattr(route, "original_router", None)
+        if inner is not None:
+            stack.extend(inner.routes)
+        else:
+            flat.append(route)
+    for route in flat:
+        path = getattr(route, "path", "")
+        methods = getattr(route, "methods", None) or set()
+        if not path.startswith(("/v1/", "/portal", "/admin")) or path in public:
+            continue
+        probe = re.sub(r"\{[^}]+\}", "x", path)
+        for method in sorted(methods - {"HEAD", "OPTIONS"}):
+            r = client.request(method, probe, follow_redirects=False)
+            checked += 1
+            ok = r.status_code in (401, 403) or (
+                r.status_code == 303 and r.headers.get("location", "").startswith("/portal/login")
+            )
+            if not ok:
+                offenders.append(f"{method} {path} -> {r.status_code}")
+    assert checked > 50
+    assert not offenders, offenders

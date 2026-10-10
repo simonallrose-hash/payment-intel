@@ -298,7 +298,7 @@ def run_job(
             methodology_url=settings.api.methodology_url,
         )
         data = (
-            write_parquet(rows, fields, meta)
+            write_parquet(rows, fields, meta, rows_per_group=settings.export.rows_per_chunk)
             if job.format == ExportFormat.PARQUET
             else write_csv(rows, fields, meta)
         )

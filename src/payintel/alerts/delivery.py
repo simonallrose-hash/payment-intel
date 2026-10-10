@@ -23,6 +23,7 @@ from payintel.alerts import webhook as wh
 from payintel.core import metrics
 from payintel.core.clock import Clock
 from payintel.core.crypto import SecretBox
+from payintel.core.logging import get_logger, log_context
 from payintel.core.models.alerts import AlertRule, Delivery, Webhook
 from payintel.core.models.base import DeliveryStatus
 from payintel.core.models.scans import ScanRun
@@ -89,6 +90,9 @@ class TelegramSender:
         self._client.send(rule.telegram_chat_id, tg.format_digest(events, title="PayIntel alerts"))
 
 
+log = get_logger(__name__)
+
+
 def _due_query(now: datetime) -> Any:
     return (
         select(Delivery, AlertRule)
@@ -147,6 +151,8 @@ def dispatch(
                         raise RuntimeError("telegram sender not configured")
                     telegram_sender.send(session, lead, rule)
             except Exception as exc:
+                with log_context(org_id=str(rule.org_id)):  # NFR-M-05
+                    log.warning("alert delivery failed", channel=rule.channel, error=str(exc)[:200])
                 for d in batch:
                     _schedule_retry(d, str(exc)[:500], now, settings)
                     metrics.ALERT_DELIVERIES_TOTAL.labels(

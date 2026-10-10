@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import io
 import zipfile
+from datetime import timedelta
 
 import pytest
 from fastapi.testclient import TestClient
@@ -190,3 +191,51 @@ def test_market_share_snapshot_equals_live_aggregation(
     assert db_session.execute(select(func.count()).select_from(MarketShareCell)).scalar_one() == (
         r.rows
     )
+
+
+def test_psp_flows_and_monthly_dynamics(
+    db_session: Session, world: World, app_state: AppState, fixed_clock: FixedClock
+) -> None:
+    """FR-RP-02: the PSP switch matrix and the month-by-month provider counts."""
+    from payintel.core.models.base import ChangeEventType
+    from payintel.core.models.domains import Host
+    from payintel.core.models.store import ChangeEvent
+
+    _seed_market(db_session, fixed_clock)
+    now = fixed_clock.now()
+    hosts = db_session.execute(select(Host).where(Host.hostname.like("de-shop-%"))).scalars().all()
+    assert len(hosts) == 35
+    for host in hosts[:31]:  # 31 stores: paypal removed, adyen/stripe added (make_store)
+        added = (
+            db_session.execute(select(ChangeEvent).where(ChangeEvent.host_id == host.id))
+            .scalars()
+            .first()
+        )
+        assert added is not None
+        db_session.add(
+            ChangeEvent(
+                host_id=host.id,
+                event_type=ChangeEventType.PROVIDER_REMOVED,
+                entity_type="provider",
+                entity_id="paypal",
+                old_value="paypal",
+                detected_at=now - timedelta(days=3),
+                scan_run_id=added.scan_run_id,
+            )
+        )
+    db_session.flush()
+    spec = aggregates.ReportSpec(
+        countries=("DE",),
+        min_cell=30,
+        period_start=(now - timedelta(days=10)).date(),
+        period_end=now.date(),
+    )
+    report = aggregates.build(db_session, spec, now=now)
+    assert report.psp_flows == [("paypal", "adyen", 30)]  # 30 adyen stores; stripe (1) withheld
+    months = {(m, p): n for m, p, n in report.monthly}
+    assert months[("2026-09", "adyen")] >= 30 and all(n >= 30 for n in months.values())
+    assert ("2026-09", "stripe") not in months  # 5 stores < min_cell
+    outside = aggregates.ReportSpec(
+        countries=("DE",), min_cell=30, period_start=(now - timedelta(days=1)).date()
+    )
+    assert aggregates.build(db_session, outside, now=now).psp_flows == []

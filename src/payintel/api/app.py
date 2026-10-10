@@ -148,9 +148,20 @@ def create_app(state: AppState) -> FastAPI:
         started = time.perf_counter()
         with log_context(request_id=request_id):
             response = await call_next(request)
-        elapsed = time.perf_counter() - started
-        duration_ms = int(elapsed * 1000)
-        route = request.scope.get("route")
+            elapsed = time.perf_counter() - started
+            duration_ms = int(elapsed * 1000)
+            route = request.scope.get("route")
+            principal = getattr(request.state, "principal", None)
+            org_id = getattr(principal, "org_id", None)
+            # NFR-M-05: every request leaves one line with request_id + org_id
+            log.info(
+                "request",
+                method=request.method,
+                route=getattr(route, "path", request.url.path),
+                status=response.status_code,
+                duration_ms=duration_ms,
+                org_id=str(org_id) if org_id is not None else None,
+            )
         if request.url.path.startswith("/v1/") and route is not None:
             metrics.API_REQUEST_SECONDS.labels(
                 getattr(route, "path", request.url.path), request.method, str(response.status_code)

@@ -19,6 +19,10 @@ from payintel.core.settings import Settings
 from payintel.entitlements.check import require_staff
 from payintel.entitlements.model import Principal
 
+# FR-EX-03: `monthly` is the scheduled full snapshot the exporter builds on the 1st;
+# `none` keeps only on-demand exports within the quota.
+EXPORT_SCHEDULES = frozenset({"monthly", "none"})
+
 
 @dataclass(frozen=True)
 class EntitlementSpec:
@@ -103,6 +107,11 @@ def set_entitlement(
     bad = [c for c in spec.countries if len(c) != 2 or not c.isalpha()]
     if bad:
         raise ValidationError("countries must be ISO alpha-2", countries=bad)
+    if spec.export_schedule is not None and spec.export_schedule not in EXPORT_SCHEDULES:
+        raise ValidationError(
+            f"export_schedule must be one of {sorted(EXPORT_SCHEDULES)}",
+            export_schedule=spec.export_schedule,
+        )
     ent = session.execute(
         select(Entitlement).where(Entitlement.contract_id == contract.id)
     ).scalar_one_or_none()

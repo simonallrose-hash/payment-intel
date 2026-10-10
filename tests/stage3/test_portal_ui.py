@@ -262,3 +262,108 @@ def test_security_headers_cookie_flags_and_support_is_read_only(
         "/admin/orgs", data={"csrf": csrf, "legal_name": "X", "country": "DE", "reg_number": "1"}
     )
     assert r.status_code == 403
+
+
+def test_bot_page_names_agent_ip_ranges_rules_and_optout(
+    client: TestClient, app_state: AppState
+) -> None:
+    """FR-OO-01: the public bot page carries purpose, UA, IP ranges, politeness and opt-out."""
+    from payintel.compliance import bot_page
+
+    page = bot_page.build(app_state.settings)
+    r = client.get("/bot")
+    assert r.status_code == 200
+    assert page.user_agent in r.text and page.contact_email in r.text
+    for needle in ("robots.txt", 'href="/optout"', "dns_txt", "well_known", "never"):
+        assert needle in r.text, needle
+    assert str(page.max_rps_per_host).rstrip("0").rstrip(".") in r.text
+    if page.ip_ranges:
+        assert all(cidr in r.text for cidr in page.ip_ranges)
+    else:
+        assert "published on request" in r.text
+
+
+def test_ui_is_english_desktop_only(
+    client: TestClient, db_session: Session, world: World, app_state: AppState
+) -> None:
+    """FR-UI-05: English UI, fixed minimum width 1280px, no mobile layout."""
+    login(client, world.org_admin_email, state=app_state, session=db_session)
+    r = client.get("/portal/stores")
+    assert r.status_code == 200 and '<html lang="en">' in r.text
+    css = client.get("/static/app.css")
+    assert css.status_code == 200 and "min-width:1280px" in css.text.replace(" ", "")
+    assert "@media" not in css.text
+
+
+def test_portal_watchlist_csv_upload(
+    client: TestClient, db_session: Session, world: World, app_state: AppState
+) -> None:
+    """FR-AL-01: domains come in through a CSV upload on the portal, within the limit."""
+    csrf = login(client, world.org_admin_email, state=app_state, session=db_session)
+    r = client.post(
+        "/portal/watchlists", data={"name": "csv", "csrf": csrf}, follow_redirects=False
+    )
+    assert r.status_code == 303
+    wl_url = r.headers["location"].split("?")[0]
+    csv_body = "domain\nAlpha-Shop.de\nhttps://beta-store.de/path\nnot a domain\nalpha-shop.de\n"
+    r = client.post(
+        f"{wl_url}/domains",
+        data={"csrf": csrf},
+        files={"csv_file": ("list.csv", csv_body.encode(), "text/csv")},
+        follow_redirects=False,
+    )
+    assert r.status_code == 303, r.text
+    from urllib.parse import unquote_plus
+
+    assert "Added 2" in unquote_plus(r.headers["location"])
+    page = client.get(wl_url)
+    assert "alpha-shop.de" in page.text and "beta-store.de" in page.text
+
+
+def test_store_card_shows_evidence_for_full_profile_only(
+    client: TestClient, db_session: Session, world: World, app_state: AppState
+) -> None:
+    """FR-UI-03: confidence, first/last seen for everyone; detection method only for c1_full."""
+    from collections.abc import Sequence
+
+    from payintel.api.read import EvidenceKey
+    from payintel.api.schemas.common import Evidence
+
+    class StubEvidence:
+        def evidence(self, host_id: int, provider_id: str, limit: int) -> list[Evidence]:
+            return [
+                Evidence(signal_type="network_host", value="api.stripe.com", page_type="checkout")
+            ]
+
+        def evidence_many(
+            self, keys: Sequence[EvidenceKey], limit: int
+        ) -> dict[EvidenceKey, list[Evidence]]:
+            return {k: self.evidence(k[0], k[1], limit) for k in keys}
+
+    app_state.evidence = StubEvidence()
+    login(client, world.org_admin_email, state=app_state, session=db_session)
+    r = client.get("/portal/stores/beta-store.de")
+    assert r.status_code == 200
+    for needle in (
+        "network_host",
+        "api.stripe.com",
+        "Detection evidence",
+        "2026-09-08",
+        "2026-10-06",
+    ):
+        assert needle in r.text, needle
+    client.cookies.clear()
+    from payintel.core.clock import FixedClock
+    from payintel.core.models.base import Role
+    from tests.stage3.conftest import new_user
+
+    assert isinstance(app_state.clock, FixedClock)
+    new_user(
+        db_session, "fr-admin@payintel.test", Role.ORG_ADMIN, world.other_org, clock=app_state.clock
+    )
+    db_session.flush()
+    login(client, "fr-admin@payintel.test", state=app_state, session=db_session)
+    r = client.get("/portal/stores/delta-boutique.fr")
+    assert r.status_code == 200
+    assert "Detection evidence" not in r.text and "network_host" not in r.text
+    assert "2026-09-08" in r.text and "high" in r.text
