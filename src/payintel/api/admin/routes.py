@@ -1147,6 +1147,7 @@ def quality(
     dash = None
     review = None
     note = None
+    breaches: list[dash_mod.Breach] = []
     if state.ch is not None:
         try:
             dash = dash_mod.dashboard(
@@ -1155,8 +1156,10 @@ def quality(
                 now=now,
                 days=days,
                 light_cycle_days=state.settings.scan.light_interval_days_ecommerce,
-                checkout_cycle_days=state.settings.scan.checkout_interval_days,
+                checkout_cycle_days=state.settings.quality.checkout_freshness_days,
+                watchlist_cycle_days=state.settings.quality.watchlist_freshness_days,
             )
+            breaches = dash_mod.breaches(dash, state.settings.quality)
             review = stops_mod.review(state.ch, now=now, days=days)
         except Exception as exc:  # ClickHouse down: the page still renders alerts
             note = f"ClickHouse unavailable: {exc}"[:200]
@@ -1177,6 +1180,7 @@ def quality(
         "admin/quality.html",
         ctx=ctx,
         dash=dash,
+        breaches=breaches,
         review=review,
         alerts=alerts,
         held=held,
@@ -1184,6 +1188,50 @@ def quality(
         days=days,
         gold=gold_size(session),
         gold_target=state.settings.quality.gold_set_target_size,
+    )
+
+
+@router.get("/quality/stops/{step}/{reason}")
+def quality_stop_sample(
+    request: Request,
+    state: StateDep,
+    ctx: ui.StaffDep,
+    step: str,
+    reason: str,
+    platform: str | None = None,
+    adapter: str | None = None,
+    days: int = 7,
+    csv: int = 0,
+) -> Any:
+    """FR-QA-06 / AC-16: up to 20 domains of a stop cell with screenshot and DOM keys."""
+    if state.ch is None:
+        raise NotFoundError("ClickHouse is not configured for this process")
+    now = state.clock.now()
+    rows = stops_mod.sample(
+        state.ch,
+        step=step,
+        reason=reason,
+        since=now - timedelta(days=days),
+        until=now,
+        platform_id=platform or None,
+        adapter=adapter or None,
+    )
+    if csv:
+        return Response(
+            content=stops_mod.sample_csv(rows),
+            media_type="text/csv",
+            headers={"Content-Disposition": f'attachment; filename="stops-{step}-{reason}.csv"'},
+        )
+    return ui.render(
+        request,
+        "admin/quality_stops.html",
+        ctx=ctx,
+        rows=rows,
+        step=step,
+        reason=reason,
+        platform=platform,
+        adapter=adapter,
+        days=days,
     )
 
 

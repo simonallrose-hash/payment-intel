@@ -24,9 +24,10 @@ from clickhouse_connect.driver.client import Client
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from payintel.core.models.base import ConfidenceLevel, GoldEntityType
+from payintel.core.models.base import ConfidenceLevel, Coverage, GoldEntityType
 from payintel.core.models.quality import GoldLabel
 from payintel.core.models.store import StorePaymentMethod, StoreProfile, StoreProvider
+from payintel.core.settings import QualitySettings
 
 _CONF_ORDER = {ConfidenceLevel.LOW: 0, ConfidenceLevel.MEDIUM: 1, ConfidenceLevel.HIGH: 2}
 _PER_RULE_SOURCES: frozenset[tuple[str, str]] = frozenset(
@@ -93,12 +94,17 @@ class EvalReport:
     platform: EntityTypeReport
     country: EntityTypeReport
     notes: list[str] = field(default_factory=list)
+    # NFR-Q-02: PSP recall is measured on hosts whose profile reached the checkout
+    provider_checkout: Counts = field(default_factory=Counts)
+    checkout_hosts: int = 0
 
     def as_dict(self) -> dict[str, Any]:
         return {
             "gold_hosts": self.gold_hosts,
             "min_confidence": self.min_confidence,
             "provider": self.provider.as_dict(),
+            "provider_checkout": self.provider_checkout.as_dict(),
+            "checkout_hosts": self.checkout_hosts,
             "payment_method": self.payment_method.as_dict(),
             "platform": self.platform.as_dict(),
             "country": self.country.as_dict(),
@@ -243,6 +249,8 @@ def evaluate(
     notes: list[str] = []
     reports: dict[GoldEntityType, EntityTypeReport] = {}
     all_hosts: set[int] = set()
+    checkout_hosts: set[int] = set()
+    provider_checkout = Counts()
     for entity_type in GoldEntityType:
         present, _absent = _truth(session, entity_type)
         hosts = set(present.keys())
@@ -252,6 +260,11 @@ def evaluate(
         else:
             predicted = _predicted_single(session, entity_type, hosts, min_confidence)
         overall, per_entity = _score_sets(present, predicted)
+        if entity_type == GoldEntityType.PROVIDER:
+            checkout_hosts = _checkout_hosts(session, hosts)
+            provider_checkout, _ = _score_sets(
+                {h: t for h, t in present.items() if h in checkout_hosts}, predicted
+            )
         per_rule: dict[str, Counts] = {}
         if ch is not None and entity_type == GoldEntityType.PROVIDER:
             per_rule = _per_rule(ch, "obs_provider", "provider_id", present)
@@ -274,7 +287,83 @@ def evaluate(
         platform=reports[GoldEntityType.PLATFORM],
         country=reports[GoldEntityType.COUNTRY],
         notes=notes,
+        provider_checkout=provider_checkout,
+        checkout_hosts=len(checkout_hosts),
     )
+
+
+def _checkout_hosts(session: Session, hosts: set[int]) -> set[int]:
+    """Labelled hosts whose profile reached the checkout or the payment step (NFR-Q-02)."""
+    if not hosts:
+        return set()
+    rows = session.execute(
+        select(StoreProfile.host_id).where(
+            StoreProfile.host_id.in_(hosts),
+            StoreProfile.coverage.in_((Coverage.CHECKOUT, Coverage.PAYMENT_STEP)),
+        )
+    ).scalars()
+    return {int(h) for h in rows}
+
+
+@dataclass(frozen=True)
+class TargetCheck:
+    """One NFR-Q target compared with the measured value (`None` = nothing to measure)."""
+
+    code: str
+    metric: str
+    value: float | None
+    target: float
+
+    @property
+    def passed(self) -> bool | None:
+        return None if self.value is None else self.value >= self.target
+
+    def line(self) -> str:
+        if self.value is None:
+            return f"{self.code} {self.metric}: n/a (target >= {self.target:.2f})"
+        mark = "ok" if self.passed else "WARN"
+        return f"{self.code} {self.metric}: {self.value:.3f} vs target {self.target:.2f} [{mark}]"
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "code": self.code,
+            "metric": self.metric,
+            "value": self.value,
+            "target": self.target,
+            "passed": self.passed,
+        }
+
+
+def targets(report: EvalReport, s: QualitySettings) -> list[TargetCheck]:
+    """NFR-Q-02…05 targets next to the measured values; informative, the release gate stays
+    PSP precision (FR-QA-02). Platform/country "accuracy" is the precision of the single
+    predicted label on labelled hosts."""
+    return [
+        TargetCheck(
+            "NFR-Q-02",
+            "psp_recall_on_checkout_hosts",
+            report.provider_checkout.recall,
+            s.target_psp_recall,
+        ),
+        TargetCheck(
+            "NFR-Q-03",
+            "payment_method_precision",
+            report.payment_method.overall.precision,
+            s.target_method_precision,
+        ),
+        TargetCheck(
+            "NFR-Q-04",
+            "platform_accuracy",
+            report.platform.overall.precision,
+            s.target_platform_accuracy,
+        ),
+        TargetCheck(
+            "NFR-Q-05",
+            "country_accuracy",
+            report.country.overall.precision,
+            s.target_country_accuracy,
+        ),
+    ]
 
 
 def gate(report: EvalReport, *, min_psp_precision: float) -> GateResult:
@@ -298,6 +387,7 @@ def summary_lines(report: EvalReport) -> list[str]:
     return [
         f"gold hosts: {report.gold_hosts} (min confidence {report.min_confidence})",
         f"provider        {fmt(report.provider.overall)}",
+        f"provider@checkout {fmt(report.provider_checkout)} on {report.checkout_hosts} hosts",
         f"payment_method  {fmt(report.payment_method.overall)}",
         f"platform        {fmt(report.platform.overall)}",
         f"country         {fmt(report.country.overall)}",
@@ -310,8 +400,10 @@ __all__ = [
     "EntityTypeReport",
     "EvalReport",
     "GateResult",
+    "TargetCheck",
     "asdict",
     "evaluate",
     "gate",
     "summary_lines",
+    "targets",
 ]

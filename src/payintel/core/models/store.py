@@ -230,3 +230,9 @@ class ChangeEvent(Base):
     suppressed: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default=text("false")
     )
+    # NFR-Q-09: an analyst's verdict on a sampled event (`accepted` / `rejected`)
+    review_decision: Mapped[str | None] = mapped_column(
+        String(16), nullable=True, comment="NFR-Q-09: accepted / rejected by manual review"
+    )
+    reviewed_by: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

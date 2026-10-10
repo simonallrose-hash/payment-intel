@@ -7,14 +7,18 @@ from pathlib import Path
 
 import pytest
 from clickhouse_connect.driver.client import Client
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 from typer.testing import CliRunner
 
 from payintel.cli import app
 from payintel.core.clock import FixedClock
 from payintel.core.errors import ValidationError
-from payintel.core.models.base import ConfidenceLevel
+from payintel.core.models.base import ConfidenceLevel, Coverage
+from payintel.core.models.domains import Host
+from payintel.core.models.store import StoreProfile
 from payintel.core.reference_loader import load_reference, sync_reference
+from payintel.core.settings import QualitySettings
 from payintel.quality import eval as eval_mod
 from payintel.quality.findings import import_findings_csv
 from payintel.quality.gold import gold_size, import_gold_csv
@@ -69,6 +73,18 @@ def test_eval_metrics_on_sample(
     p = report.provider.overall
     assert (p.tp, p.fp, p.fn) == (16, 0, 1)  # worldline on shop-j is the designed miss
     assert p.precision == 1.0 and round(p.recall or 0, 3) == 0.941
+    assert report.checkout_hosts == 0 and report.provider_checkout.recall is None
+    # NFR-Q-02: recall is reported on hosts whose profile reached the checkout
+    for name in ("shop-j.example", "shop-a.example"):
+        host = seeded.execute(select(Host).where(Host.hostname == name)).scalar_one()
+        seeded.get(StoreProfile, host.id).coverage = Coverage.PAYMENT_STEP  # type: ignore[union-attr]
+    seeded.flush()
+    scoped = eval_mod.evaluate(seeded, ch=None)
+    assert scoped.checkout_hosts == 2
+    assert (scoped.provider_checkout.tp, scoped.provider_checkout.fn) == (2, 1)
+    assert scoped.provider_checkout.recall == pytest.approx(2 / 3)
+    q02 = next(c for c in eval_mod.targets(scoped, QualitySettings()) if c.code == "NFR-Q-02")
+    assert q02.passed is False and q02.value == pytest.approx(2 / 3)
     m = report.payment_method.overall
     assert (m.tp, m.fp, m.fn) == (31, 1, 0)  # google_pay on shop-i is the designed FP
     assert report.platform.overall.fp == 1  # shop-k predicted shopify, labelled custom

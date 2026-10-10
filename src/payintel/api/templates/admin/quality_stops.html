@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Stop sample{% endblock %}
+{% block content %}
+<h1>Stops: {{ step }} / {{ reason }}</h1>
+<p class="muted">Last {{ days }} days{% if platform %} · platform {{ platform }}{% endif %}{% if adapter %} · adapter {{ adapter }}{% endif %} · up to 20 distinct domains, newest first (FR-QA-06, AC-16).
+<a href="/admin/quality/stops/{{ step }}/{{ reason }}?csv=1&amp;days={{ days }}{% if platform %}&amp;platform={{ platform }}{% endif %}{% if adapter %}&amp;adapter={{ adapter }}{% endif %}">Download CSV</a> · <a href="/admin/quality?days={{ days }}">Back to the dashboard</a></p>
+<table class="grid"><thead><tr><th>When</th><th>Domain</th><th>Platform / adapter</th><th>Detail</th><th>Page</th><th>Screenshot</th><th>DOM</th><th>Scanner</th></tr></thead><tbody>
+{% for r in rows %}
+<tr><td>{{ r.scan_ts|dt }}</td><td>{{ r.etld1 }}</td><td>{{ r.platform_id }} / {{ r.adapter }}</td><td>{{ r.detail }}</td><td>{{ r.page_url }}</td><td><code>{{ r.screenshot_key }}</code></td><td><code>{{ r.dom_key }}</code></td><td>{{ r.scanner_version }} / {{ r.ruleset_version }}</td></tr>
+{% else %}<tr><td colspan="8" class="muted">No stops in this cell.</td></tr>{% endfor %}
+</tbody></table>
+{% endblock %}

@@ -5,18 +5,22 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timedelta
 
+import pytest
 from clickhouse_connect.driver.client import Client
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from payintel.core.clock import FixedClock
+from payintel.core.errors import NotFoundError, ValidationError
 from payintel.core.models.base import (
     ChangeEventType,
     ConfidenceLevel,
     DomainSourceKind,
+    DomainStatus,
     ProviderRole,
+    ScanStatus,
 )
-from payintel.core.models.domains import Host
+from payintel.core.models.domains import Domain, Host
 from payintel.core.models.quality import QualityAlert
 from payintel.core.models.store import ChangeEvent, StoreProfile, StoreProvider
 from payintel.core.reference_loader import load_reference, sync_reference
@@ -234,21 +238,25 @@ def test_dashboard_outcomes_confidence_freshness_and_spikes(
     h1 = _host(db_session, fixed_clock, "fresh.de")
     h2 = _host(db_session, fixed_clock, "stale.de")
     h3 = _host(db_session, fixed_clock, "never.de")
+    for h in (h1, h2, h3):  # NFR-Q-07 counts e-commerce domains only
+        db_session.get(Domain, h.domain_id).status = DomainStatus.ECOMMERCE  # type: ignore[union-attr]
     db_session.add_all(
         [
             StoreProfile(
                 host_id=h1.id,
                 last_light_scan_at=now - timedelta(days=1),
                 last_checkout_scan_at=now - timedelta(days=10),
+                checkout_status=ScanStatus.REACHED_PAYMENT_STEP,
                 updated_at=now,
             ),
             StoreProfile(
                 host_id=h2.id,
                 last_light_scan_at=now - timedelta(days=20),
                 last_checkout_scan_at=now - timedelta(days=40),
+                checkout_status=ScanStatus.REACHED_CHECKOUT,
                 updated_at=now,
             ),
-            StoreProfile(host_id=h3.id, updated_at=now),
+            StoreProfile(host_id=h3.id, updated_at=now),  # never walked: not in the NFR-Q-08 base
         ]
     )
     for pid, conf in (
@@ -306,13 +314,60 @@ def test_dashboard_outcomes_confidence_freshness_and_spikes(
     assert d.overall is not None and d.overall.walks == 14 and d.overall.to_payment == 0.5
     assert d.provider_confidence == {"high": 2, "low": 1} and d.method_confidence == {}
     f = d.freshness
-    assert f.profiles == 3 and f.light_never == 1 and f.checkout_never == 1
+    assert f.profiles == 3 and f.light_never == 1 and f.checkout_never == 0
     assert f.light_median_days == 10.5 and f.light_stale_share == 0.5
-    assert f.checkout_median_days == 25.0 and f.checkout_stale_share == 0.5
+    assert f.checkout_median_days == 25.0 and f.checkout_stale_share == 0.5  # 40 d > 35 d
+    assert f.watchlist_profiles == 0 and f.watchlist_stale_share == 0.0
     assert len(d.events_per_day) == 7
     assert [e.day.date() for e in d.spikes] == [now.date()]
     assert d.events_per_day[-1].count == 15
     assert d.as_dict()["spikes"] == [now.date().isoformat()]
     lines = dash.summary_lines(d)
     assert any("to payment step 50.0%" in line for line in lines)
-    assert lines[-1].endswith("15!")
+    assert lines[-2].endswith("15!") and lines[-1].startswith("event review: 0 reviewed")
+
+    # ТЗ 7.2 thresholds (NFR-Q-06…08): woocommerce reached the checkout in 80 % of 10 walks,
+    # below the 20-walk floor → no reach breach; freshness shares 50 % breach both targets
+    s = QualitySettings()
+    found = dash.breaches(d, s)
+    assert [b.code for b in found] == ["NFR-Q-07", "NFR-Q-08"]
+    found = dash.breaches(
+        d, QualitySettings(max_light_stale_share=0.6, max_checkout_stale_share=0.6)
+    )
+    assert found == []
+    # with the walk floor lowered, magento2 (25 % reach) breaches NFR-Q-06
+    dash.MIN_WALKS_FOR_REACH, saved = 1, dash.MIN_WALKS_FOR_REACH
+    try:
+        found = dash.breaches(d, s)
+    finally:
+        dash.MIN_WALKS_FOR_REACH = saved
+    assert {(b.code, b.subject) for b in found} >= {("NFR-Q-06", "magento2")}
+    assert not any(b.subject == "woocommerce" for b in found)
+    created = dash.record_breaches(db_session, found, now=now, window_days=7)
+    assert {a.kind for a in created} == {
+        dash.KIND_REACH,
+        dash.KIND_FRESH_LIGHT,
+        dash.KIND_FRESH_CHECKOUT,
+    }
+    assert all(a.message.startswith("NFR-Q-0") for a in created)
+    assert dash.record_breaches(db_session, found, now=now, window_days=7) == []  # idempotent
+
+    # NFR-Q-09: manual review of a sample of change events
+    sample = dash.event_sample(db_session, n=5, days=30, now=now)
+    assert len(sample) == 5 and all(e.review_decision is None for e in sample)
+    csv_text = dash.event_sample_csv(db_session, sample)
+    assert csv_text.splitlines()[0].startswith("event_id,hostname,event_type")
+    assert len(csv_text.splitlines()) == 6 and "fresh.de" in csv_text
+    dash.review_event(db_session, sample[0].id, decision="rejected", actor="analyst", now=now)
+    for e in sample[1:]:
+        dash.review_event(db_session, e.id, decision="accepted", actor="analyst", now=now)
+    with pytest.raises(ValidationError):
+        dash.review_event(db_session, sample[0].id, decision="maybe", actor="a", now=now)
+    with pytest.raises(NotFoundError):
+        dash.review_event(db_session, 10**9, decision="accepted", actor="a", now=now)
+    er = dash.event_review(db_session)
+    assert (er.reviewed, er.rejected, er.rejected_share) == (5, 1, 0.2)
+    d2 = dash.dashboard(db_session, ch_client, now=now, days=7)
+    false_events = [b for b in dash.breaches(d2, s) if b.code == "NFR-Q-09"]
+    assert len(false_events) == 1 and false_events[0].value == 0.2
+    assert len(dash.event_sample(db_session, n=50, days=30, now=now)) == 23 - 5

@@ -16,9 +16,13 @@
 <h2>Freshness</h2>
 <table class="kv">
 <tr><th>Profiles</th><td>{{ dash.freshness.profiles }}</td></tr>
-<tr><th>Light scan median age</th><td>{{ dash.freshness.light_median_days }} d · stale {{ dash.freshness.light_stale_share|pct }} · never {{ dash.freshness.light_never }}</td></tr>
-<tr><th>Checkout scan median age</th><td>{{ dash.freshness.checkout_median_days }} d · stale {{ dash.freshness.checkout_stale_share|pct }} · never {{ dash.freshness.checkout_never }}</td></tr>
+<tr><th>Light scan median age (e-commerce)</th><td>{{ dash.freshness.light_median_days }} d · stale {{ dash.freshness.light_stale_share|pct }} · never {{ dash.freshness.light_never }}</td></tr>
+<tr><th>Checkout scan median age (hosts with a checkout)</th><td>{{ dash.freshness.checkout_median_days }} d · stale {{ dash.freshness.checkout_stale_share|pct }} · never {{ dash.freshness.checkout_never }}</td></tr>
+<tr><th>Watchlist hosts</th><td>{{ dash.freshness.watchlist_profiles }} · stale {{ dash.freshness.watchlist_stale_share|pct }}</td></tr>
+<tr><th>Change events reviewed</th><td>{{ dash.event_review.reviewed }} · rejected {{ dash.event_review.rejected }}{% if dash.event_review.rejected_share is not none %} ({{ dash.event_review.rejected_share|pct }}){% endif %}</td></tr>
 </table>
+<h2>Thresholds (ТЗ 7.2)</h2>
+{% if breaches %}<ul class="alerts">{% for b in breaches %}<li class="tag">{{ b.code }}: {{ b.message }}</li>{% endfor %}</ul>{% else %}<p class="muted">All NFR-Q-06…09 thresholds met in this window.</p>{% endif %}
 <h2>Change events per day</h2>
 <p>{% for d in dash.events_per_day %}<span class="{{ 'tag' if d.spike else '' }}">{{ d.day.date() }}: {{ d.count }}</span>{% if not loop.last %} · {% endif %}{% endfor %}</p>
 {% endif %}
@@ -26,7 +30,7 @@
 <h2>Stop reasons ({{ review.total }} stops)</h2>
 <p>other share {{ review.other_share|pct }} · by reason: {% for k, v in review.by_reason.items() %}{{ k }} {{ v }}{% if not loop.last %} · {% endif %}{% endfor %}</p>
 <table class="grid"><thead><tr><th>Step</th><th>Reason</th><th>Platform</th><th>Adapter</th><th>Count</th><th>Share</th></tr></thead><tbody>
-{% for c in review.cells[:40] %}<tr><td>{{ c.step }}</td><td>{{ c.reason }}</td><td>{{ c.platform_id }}</td><td>{{ c.adapter }}</td><td>{{ c.count }}</td><td>{{ c.share|pct }}</td></tr>{% endfor %}
+{% for c in review.cells[:40] %}<tr><td>{{ c.step }}</td><td><a href="/admin/quality/stops/{{ c.step }}/{{ c.reason }}?days={{ days }}&amp;platform={{ c.platform_id }}&amp;adapter={{ c.adapter }}">{{ c.reason }}</a></td><td>{{ c.platform_id }}</td><td>{{ c.adapter }}</td><td>{{ c.count }}</td><td>{{ c.share|pct }}</td></tr>{% endfor %}
 </tbody></table>
 {% endif %}
 <h2>Quality alerts</h2>
