@@ -240,6 +240,37 @@ def test_store_card_shows_detection_details(
     assert client.get("/portal/stores/czds-only.de").status_code == 404
 
 
+def test_store_views_are_journaled(
+    client: TestClient, db_session: Session, world: World, app_state: AppState
+) -> None:
+    """FR-UI-04: reading a store card (not only mutations) leaves an audit row with the
+    actor, the store, the field profile and the client IP."""
+    login(client, world.org_viewer_email, state=app_state, session=db_session)
+    assert client.get("/portal/stores/beta-store.de").status_code == 200
+    assert client.get("/portal/stores/beta-store.de/screenshot").status_code == 404
+    rows = (
+        db_session.execute(
+            select(AuditLog).where(AuditLog.action == "portal.view_store").order_by(AuditLog.id)
+        )
+        .scalars()
+        .all()
+    )
+    assert [(r.object_type, r.object_id) for r in rows] == [("store", "beta-store.de")]
+    assert rows[0].actor == f"org_viewer:{world.org_viewer_email}"
+    assert rows[0].after == {"profile": "c1_full"}
+    assert client.get("/portal/stores/delta-boutique.fr").status_code == 403
+    denied = (
+        db_session.execute(
+            select(AuditLog).where(
+                AuditLog.action == "portal.view_store", AuditLog.object_id == "delta-boutique.fr"
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert denied == []  # a refused lookup writes nothing: the card was never shown
+
+
 def test_security_headers_cookie_flags_and_support_is_read_only(
     client: TestClient, db_session: Session, world: World, app_state: AppState
 ) -> None:

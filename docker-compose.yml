@@ -159,25 +159,45 @@ services:
         limits: { memory: 2g }
     networks: [crawl]
 
-  worker-checkout:
-    <<: *app
+  browser:
+    # NFR-S-08: Chromium lives in its own container; the worker talks to it over
+    # the Playwright protocol (ws://browser:3000/) and never runs a browser itself.
+    # No secrets, no database access, only the crawl network.
     profiles: [crawl-1]
     build:
       context: .
       dockerfile: docker/app.Dockerfile
       target: checkout
     image: payintel-checkout:latest
-    command: ["payintel", "worker-checkout", "--worker-id", "crawl-1-checkout"]
+    command: ["playwright", "run-server", "--host", "0.0.0.0", "--port", "3000"]
     environment:
-      PAYINTEL_DISCOVERY__DNS_NAMESERVERS: '["unbound"]'
-      PAYINTEL_DISCOVERY__DNS_PORT: "53"
       PLAYWRIGHT_BROWSERS_PATH: /opt/pw-browsers
+    user: payintel
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
     shm_size: 1g            # Chromium renderers share memory via /dev/shm
-    depends_on: [unbound]
+    restart: unless-stopped
+    logging: { driver: json-file, options: { max-size: 50m, max-file: "5" } }
     deploy:
       resources:
         limits: { memory: 6g }   # 8 contexts × ≤1 GB JS-heap guard + browser
     networks: [crawl]
+
+  worker-checkout:
+    <<: *app
+    profiles: [crawl-1]
+    command: ["payintel", "worker-checkout", "--worker-id", "crawl-1-checkout"]
+    environment:
+      PAYINTEL_DISCOVERY__DNS_NAMESERVERS: '["unbound"]'
+      PAYINTEL_DISCOVERY__DNS_PORT: "53"
+      PAYINTEL_CHECKOUT__BROWSER_WS_ENDPOINT: ws://browser:3000/
+    depends_on: [unbound, browser]
+    deploy:
+      resources:
+        limits: { memory: 1g }   # walker + HAR buffers only; Chromium is in `browser`
+    networks: [crawl, app, data]
 
 volumes:
   pg-data:

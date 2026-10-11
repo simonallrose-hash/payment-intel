@@ -10,6 +10,11 @@
   the walk aborts with `memory_limit` when it exceeds the configured limit.
 
 No fingerprint is altered: headless or headed is a plain launch flag (AS-20).
+
+NFR-S-08: with `ws_endpoint` set the pool does not launch Chromium in its own
+process but connects to a Playwright browser server (`playwright run-server`)
+running in a separate container; every restart is a fresh connection, i.e. a
+fresh browser on the server side.
 """
 
 from __future__ import annotations
@@ -127,8 +132,12 @@ class BrowserPool:
         executable_path: str | None = None,
         har_dir: Path | None = None,
         on_restart: Callable[[], None] | None = None,
+        ws_endpoint: str | None = None,
+        connect_timeout_ms: int = 30_000,
     ) -> None:
         self.dictionary = dictionary
+        self.ws_endpoint = ws_endpoint or None
+        self.connect_timeout_ms = connect_timeout_ms
         self.user_agent = user_agent
         self.headless = headless
         self.restart_every = max(1, restart_every)
@@ -159,10 +168,16 @@ class BrowserPool:
     async def _launch(self) -> None:
         if self._pw is None:
             raise RuntimeError("Playwright driver is not started")
-        kwargs: dict[str, Any] = {"headless": self.headless}
-        if self.executable_path:
-            kwargs["executable_path"] = self.executable_path
-        self._browser = await self._pw.chromium.launch(**kwargs)
+        if self.ws_endpoint:
+            # remote browser server (NFR-S-08); headless/executable are the server's business
+            self._browser = await self._pw.chromium.connect(
+                self.ws_endpoint, timeout=self.connect_timeout_ms
+            )
+        else:
+            kwargs: dict[str, Any] = {"headless": self.headless}
+            if self.executable_path:
+                kwargs["executable_path"] = self.executable_path
+            self._browser = await self._pw.chromium.launch(**kwargs)
         self.walks_since_restart = 0
 
     async def restart(self) -> None:
@@ -257,6 +272,7 @@ class BrowserPool:
         try:
             cdp = await page.context.new_cdp_session(page)
             try:
+                await cdp.send("Performance.enable")  # metrics are empty until enabled
                 metrics = await cdp.send("Performance.getMetrics")
             finally:
                 await cdp.detach()

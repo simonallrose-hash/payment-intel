@@ -14,6 +14,7 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from sqlalchemy import func, select
+from sqlalchemy.orm import Session
 from starlette.responses import HTMLResponse, RedirectResponse, Response
 
 from payintel.alerts import rules as rules_mod
@@ -23,7 +24,7 @@ from payintel.alerts.delivery import deliveries_of_org
 from payintel.api import read, ui
 from payintel.api.auth import keys as keys_mod
 from payintel.api.auth import passwords, sessions, totp
-from payintel.api.deps import SessionDep, StateDep, client_ip
+from payintel.api.deps import AppState, SessionDep, StateDep, client_ip
 from payintel.compliance import users as users_mod
 from payintel.core import audit
 from payintel.core.errors import ConfigurationError, NotFoundError, ValidationError
@@ -383,6 +384,9 @@ def store_card(
         .limit(1)
     ).scalar_one_or_none()
     has_screenshot = run is not None and state.store is not None
+    _audit_view(
+        session, state, ctx, "portal.view_store", row.domain, {"profile": grant.profile.value}
+    )
     return ui.render(
         request,
         "portal/store.html",
@@ -412,8 +416,33 @@ def store_screenshot(state: StateDep, session: SessionDep, ctx: ui.OrgDep, domai
         for name in ("screenshot.jpg", "stop_screenshot.jpg"):
             data = _get_or_none(state.store, bucket, f"{run.artifact_prefix}{name}")
             if data is not None:
+                _audit_view(
+                    session, state, ctx, "portal.view_screenshot", row.domain, {"run": str(run.id)}
+                )
                 return Response(data, media_type="image/jpeg")
     raise NotFoundError("no screenshot stored for this store")
+
+
+def _audit_view(
+    session: Session,
+    state: AppState,
+    ctx: ui.UiContext,
+    action: str,
+    domain: str,
+    after: dict[str, Any],
+) -> None:
+    """FR-UI-04: reads of store data are journaled like mutations (who looked at which
+    store, when, from where); the audit row is written inside the request transaction."""
+    audit.record(
+        session,
+        actor=ctx.principal.actor,
+        action=action,
+        object_type="store",
+        object_id=domain,
+        after=after,
+        ip=ctx.principal.ip,
+        clock=state.clock,
+    )
 
 
 def _get_or_none(store: Any, bucket: str, key: str) -> bytes | None:
@@ -704,14 +733,18 @@ def export_create(
     countries: Annotated[str | None, Form()] = None,
     platforms: Annotated[str | None, Form()] = None,
 ) -> Response:
+    require_role(ctx.principal, Role.ORG_ANALYST)
     grant = ui.require_grant(ctx)
-    spec = exports.ExportSpec(
-        ExportType(type),
-        ExportFormat(format),
-        date.fromisoformat(since) if since else None,
-        tuple(ui.parse_list(countries)),
-        tuple(ui.parse_list(platforms)),
-    )
+    try:
+        spec = exports.ExportSpec(
+            ExportType(type),
+            ExportFormat(format),
+            date.fromisoformat(since) if since else None,
+            tuple(ui.parse_list(countries)),
+            tuple(ui.parse_list(platforms)),
+        )
+    except ValueError as exc:
+        raise ValidationError(f"invalid export request: {exc}") from exc
     job = exports.request_export(
         session,
         grant=grant,

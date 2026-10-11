@@ -194,6 +194,11 @@ class CheckoutSettings(BaseModel):
     context_memory_limit_mb: int = Field(default=1024, description="FR-CW-10")
     browser_restart_every_walks: int = Field(default=50, description="FR-CW-10")
     headless: bool = Field(default=True, description="FR-CW-01 browser mode (no stealth)")
+    browser_ws_endpoint: str = Field(
+        default="",
+        description="NFR-S-08: ws:// of a `playwright run-server` in a separate container; "
+        "empty = launch Chromium in the worker process",
+    )
     screenshot_max_bytes: int = Field(default=300 * 1024, description="FR-CW-08 (300 KB JPEG)")
     stop_detail_max_chars: int = Field(default=500, description="FR-CW-13")
     action_timeout_seconds: float = Field(

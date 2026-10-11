@@ -84,6 +84,7 @@ def build_browser_pool(settings: Settings, *, har: bool = True) -> BrowserPool:
         restart_every=c.browser_restart_every_walks,
         viewport=(c.viewport_width, c.viewport_height),
         har_dir=Path(mkdtemp(prefix="payintel-har-")) if har else None,
+        ws_endpoint=c.browser_ws_endpoint or None,
     )
 
 

@@ -25,7 +25,7 @@ from payintel.core.models.audit import UsageLog
 from payintel.core.models.base import OrgStatus
 from payintel.core.models.orgs import Entitlement
 from payintel.entitlements.profiles import FORBIDDEN_C1_KEYS
-from tests.stage3.conftest import World, auth, issue_key, staff_principal
+from tests.stage3.conftest import World, auth, issue_key, login, staff_principal
 
 pytestmark = pytest.mark.integration
 
@@ -425,44 +425,176 @@ def test_api_keeps_serving_profiles_when_clickhouse_is_down(
     assert r.status_code == 200 and r.json()["items"]
 
 
+PUBLIC_ROUTES = {
+    "/portal/login",
+    "/portal/login/totp",
+    "/portal/login/enrol",
+    "/portal/logout",
+    "/v1/openapi.json",
+    "/v1/docs",
+}
+
+
+def app_routes(client: TestClient) -> list[tuple[str, str, Any]]:
+    """Every (method, path, route) of the application, mounted routers flattened."""
+    stack: list[Any] = list(client.app.routes)  # type: ignore[attr-defined]
+    out: list[tuple[str, str, Any]] = []
+    while stack:
+        route = stack.pop()
+        inner = getattr(route, "original_router", None)
+        if inner is not None:
+            stack.extend(inner.routes)
+            continue
+        path = getattr(route, "path", "")
+        for method in sorted((getattr(route, "methods", None) or set()) - {"HEAD", "OPTIONS"}):
+            out.append((method, path, route))
+    return sorted(out, key=lambda t: (t[1], t[0]))
+
+
+def probe_path(path: str, route: Any = None) -> str:
+    """The path with every parameter filled by a well-typed dummy (so the probe reaches
+    the authorisation check, not request validation)."""
+    kinds = {
+        f.name: repr(f.field_info.annotation)
+        for f in getattr(getattr(route, "dependant", None), "path_params", [])
+    }
+
+    def fill(m: re.Match[str]) -> str:
+        kind = kinds.get(m.group(1), "")
+        if "UUID" in kind:
+            return "00000000-0000-4000-8000-000000000001"
+        return "1" if "int" in kind else "x"
+
+    return re.sub(r"\{([^}:]+)[^}]*\}", fill, path)
+
+
+def form_for(route: Any, csrf: str) -> dict[str, Any]:
+    """CSRF token plus a dummy value for every required form field, so the probe reaches
+    the role check instead of stopping at request validation."""
+    data: dict[str, Any] = {"csrf": csrf}
+    for field in getattr(getattr(route, "dependant", None), "body_params", []):
+        if field.name != "csrf" and field.field_info.is_required():
+            data[field.name] = ["x"] if "list" in repr(field.field_info.annotation) else "x"
+    return data
+
+
+def staff_roles_of(route: Any) -> set[str] | None:
+    """Staff roles admitted by a `ui.staff_roles(...)` dependency; None = any staff."""
+    dependant = getattr(route, "dependant", None)
+    stack = list(dependant.dependencies) if dependant is not None else []
+    while stack:
+        dep = stack.pop()
+        stack.extend(dep.dependencies)
+        call = dep.call
+        if getattr(call, "__qualname__", "") == "staff_roles.<locals>.dep":
+            for cell in call.__closure__ or ():
+                roles = cell.cell_contents
+                if isinstance(roles, tuple):
+                    return {r.value for r in roles}
+    return None
+
+
 def test_no_route_is_reachable_without_authentication(client: TestClient, world: World) -> None:
     """NFR-S-04: every /v1, /portal and /admin route answers an anonymous request with a
     denial (401/403) or a redirect to the login page, never with content.
 
     Routes that are public by design are listed explicitly; a new unprotected endpoint
     fails this test."""
-    public = {
-        "/portal/login",
-        "/portal/login/totp",
-        "/portal/login/enrol",
-        "/portal/logout",
-        "/v1/openapi.json",
-        "/v1/docs",
-    }
     checked = 0
     offenders: list[str] = []
-    stack: list[Any] = list(client.app.routes)  # type: ignore[attr-defined]
-    flat: list[Any] = []
-    while stack:
-        route = stack.pop()
-        inner = getattr(route, "original_router", None)
-        if inner is not None:
-            stack.extend(inner.routes)
-        else:
-            flat.append(route)
-    for route in flat:
-        path = getattr(route, "path", "")
-        methods = getattr(route, "methods", None) or set()
-        if not path.startswith(("/v1/", "/portal", "/admin")) or path in public:
+    for method, path, _route in app_routes(client):
+        if not path.startswith(("/v1/", "/portal", "/admin")) or path in PUBLIC_ROUTES:
             continue
-        probe = re.sub(r"\{[^}]+\}", "x", path)
-        for method in sorted(methods - {"HEAD", "OPTIONS"}):
-            r = client.request(method, probe, follow_redirects=False)
-            checked += 1
-            ok = r.status_code in (401, 403) or (
-                r.status_code == 303 and r.headers.get("location", "").startswith("/portal/login")
-            )
-            if not ok:
-                offenders.append(f"{method} {path} -> {r.status_code}")
+        r = client.request(method, probe_path(path), follow_redirects=False)
+        checked += 1
+        ok = r.status_code in (401, 403) or (
+            r.status_code == 303 and r.headers.get("location", "").startswith("/portal/login")
+        )
+        if not ok:
+            offenders.append(f"{method} {path} -> {r.status_code}")
     assert checked > 50
     assert not offenders, offenders
+
+
+def test_role_matrix_denies_every_other_role_on_every_route(
+    client: TestClient,
+    db_session: Session,
+    world: World,
+    app_state: AppState,
+    fixed_clock: FixedClock,
+) -> None:
+    """NFR-S-04 role × endpoint matrix, generated from the application's route table:
+
+    - an organisation admin gets 403 on every /admin route;
+    - a staff role outside a route's `staff_roles(...)` list gets 403 on it (support
+      on every compliance/analyst/admin-only admin route);
+    - an organisation viewer gets 403 on every mutating /portal route, with a valid CSRF
+      token and every required form field present (ТЗ 3.2: viewer is read-only);
+    - an API key carrying only `usage:read` gets 403 `scope_missing` on every /v1 route
+      that is not the usage or reference endpoint.
+
+    A new route is covered automatically; the expected answer for every probe is a
+    role denial, never content, a redirect or a validation error."""
+    routes = app_routes(client)
+    offenders: list[str] = []
+    checked = 0
+
+    def deny(method: str, path: str, r: Any, who: str, expect: tuple[int, ...] = (403,)) -> None:
+        nonlocal checked
+        checked += 1
+        if r.status_code not in expect:
+            offenders.append(f"{who}: {method} {path} -> {r.status_code}")
+
+    # 1. organisation admin on the admin UI
+    csrf = login(client, world.org_admin_email, state=app_state, session=db_session)
+    for method, path, route in routes:
+        if path.startswith("/admin"):
+            r = client.request(
+                method, probe_path(path, route), data=form_for(route, csrf), follow_redirects=False
+            )
+            deny(method, path, r, "org_admin")
+    client.cookies.clear()
+
+    # 2. support staff on compliance/analyst/admin-only admin routes
+    csrf = login(client, world.staff_support_email, state=app_state, session=db_session)
+    support_checked = 0
+    for method, path, route in routes:
+        roles = staff_roles_of(route)
+        if path.startswith("/admin") and roles is not None and "staff_support" not in roles:
+            r = client.request(
+                method, probe_path(path, route), data=form_for(route, csrf), follow_redirects=False
+            )
+            deny(method, path, r, "staff_support")
+            support_checked += 1
+    assert support_checked > 20
+    client.cookies.clear()
+
+    # 3. organisation viewer on every mutating portal route
+    csrf = login(client, world.org_viewer_email, state=app_state, session=db_session)
+    viewer_checked = 0
+    for method, path, route in routes:
+        if path.startswith("/portal") and method != "GET" and path not in PUBLIC_ROUTES:
+            r = client.request(
+                method, probe_path(path, route), data=form_for(route, csrf), follow_redirects=False
+            )
+            deny(method, path, r, "org_viewer")
+            viewer_checked += 1
+    assert viewer_checked > 10
+    client.cookies.clear()
+
+    # 4. API key with a single scope on every /v1 route
+    key = issue_key(
+        db_session, world.org, clock=fixed_clock, settings=app_state.settings, scopes=["usage:read"]
+    )
+    for method, path, _route in routes:
+        if not path.startswith("/v1/") or path in PUBLIC_ROUTES:
+            continue
+        if path == "/v1/usage" or path in ("/v1/providers", "/v1/payment-methods"):
+            continue  # usage:read covers /v1/usage; reference lists need no scope (FR-API-02)
+        fixed_clock.advance(seconds=1)  # one request per rate-limit window (FR-API-07)
+        r = client.request(method, probe_path(path, _route), headers=auth(key.raw), json={})
+        deny(method, path, r, "key[usage:read]")
+        if r.status_code == 403 and r.json().get("reason") != "scope_missing":
+            offenders.append(f"key[usage:read]: {method} {path} -> {r.json().get('reason')}")
+    assert checked > 80, checked
+    assert not offenders, "\n".join(offenders)
