@@ -55,3 +55,14 @@ FR-DT-05/06 вводят `active_on_checkout` и `acquirer_hidden`, FR-DT-11 —
 - Удаление строки при двух пропусках означает, что повторное появление
   через три скана снова начнётся с `confirmations=1`; это осознанно: для
   клиента важна актуальность, а не непрерывность строки.
+
+## Дополнение (долг-спринт 4, 2026-10-11)
+
+Роли `fraud_tool` (Sift, Signifyd, Riskified, Forter, Ravelin, Kount) и
+`3ds_sdk` (Cardinal Commerce / Songbird) появились в справочнике с правилами
+из открытой документации вендоров (остальное — `needs_verification`). Для
+`acquirer_hidden` они нейтральны: не являются ни шлюзом, ни оркестратором,
+поэтому их присутствие не меняет признак. e2e-тест
+`tests/e2e/test_checkout_worker.py::test_orchestrator_without_gateway_marks_acquirer_hidden`
+проверяет `acquirer_hidden = true` для магазина, чьи поля карты отдаёт
+iframe оркестратора (Spreedly) без видимого шлюза.

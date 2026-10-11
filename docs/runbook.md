@@ -27,11 +27,17 @@ Redis/Postgres иначе как через `app`, Caddy не видит нич�
 MinIO (9000) идёт только по приватной сети (Hetzner vSwitch или WireGuard);
 на публичных интерфейсах файрвол пропускает только 22 (с allow-list IP
 администраторов), 80 и 443 на `app-1`. Браузеры Playwright работают в
-контейнере `worker-checkout` на `crawl-1`: это не отдельный изолированный
-сегмент, как просит NFR-S-08, поэтому компенсирующие меры обязательны —
-egress-фильтр на каждый переход (NFR-S-09, ADR-0010), контейнер без
-capabilities и без доступа к `data`-сети напрямую, кроме ClickHouse/MinIO,
-отдельный `.env` на `crawl-1` без ключей шифрования портала.
+отдельном контейнере `browser` на `crawl-1` (`playwright run-server`,
+только сеть `crawl`: видит Unbound и интернет, не видит Postgres, Redis,
+ClickHouse и MinIO; read-only FS, без capabilities, `shm_size 1g`, лимит
+памяти 6 ГБ). `worker-checkout` подключается к нему по
+`PAYINTEL_CHECKOUT__BROWSER_WS_ENDPOINT=ws://browser:3000/` и сам Chromium
+не содержит (образ `app`, лимит 1 ГБ); каждый перезапуск браузера
+(`checkout.browser_restart_every_walks`) — новое подключение, то есть
+новый браузер на стороне сервера. Дополнительно: egress-фильтр на каждый
+переход (NFR-S-09, ADR-0010), отдельный `.env` на `crawl-1` без ключей
+шифрования портала. Пустая переменная `BROWSER_WS_ENDPOINT` возвращает
+старый режим (Chromium внутри процесса воркера, образ `payintel-checkout`).
 
 ## 2. Миграции (NFR-M-04)
 
@@ -216,8 +222,9 @@ WAL — 30 дней, удаление по lifecycle бакета.
 ## 12. Сканер чекаута (4.4, FR-CW-01..14)
 
 - Запуск: `payintel worker-checkout [--once] [--limit N] [--concurrency N] [--worker-id ID]`.
-  В compose — сервис `worker-checkout` профиля `crawl-1` (образ с Chromium,
-  цель `checkout` в `docker/app.Dockerfile`). Нужны Postgres, Redis,
+  В compose — сервис `worker-checkout` профиля `crawl-1` плюс контейнер
+  `browser` (`playwright run-server`, образ цели `checkout` в
+  `docker/app.Dockerfile`; NFR-S-08, §1). Нужны Postgres, Redis,
   ClickHouse, S3 и `PAYINTEL_SECRETS__ENCRYPTION_KEY` (без ключа регистрация
   аккаунтов отключена — FR-CW-12). Один браузер на процесс, перезапуск
   каждые `checkout.browser_restart_every_walks` (50) проходов, по умолчанию
@@ -366,11 +373,17 @@ WAL — 30 дней, удаление по lifecycle бакета.
   `payintel_checkout_walks_total{status}`, `payintel_checkout_walk_seconds`
   (NFR-C-02, стоимость прохода — `docs/capacity.md` §8).
 - Загрузка серверов (FR-ADM-03): `/admin/crawler` показывает очереди,
-  пропускную способность и ошибки; CPU/RAM/диск серверов — из
-  `node_exporter` на каждом хосте (пакет `prometheus-node-exporter`,
-  порт 9100 только в приватной сети) в той же Grafana, что и метрики
-  выше. В саму админку хостовые метрики не выводятся: контейнер `api`
-  видит только свой cgroup.
+  пропускную способность, ошибки и таблицу «Servers and workers»: каждый
+  воркер (`worker-light`, `worker-checkout`) раз в
+  `PAYINTEL_SCAN__HEARTBEAT_SECONDS` (30) пишет строку `worker_heartbeat`
+  — хост, PID, load average 1/5 мин, число CPU, RAM занято/всего
+  (`/proc/meminfo` хоста, так как cgroup контейнера их не скрывает),
+  задач в полёте и выполнено; строка краснеет как `stale` без
+  heartbeat более 3 интервалов (воркер завис или упал), `stopped` после
+  штатной остановки. Load выше числа CPU или RAM > 90 % — хост
+  насыщен (docs/capacity.md). Диск и сетевые метрики хостов — из
+  `node_exporter` (порт 9100 только в приватной сети) в Grafana;
+  алерты — по Prometheus, а не по таблице.
 - Пороги качества (NFR-Q-01…09): `payintel quality thresholds` печатает
   текущие значения и нарушения, `/admin/quality` показывает их красным;
   `payintel quality event-sample --days 7 --csv sample.csv` даёт выборку

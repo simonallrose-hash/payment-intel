@@ -1,0 +1,129 @@
+name: bench
+
+# NFR-P-03..06 (AC-12) on a synthetic 1M-store dataset, nightly and on demand.
+# The thresholds live in src/payintel/bench/api_load.py (P-03/04/05) and below
+# (P-06: a 1M-row Parquet export in ≤ 15 min). A miss fails the job; the JSON
+# reports are uploaded for docs/capacity.md. A GitHub runner (4 vCPU, 16 GB) is
+# not the target hardware (capacity.md §7): the run guards against regressions,
+# the sizing numbers come from the stand.
+
+on:
+  schedule:
+    - cron: "30 2 * * *"
+  workflow_dispatch:
+    inputs:
+      stores:
+        description: "Synthetic stores to generate"
+        default: "1000000"
+      duration:
+        description: "Seconds per API scenario"
+        default: "60"
+      export:
+        description: "Also time the full-snapshot Parquet export (NFR-P-06)"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+env:
+  UV_FROZEN: "1"
+  PAYINTEL_POSTGRES__DSN: postgresql+psycopg://payintel:payintel@localhost:5432/payintel
+  PAYINTEL_POSTGRES__POOL_SIZE: "20"
+  PAYINTEL_CLICKHOUSE__URL: http://localhost:8123
+  PAYINTEL_CLICKHOUSE__USER: payintel
+  PAYINTEL_CLICKHOUSE__PASSWORD: payintel
+  PAYINTEL_CLICKHOUSE__DATABASE: payintel
+  PAYINTEL_REDIS__URL: redis://localhost:6379/0
+  PAYINTEL_S3__ENDPOINT: http://localhost:9000
+  PAYINTEL_S3__ACCESS_KEY: payintel
+  PAYINTEL_S3__SECRET_KEY: payintel-ci-not-a-secret
+  PAYINTEL_S3__BUCKET_EXPORTS: payintel-bench-exports
+  PAYINTEL_S3__BUCKET_ARTIFACTS: payintel-bench-artifacts
+  PAYINTEL_SECRETS__API_KEY_PEPPER: bench-pepper-not-a-secret
+  PAYINTEL_SECRETS__SESSION_SECRET: bench-session-not-a-secret
+  PAYINTEL_API__COOKIE_SECURE: "false"
+  BENCH_STORES: ${{ github.event.inputs.stores || '1000000' }}
+  BENCH_DURATION: ${{ github.event.inputs.duration || '60' }}
+  BENCH_EXPORT: ${{ github.event.inputs.export || 'true' }}
+
+jobs:
+  bench-api:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: payintel
+          POSTGRES_PASSWORD: payintel
+          POSTGRES_DB: payintel
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U payintel" --health-interval 5s --health-timeout 5s --health-retries 10
+          --shm-size 1g
+      clickhouse:
+        image: clickhouse/clickhouse-server:24.8
+        env:
+          CLICKHOUSE_USER: payintel
+          CLICKHOUSE_PASSWORD: payintel
+          CLICKHOUSE_DB: payintel
+        ports: ["8123:8123"]
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+      minio:
+        # bitnami's image starts `minio server` by itself (GitHub services take no command)
+        image: bitnami/minio:2024
+        env:
+          MINIO_ROOT_USER: payintel
+          MINIO_ROOT_PASSWORD: payintel-ci-not-a-secret
+        ports: ["9000:9000"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+      - run: uv sync --all-groups
+      - run: make migrate
+      - run: make seed
+      - name: Synthetic dataset (ADR-0034)
+        run: |
+          uv run python scripts/synth_dataset.py --stores "$BENCH_STORES" --seed 42 --reset | tee synth.out
+          grep -o 'api_key=.*' synth.out | cut -d= -f2 > bench_key.txt
+          test -s bench_key.txt
+      - name: Market-share snapshot (ADR-0033)
+        run: uv run payintel stats refresh
+      - name: API in the background
+        run: |
+          nohup uv run payintel api serve --port 8900 --workers 2 > api.log 2>&1 &
+          for i in $(seq 1 60); do
+            curl -fsS http://127.0.0.1:8900/v1/openapi.json > /dev/null && break
+            sleep 2
+          done
+          curl -fsS http://127.0.0.1:8900/v1/openapi.json > /dev/null
+      - name: NFR-P-03 / P-04 / P-05 (scripts/bench_api.py, exit 1 on a threshold miss)
+        run: |
+          uv run python scripts/bench_api.py --base-url http://127.0.0.1:8900 \
+            --api-key "$(cat bench_key.txt)" --duration "$BENCH_DURATION" --out bench-api.json \
+            | tee bench-api.log
+      - name: NFR-P-06 full-snapshot Parquet export ≤ 15 min
+        if: env.BENCH_EXPORT == 'true'
+        run: |
+          curl -fsS -H "Authorization: Bearer $(cat bench_key.txt)" -H 'Content-Type: application/json' \
+            -d '{"type":"full_snapshot","format":"parquet"}' http://127.0.0.1:8900/v1/exports | tee export-request.json
+          uv run python scripts/bench_export.py --limit-seconds 900 --out bench-export.json | tee bench-export.log
+      - name: Summary
+        if: always()
+        run: |
+          { echo '### bench (stores='"$BENCH_STORES"', duration='"$BENCH_DURATION"' s)'; echo; echo '```'; cat bench-api.log 2>/dev/null; cat bench-export.log 2>/dev/null; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bench-reports
+          path: |
+            bench-api.json
+            bench-export.json
+            bench-api.log
+            bench-export.log
+            api.log
