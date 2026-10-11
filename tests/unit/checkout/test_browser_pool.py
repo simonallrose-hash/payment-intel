@@ -3,14 +3,13 @@ browser server mode (NFR-S-08)."""
 
 from __future__ import annotations
 
-import asyncio
 import socket
+import subprocess
 import sys
-from collections.abc import AsyncIterator
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
-import pytest_asyncio
 
 from payintel.crawl.checkout.browser import BrowserPool, ContextOptions
 from payintel.crawl.checkout.dictionary import load_dictionary
@@ -77,30 +76,34 @@ def _free_port() -> int:
         return int(s.getsockname()[1])
 
 
-@pytest_asyncio.fixture(loop_scope="session")
-async def browser_server() -> AsyncIterator[str]:
-    """`playwright run-server` as a separate process, the way the `browser` container runs it."""
+@pytest.fixture(scope="module")
+def browser_server() -> Iterator[str]:
+    """`playwright run-server` as a separate process, the way the `browser` container runs it
+    (a plain subprocess in a sync fixture: it outlives any single event loop)."""
     port = _free_port()
-    proc = await asyncio.create_subprocess_exec(
-        sys.executable,
-        "-m",
-        "playwright",
-        "run-server",
-        "--host",
-        "127.0.0.1",
-        "--port",
-        str(port),
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.STDOUT,
+    proc = subprocess.Popen(  # noqa: S603 - fixed argv, no shell
+        [
+            sys.executable,
+            "-m",
+            "playwright",
+            "run-server",
+            "--host",
+            "127.0.0.1",
+            "--port",
+            str(port),
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
     )
     assert proc.stdout is not None
-    line = (await asyncio.wait_for(proc.stdout.readline(), timeout=60)).decode()
+    line = proc.stdout.readline()
     try:
         assert "Listening on" in line, line
         yield f"ws://127.0.0.1:{port}/"
     finally:
         proc.terminate()
-        await asyncio.wait_for(proc.wait(), timeout=10)
+        proc.wait(timeout=10)
 
 
 @pytest.mark.asyncio(loop_scope="session")
