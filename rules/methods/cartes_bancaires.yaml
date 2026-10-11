@@ -1,0 +1,15 @@
+# Detection rules for payment_method `cartes_bancaires` (FR-DT-01, FR-DT-02; FR-DT-03 local method set).
+# Checkout-label rules match the brand name as shown to the buyer (ADR-0015); the brand's
+# official site is the `source`. Rules with needs_verification: true are disabled.
+target_type: payment_method
+target_id: cartes_bancaires
+source: https://www.cartes-bancaires.com/
+rules:
+- id: payment_method.cartes_bancaires.checkout_label.1
+  version: 1
+  signal_type: checkout_label
+  pattern: '(?i)cartes?\s+bancaires?|\bcb\b\s*(\(|-|/)?\s*(visa|mastercard)|\b(visa|mastercard)\b.{0,10}\bcb\b'
+  weight: 0.5
+  page_scope: checkout
+  enabled: true
+  note: 'FR domestic scheme; label ''Carte bancaire / CB'''

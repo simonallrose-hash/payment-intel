@@ -1,0 +1,14 @@
+# Detection rules for payment_method `paypal_pay_later` (FR-DT-01, FR-DT-02; FR-DT-03 local method set).
+# Checkout-label rules match the brand name as shown to the buyer (ADR-0015); the brand's
+# official site is the `source`. Rules with needs_verification: true are disabled.
+target_type: payment_method
+target_id: paypal_pay_later
+source: https://www.paypal.com/us/digital-wallet/ways-to-pay/buy-now-pay-later
+rules:
+- id: payment_method.paypal_pay_later.checkout_label.1
+  version: 1
+  signal_type: checkout_label
+  pattern: '(?i)pay\s*pal.{0,20}(pay\s+later|pay\s+in\s+[34]|später\s+bezahlen|ratenzahlung|paiement\s+en\s+4x|paga\s+in\s+3)'
+  weight: 0.5
+  page_scope: checkout
+  enabled: true

@@ -1,0 +1,15 @@
+# Detection rules for payment_method `gift_card` (FR-DT-01, FR-DT-02; FR-DT-03 local method set).
+# Checkout-label rules match the brand name as shown to the buyer (ADR-0015); the brand's
+# official site is the `source`. Rules with needs_verification: true are disabled.
+target_type: payment_method
+target_id: gift_card
+source: https://en.wikipedia.org/wiki/Gift_card
+rules:
+- id: payment_method.gift_card.checkout_label.1
+  version: 1
+  signal_type: checkout_label
+  pattern: '(?i)\b(gift\s*card|gutschein(karte)?|geschenkkarte|cadeaukaart|carte\s+cadeau|buono\s+regalo|tarjeta\s+regalo)\b'
+  weight: 0.4
+  page_scope: checkout
+  enabled: true
+  note: 'generic; no brand owner'

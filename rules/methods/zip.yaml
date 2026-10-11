@@ -1,0 +1,15 @@
+# Detection rules for payment_method `zip` (FR-DT-01, FR-DT-02; FR-DT-03 local method set).
+# Checkout-label rules match the brand name as shown to the buyer (ADR-0015); the brand's
+# official site is the `source`. Rules with needs_verification: true are disabled.
+target_type: payment_method
+target_id: zip
+source: https://zip.co/
+rules:
+- id: payment_method.zip.checkout_label.1
+  version: 1
+  signal_type: checkout_label
+  pattern: '(?i)\bzip\b.{0,20}\b(pay|money|later|instal)|\bzip\s*co\b|pay\s+with\s+zip\b'
+  weight: 0.4
+  page_scope: checkout
+  enabled: true
+  note: 'label needs a payment context: a bare ''zip'' is also a postcode field'

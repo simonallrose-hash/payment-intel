@@ -212,3 +212,98 @@ def test_two_signal_types_without_checkout_stay_low(ruleset: RuleSet) -> None:
     stripe = next(s for s in scores if s.target_id == "stripe")
     assert len(stripe.signal_types) >= 2
     assert stripe.confidence == ConfidenceLevel.LOW and not stripe.active_on_checkout
+
+
+def test_every_payment_method_has_a_label_rule_and_local_methods_exceed_20(
+    ruleset: RuleSet,
+) -> None:
+    """FR-DT-03: the starter set covers ≥ 20 local (non-global) payment methods, and every
+    method of the reference has at least one enabled rule."""
+    ref = load_reference()
+    with_rules = {
+        r.target_id
+        for r in ruleset.rules
+        if r.target_type == RuleTargetType.PAYMENT_METHOD and r.enabled
+    }
+    missing = {m["id"] for m in ref.payment_methods} - with_rules
+    assert not missing, missing
+    local = {m["id"] for m in ref.payment_methods if "global" not in m.get("regions", [])}
+    assert len(local & with_rules) >= 20, sorted(local & with_rules)
+
+
+def test_checkout_labels_match_local_methods_but_not_lookalikes(ruleset: RuleSet) -> None:
+    """Label rules are regexes over the payment-option texts captured at the checkout; the
+    ambiguous brand names (Zip, Discover, Alma, CB) must not fire on everyday words."""
+
+    def methods_for(*labels: str) -> set[str]:
+        sig = PageSignals(
+            page_type="checkout", url="https://shop.example/checkout", checkout_labels=list(labels)
+        )
+        return {
+            f.rule.target_id
+            for f in match_page(ruleset, sig)
+            if f.rule.target_type == RuleTargetType.PAYMENT_METHOD
+        }
+
+    found = methods_for(
+        "eps-Überweisung",
+        "Trustly",
+        "MobilePay",
+        "Vipps",
+        "Swish",
+        "Multibanco",
+        "Payer en 3 fois avec Alma",
+        "Scalapay",
+        "Riverty Rechnung",
+        "Pay with Zip",
+        "UPI / BHIM",
+        "Carte bancaire / CB",
+        "Vorkasse (Banküberweisung)",
+        "Direct Debit",
+        "Pay by Bank app",
+        "Bancontact card",
+        "PayPal Pay in 3",
+        "Gutscheinkarte",
+        "Bitcoin",
+        "Discover",
+        "JCB",
+        "UnionPay",
+        "Maestro",
+        "Samsung Pay",
+        "Alipay",
+        "WeChat Pay",
+        "MyBank",
+    )
+    assert found >= {
+        "eps",
+        "trustly",
+        "mobilepay",
+        "vipps",
+        "swish",
+        "multibanco",
+        "alma",
+        "scalapay",
+        "riverty",
+        "zip",
+        "upi",
+        "cartes_bancaires",
+        "sepa_credit_transfer",
+        "bacs_direct_debit",
+        "open_banking",
+        "bancontact_card",
+        "paypal_pay_later",
+        "gift_card",
+        "crypto_generic",
+        "discover",
+        "jcb",
+        "unionpay",
+        "maestro",
+        "samsung_pay",
+        "alipay",
+        "wechat_pay",
+        "mybank",
+    }
+    assert "sepa_direct_debit" not in methods_for("Direct Debit")
+    assert "zip" not in methods_for("ZIP code", "Zip / postal code")
+    assert "discover" not in methods_for("Discover more products")
+    assert "bacs_direct_debit" not in methods_for("SEPA Direct Debit")

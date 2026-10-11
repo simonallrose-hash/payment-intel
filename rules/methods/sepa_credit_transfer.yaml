@@ -1,0 +1,15 @@
+# Detection rules for payment_method `sepa_credit_transfer` (FR-DT-01, FR-DT-02; FR-DT-03 local method set).
+# Checkout-label rules match the brand name as shown to the buyer (ADR-0015); the brand's
+# official site is the `source`. Rules with needs_verification: true are disabled.
+target_type: payment_method
+target_id: sepa_credit_transfer
+source: https://www.europeanpaymentscouncil.eu/what-we-do/sepa-credit-transfer
+rules:
+- id: payment_method.sepa_credit_transfer.checkout_label.1
+  version: 1
+  signal_type: checkout_label
+  pattern: '(?i)\b(sepa.{0,15}(überweisung|ueberweisung|credit\s*transfer|overschrijving|virement)|vorkasse|vorauskasse|prepayment|bank\s*transfer|banküberweisung|bankoverschrijving|virement\s+bancaire|bonifico)\b'
+  weight: 0.4
+  page_scope: checkout
+  enabled: true
+  note: 'prepayment by bank transfer in DE/NL/FR/IT wording'
