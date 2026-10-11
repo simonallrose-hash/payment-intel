@@ -392,6 +392,125 @@ def test_artifacts_are_sanitised(
     assert page["headers"].get("set-cookie") is None  # cookies never stored
 
 
+def _self_signed(hostname: str, tmp_path: Path) -> tuple[Path, Path]:
+    """A throw-away CA-less certificate for `hostname` (issuer = subject)."""
+    from datetime import UTC, datetime
+
+    from cryptography import x509
+    from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.asymmetric import ec
+    from cryptography.x509.oid import NameOID
+
+    key = ec.generate_private_key(ec.SECP256R1())
+    name = x509.Name(
+        [
+            x509.NameAttribute(NameOID.ORGANIZATION_NAME, "PayIntel Test CA"),
+            x509.NameAttribute(NameOID.COMMON_NAME, hostname),
+        ]
+    )
+    now = datetime.now(UTC)
+    cert = (
+        x509.CertificateBuilder()
+        .subject_name(name)
+        .issuer_name(name)
+        .public_key(key.public_key())
+        .serial_number(x509.random_serial_number())
+        .not_valid_before(now - timedelta(days=1))
+        .not_valid_after(now + timedelta(days=30))
+        .add_extension(
+            x509.SubjectAlternativeName([x509.DNSName(hostname), x509.DNSName(f"www.{hostname}")]),
+            critical=False,
+        )
+        .sign(key, hashes.SHA256())
+    )
+    cert_path, key_path = tmp_path / "cert.pem", tmp_path / "key.pem"
+    cert_path.write_bytes(cert.public_bytes(serialization.Encoding.PEM))
+    key_path.write_bytes(
+        key.private_bytes(
+            serialization.Encoding.PEM,
+            serialization.PrivateFormat.PKCS8,
+            serialization.NoEncryption(),
+        )
+    )
+    return cert_path, key_path
+
+
+class TlsLoopbackTransport(LoopbackTransport):
+    """Loopback over HTTPS: the request keeps its https scheme and Host, only the address
+    is rewritten; the certificate is verified against the test certificate (no hostname
+    check, because the address is 127.0.0.1)."""
+
+    def __init__(self, port: int, cert_path: Path) -> None:
+        import ssl
+
+        ctx = ssl.create_default_context(cafile=str(cert_path))
+        ctx.check_hostname = False
+        httpx.AsyncHTTPTransport.__init__(self, verify=ctx)
+        self._port = port
+
+    async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+        local = httpx.Request(
+            request.method,
+            request.url.copy_with(scheme="https", host="127.0.0.1", port=self._port),
+            headers=request.headers,
+            stream=request.stream,
+            extensions=request.extensions,
+        )
+        return await httpx.AsyncHTTPTransport.handle_async_request(self, local)
+
+
+def test_tls_certificate_summary_is_recorded(
+    db_session: Session,
+    fixed_clock: FixedClock,
+    object_store: ObjectStore,
+    s3_settings: S3Settings,
+    tmp_path: Path,
+) -> None:
+    """FR-LS-02: the manifest keeps the TLS certificate summary of the final response —
+    issuer, subject, validity window and SAN — read from the real TLS session."""
+    import ssl
+
+    cert_path, key_path = _self_signed("woo-shop.de", tmp_path)
+    state = ShopServer(port=0)
+    httpd = ThreadingHTTPServer(("127.0.0.1", 0), _handler(state))
+    server_ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    server_ctx.load_cert_chain(str(cert_path), str(key_path))
+    httpd.socket = server_ctx.wrap_socket(httpd.socket, server_side=True)
+    state.port = httpd.server_address[1]
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    settings = _settings(s3_settings)
+    vt = VirtualTime()
+    ctx = build_context(
+        settings,
+        clock=fixed_clock,
+        store=object_store,
+        limiter=MemoryRateLimiter(now=lambda: vt.now),
+        resolve=_loopback,
+        allow_private=True,
+        transport=TlsLoopbackTransport(state.port, cert_path),
+        sleep=vt.sleep,
+        base_scheme="https",
+    )
+    try:
+        out = _scan(
+            LightScanner(ctx), db_session, _plan_for(db_session, fixed_clock, "woo-shop.de")
+        )
+    finally:
+        run_sync(ctx.fetcher.aclose())
+        httpd.shutdown()
+        httpd.server_close()
+    assert out.status == ScanStatus.OK
+    manifest = json.loads(
+        object_store.get_bytes(settings.s3.bucket_artifacts, f"{out.artifact_prefix}manifest.json")
+    )
+    page = manifest["pages"][0]
+    assert page["final_url"].startswith("https://woo-shop.de/")
+    tls = page["tls"]
+    assert "PayIntel Test CA" in tls["issuer"] and "woo-shop.de" in tls["subject"]
+    assert tls["san"] == ["woo-shop.de", "www.woo-shop.de"]
+    assert tls["not_before"] and tls["not_after"] and "GMT" in tls["not_after"]
+
+
 def test_errors_blocked_timeout_and_egress(
     db_session: Session,
     fixed_clock: FixedClock,
