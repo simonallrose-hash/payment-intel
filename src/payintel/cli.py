@@ -155,6 +155,35 @@ def rules_check() -> None:
         typer.echo(f"needs_verification: {r.rule_id} ({r.signal_type.value} {r.pattern})")
 
 
+@app.command("rules-import-wappalyzer")
+def rules_import_wappalyzer(
+    files: Annotated[list[Path], typer.Argument(help="technologies.json or a/…/z.json files")],
+    out: Annotated[Path, typer.Option(help="Output directory for the rule files")] = Path(
+        "rules/wappalyzer"
+    ),
+    source: Annotated[str, typer.Option(help="Where the file came from (URL/commit)")] = (
+        "wappalyzer-format import"
+    ),
+) -> None:
+    """FR-LS-05: convert Wappalyzer-format signatures into (disabled) rule files.
+
+    Nothing is enabled: every imported rule carries needs_verification: true (ADR-0005)
+    and rules/wappalyzer is not read by the detector until an operator moves a checked
+    file into rules/platforms."""
+    from payintel.detect import wappalyzer
+
+    reference = load_reference()
+    result = wappalyzer.convert(wappalyzer.load_technologies(files), reference=reference)
+    written = wappalyzer.write_rule_files(result, out, source=source, reference=reference)
+    platforms = sum(t.target_type == "platform" for t in result.technologies)
+    typer.echo(
+        f"{len(result.technologies)} technologies → {len(written)} files, {result.rules} rules "
+        f"({platforms} mapped to reference platforms, the rest as tech:*); "
+        f"{result.invalid_patterns} patterns skipped; unsupported fields: "
+        + (", ".join(f"{k}×{v}" for k, v in sorted(result.unsupported.items())) or "none")
+    )
+
+
 @app.command("redetect")
 def redetect(
     limit: Annotated[int, typer.Option(help="Hosts per run (newest artefacts first)")] = 100,

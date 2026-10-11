@@ -1,0 +1,38 @@
+{
+  "Shopify": {
+    "cats": [6],
+    "website": "https://www.shopify.com",
+    "description": "sample entry in the Wappalyzer format (test fixture, not vendor data)",
+    "js": {"Shopify.shop": "", "ShopifyAnalytics": ""},
+    "scriptSrc": "cdn\\.shopify\\.com/",
+    "headers": {"X-ShopId": "", "X-Shopify-Stage": "^(production|staging)$\\;confidence:80"},
+    "cookies": {"_shopify_s": "", "cart_sig": ""},
+    "html": "<link[^>]+href=\"https?://cdn\\.shopify\\.com",
+    "meta": {"generator": "^Shopify"},
+    "implies": "Liquid"
+  },
+  "Adobe Commerce": {
+    "cats": [6],
+    "website": "https://business.adobe.com/products/magento/magento-commerce.html",
+    "scriptSrc": "/static/(?:version\\d+/)?frontend/[^/]+/[^/]+/[^/]+/mage/",
+    "js": {"Magento": ""},
+    "cookies": {"mage-cache-storage": ""},
+    "dom": "div[data-mage-init]"
+  },
+  "Example Chat Widget": {
+    "cats": [52],
+    "website": "https://chat.example",
+    "scriptSrc": "widget\\.chat\\.example/v(\\d+(?:\\.\\d+)*)\\.js\\;version:\\1",
+    "js": {"ExampleChat.version": "^(\\d+)\\;version:\\1"},
+    "url": "\\?chat=1",
+    "xhr": "api\\.chat\\.example",
+    "html": "<div[^>]+class=\"example-chat(?:-[a-z]+)?\"",
+    "meta": {"example-chat-key": ""}
+  },
+  "Broken Regex Tech": {
+    "cats": [1],
+    "website": "https://broken.example",
+    "scriptSrc": "broken(.js",
+    "html": "[unclosed"
+  }
+}

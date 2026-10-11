@@ -12,7 +12,12 @@
 Данные Wappalyzer в репозиторий не включаются до проверки лицензии.
 Каталог `rules/wappalyzer/` содержит только README. Платформы детектируются
 собственными правилами `rules/platforms/`. Загрузчик формата Wappalyzer без
-данных — этап 2.
+данных реализован в долг-спринте 4 (2026-10-11): `payintel
+rules-import-wappalyzer` конвертирует файл формата Wappalyzer в правила
+нашей схемы (`src/payintel/detect/wappalyzer.py`); все импортированные
+правила получают `enabled: false, needs_verification: true`, и каталог
+`rules/wappalyzer/` детектором не читается — проверенный файл переносится в
+`rules/platforms/` вручную.
 
 ## Последствия
 
