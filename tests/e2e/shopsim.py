@@ -53,7 +53,7 @@ class ShopConfig:
     payment_fields_required: bool = False
     variants: bool = False
     methods: list[str] = field(default_factory=lambda: ["card", "paypal", "klarna"])
-    tokenizer: str = "stripe"
+    tokenizer: str = "stripe"  # stripe | spreedly (orchestrator: no gateway on the page)
     slow_seconds: float = 0.0
     external_checkout: str = ""  # cart → checkout link points at a provider's hosted page
     # GET of the checkout path sends the browser to this (hosted or foreign) URL. A script
@@ -580,13 +580,25 @@ def _methods_html(cfg: ShopConfig, fl: Flavour) -> str:
 
 
 def _hosted_fields(cfg: ShopConfig) -> str:
-    """A tokenizer card form (Stripe-like iframe) that reveals methods only after typing."""
-    return """
+    """A tokenizer card form (Stripe-like iframe) that reveals methods only after typing.
+
+    `tokenizer == "spreedly"`: the fields are served by an orchestrator's iframe
+    (Spreedly iFrame v1 markup shape) instead — no gateway is visible on the page, so
+    the walk must report `acquirer_hidden` (FR-DT-06, ADR-0015)."""
+    if cfg.tokenizer == "spreedly":
+        frames = """
+<div id="spreedly-number"><iframe name="spreedly-number-frame-1" src="/frames/number" title="Card number"></iframe></div>
+<div id="spreedly-cvv"><iframe name="spreedly-cvv-frame-1" src="/frames/cvc" title="CVV"></iframe></div>"""
+    else:
+        frames = """
 <div id="card-element" class="StripeElement">
   <iframe name="__privateStripeFrame1" src="/frames/number" title="Secure card number input frame"></iframe>
   <iframe name="__privateStripeFrame2" src="/frames/exp" title="Secure expiration date input frame"></iframe>
   <iframe name="__privateStripeFrame3" src="/frames/cvc" title="Secure CVC input frame"></iframe>
-</div>
+</div>"""
+    return (
+        frames
+        + """
 <ul class="revealed-methods"></ul>
 <script>
 window.addEventListener("message", (ev) => {
@@ -596,6 +608,7 @@ window.addEventListener("message", (ev) => {
     + '<li><input type="radio" name="payment_method" value="paypal"><label>PayPal</label></li>';
 });
 </script>"""
+    )
 
 
 FRAME_NUMBER = """<!doctype html><html><body><input name="cardnumber" autocomplete="cc-number" placeholder="1234 1234 1234 1234">
@@ -677,6 +690,13 @@ class Sim:
                 200,
                 {"Content-Type": "application/javascript"},
                 "window.Stripe = function(){};",
+                "",
+            )
+        if st is None and path == "/iframe/iframe-v1.min.js":  # the orchestrator's iframe SDK
+            return (
+                200,
+                {"Content-Type": "application/javascript"},
+                "window.Spreedly = {init: function(){}};",
                 "",
             )
         with self.server.lock:  # every request, foreign hosts included (ADR-0032 tests)
@@ -1013,6 +1033,8 @@ class Sim:
         )
         if cfg.tokenizer == "stripe":
             payment += '<script src="https://js.stripe.com/v3/"></script>'
+        elif cfg.tokenizer == "spreedly":
+            payment += '<script src="https://core.spreedly.com/iframe/iframe-v1.min.js"></script>'
         payment = f'<fieldset class="payment"><legend>{t["pay"]}</legend>{payment}</fieldset>'
         cont = fl.step_button.format(cont=t["continue"])
         action = fl.form_action or fl.checkout_path

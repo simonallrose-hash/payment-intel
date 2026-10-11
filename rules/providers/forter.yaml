@@ -1,0 +1,16 @@
+# Detection rules for provider `forter` (FR-DT-01, FR-DT-02; role fraud_tool, FR-DT-06).
+# Signatures come from the provider's official documentation (see `source`);
+# rules with needs_verification: true are disabled until confirmed (brief rule 8).
+target_type: provider
+target_id: forter
+source: https://docs.forter.com/reference/environments
+rules:
+- id: provider.forter.network_host.1
+  version: 1
+  signal_type: network_host
+  pattern: '*.forter.com'
+  weight: 0.5
+  page_scope: any
+  enabled: false
+  needs_verification: true
+  note: docs.forter.com says the JavaScript snippet is only in the merchant portal (portal.forter.com credentials page); no open page names the script host

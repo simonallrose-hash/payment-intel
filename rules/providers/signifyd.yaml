@@ -1,0 +1,28 @@
+# Detection rules for provider `signifyd` (FR-DT-01, FR-DT-02; role fraud_tool, FR-DT-06).
+# Signatures come from the provider's official documentation (see `source`);
+# rules with needs_verification: true are disabled until confirmed (brief rule 8).
+target_type: provider
+target_id: signifyd
+source: https://developer.signifyd.com/main/docs/device-profiling
+rules:
+- id: provider.signifyd.script_src.1
+  version: 1
+  signal_type: script_src
+  pattern: cdn-scripts.signifyd.com/api/script-tag.js
+  weight: 0.8
+  page_scope: any
+  enabled: true
+- id: provider.signifyd.html_pattern.1
+  version: 1
+  signal_type: html_pattern
+  pattern: id="script-tag-api"[^>]*data-order-session-id|data-order-session-id[^>]*id="script-tag-api"
+  weight: 0.6
+  page_scope: any
+  enabled: true
+- id: provider.signifyd.network_host.1
+  version: 1
+  signal_type: network_host
+  pattern: '*.signifyd.com'
+  weight: 0.5
+  page_scope: any
+  enabled: true

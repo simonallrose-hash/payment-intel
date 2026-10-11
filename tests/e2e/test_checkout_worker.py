@@ -28,6 +28,7 @@ from payintel.core.models.base import (
     Coverage,
     DomainSourceKind,
     DomainStatus,
+    ProviderRole,
     ScanStatus,
     ScanType,
     StoreAccountStatus,
@@ -173,6 +174,7 @@ async def test_reached_payment_step_persists_everything(
     assert "stripe" in providers, providers
     assert {"paypal", "visa"} <= {m.target_id for m in out.methods}
     assert {h.etld1 for h in out.hosts} >= {"stripe.com"}
+    assert out.acquirer_hidden is False  # FR-DT-06: a gateway (Stripe) is visible
     assert any(e["kind"] == "platform_detected" for e in out.walk.journal.as_list())
     assert out.identity_country == "DE"
     assert sim.state("woo-de").counters.forbidden() == {
@@ -445,6 +447,37 @@ async def test_robots_disallow_never_opens_the_browser(
     assert browser_pool.walks_since_restart == walks_before
     run = db_session.get(ScanRun, out.scan_run_id)
     assert run is not None and run.stop_reason == "robots_disallowed"
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_orchestrator_without_gateway_marks_acquirer_hidden(
+    scanner: CheckoutScanner, db_session: Session, fixed_clock: FixedClock, sim: SimServer
+) -> None:
+    """FR-DT-06 / ADR-0015: the payment step is served by an orchestrator (Spreedly iframe
+    SDK) and no gateway is visible among the active providers → `acquirer_hidden` is
+    stored on the profile and the orchestrator carries its role."""
+    sim.reset("orchestrated")
+    _prepare(db_session, fixed_clock, ["orchestrated.com"])
+    plan = _lease(db_session, fixed_clock, "orchestrated.com")
+    out = await _scan(scanner, db_session, plan)
+    assert out.status == ScanStatus.REACHED_PAYMENT_STEP, out.stop
+    providers = {p.target_id: p for p in out.providers}
+    assert "spreedly" in providers and providers["spreedly"].active_on_checkout
+    assert scanner.ctx.provider_roles["spreedly"] == ProviderRole.ORCHESTRATOR
+    assert not any(
+        scanner.ctx.provider_roles.get(pid) == ProviderRole.GATEWAY
+        for pid, p in providers.items()
+        if p.active_on_checkout
+    )
+    assert out.acquirer_hidden is True
+    assert {h.etld1 for h in out.hosts} >= {"spreedly.com"}
+    profile = db_session.get(StoreProfile, out.host_id)
+    assert profile is not None and profile.acquirer_hidden is True
+    rows = db_session.execute(
+        select(StoreProvider).where(StoreProvider.host_id == out.host_id)
+    ).scalars()
+    assert {r.provider_id: r.role for r in rows}["spreedly"] == ProviderRole.ORCHESTRATOR
+    assert sim.state("orchestrated").counters.orders_placed == 0
 
 
 @pytest.mark.asyncio(loop_scope="session")

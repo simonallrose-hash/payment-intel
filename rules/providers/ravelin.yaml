@@ -1,0 +1,31 @@
+# Detection rules for provider `ravelin` (FR-DT-01, FR-DT-02; role fraud_tool, FR-DT-06).
+# Signatures come from the provider's official documentation (see `source`);
+# rules with needs_verification: true are disabled until confirmed (brief rule 8).
+target_type: provider
+target_id: ravelin
+source: https://github.com/unravelin/ravelinjs
+rules:
+- id: provider.ravelin.js_global.1
+  version: 1
+  signal_type: js_global
+  pattern: Ravelin
+  weight: 0.5
+  page_scope: any
+  enabled: true
+  note: ravelinjs v2 is self-hosted (GitHub releases); the constructor `Ravelin` is the only page-level signature
+- id: provider.ravelin.network_host.1
+  version: 1
+  signal_type: network_host
+  pattern: '*.ravelin.click'
+  weight: 0.7
+  page_scope: any
+  enabled: true
+  note: API host of ravelinjs v2 (CSP guidance in the README; developer.ravelin.com ad-blocker guide names live.ravelin.click)
+- id: provider.ravelin.script_src.1
+  version: 1
+  signal_type: script_src
+  pattern: cdn.ravelin.net/
+  weight: 0.6
+  page_scope: any
+  enabled: true
+  note: legacy v0 CDN snippet (README upgrade section)

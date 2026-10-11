@@ -335,6 +335,65 @@ providers:
     countries: [GB]
     website: https://apexx.global
     status: active
+  # --- Fraud tools and 3-D Secure SDKs (FR-DT-06 roles fraud_tool / 3ds_sdk). They never
+  # process the payment: a fraud tool or a 3DS SDK on the checkout does not count as
+  # a gateway, so it neither hides nor reveals the acquirer (ADR-0015).
+  - id: sift
+    name: Sift
+    aliases: [Sift Science]
+    role: fraud_tool
+    owner_company: Sift Science, Inc.
+    countries: [US]
+    website: https://sift.com
+    status: active
+  - id: signifyd
+    name: Signifyd
+    aliases: []
+    role: fraud_tool
+    owner_company: Signifyd, Inc.
+    countries: [US]
+    website: https://www.signifyd.com
+    status: active
+  - id: riskified
+    name: Riskified
+    aliases: []
+    role: fraud_tool
+    owner_company: Riskified Ltd.
+    countries: [IL, US]
+    website: https://www.riskified.com
+    status: active
+  - id: forter
+    name: Forter
+    aliases: []
+    role: fraud_tool
+    owner_company: Forter, Inc.
+    countries: [US, IL]
+    website: https://www.forter.com
+    status: active
+  - id: ravelin
+    name: Ravelin
+    aliases: []
+    role: fraud_tool
+    owner_company: Ravelin Technology Ltd (Worldpay)
+    countries: [GB]
+    website: https://www.ravelin.com
+    status: active
+  - id: kount
+    name: Kount
+    aliases: [Kount (Equifax)]
+    role: fraud_tool
+    owner_company: Equifax Inc.
+    countries: [US]
+    website: https://kount.com
+    status: active
+  - id: cardinal_commerce
+    name: Cardinal Commerce (Songbird)
+    aliases: [Cardinal Cruise, Visa Secure SDK]
+    role: 3ds_sdk
+    owner_company: Visa Inc.
+    countries: [US]
+    website: https://www.cardinalcommerce.com
+    status: active
   # --- Wallet / BNPL brands that are detected as providers too ---
   - id: apple_pay
     name: Apple Pay

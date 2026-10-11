@@ -1,0 +1,36 @@
+# Detection rules for provider `sift` (FR-DT-01, FR-DT-02; role fraud_tool, FR-DT-06).
+# Signatures come from the provider's official documentation (see `source`);
+# rules with needs_verification: true are disabled until confirmed (brief rule 8).
+target_type: provider
+target_id: sift
+source: https://developers.sift.com/docs/javascript/javascript-api/overview
+rules:
+- id: provider.sift.script_src.1
+  version: 1
+  signal_type: script_src
+  pattern: cdn.sift.com/s.js
+  weight: 0.7
+  page_scope: any
+  enabled: true
+- id: provider.sift.script_src.2
+  version: 1
+  signal_type: script_src
+  pattern: cdn.sift.com/js/s-
+  weight: 0.7
+  page_scope: any
+  enabled: true
+  note: SRI-pinned variant, e.g. cdn.sift.com/js/s-117.js
+- id: provider.sift.js_global.1
+  version: 1
+  signal_type: js_global
+  pattern: _sift
+  weight: 0.5
+  page_scope: any
+  enabled: true
+- id: provider.sift.network_host.1
+  version: 1
+  signal_type: network_host
+  pattern: '*.sift.com'
+  weight: 0.5
+  page_scope: any
+  enabled: true

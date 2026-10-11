@@ -1,0 +1,30 @@
+# Detection rules for provider `cardinal_commerce` (FR-DT-01, FR-DT-02; role 3ds_sdk, FR-DT-06).
+# Signatures come from the provider's official documentation (see `source`);
+# rules with needs_verification: true are disabled until confirmed (brief rule 8).
+target_type: provider
+target_id: cardinal_commerce
+source: https://cardinaldocs.atlassian.net/wiki/x/3gIC
+rules:
+- id: provider.cardinal_commerce.script_src.1
+  version: 1
+  signal_type: script_src
+  match: regex
+  pattern: (?i)https?://[a-z0-9.-]*cardinalcommerce\.com/.*songbird\.js
+  weight: 0.8
+  page_scope: any
+  enabled: true
+  note: Songbird.js; the official page names songbirdstag.cardinalcommerce.com/cardinalcruise/v1/songbird.js and says the path changes per environment/version
+- id: provider.cardinal_commerce.js_global.1
+  version: 1
+  signal_type: js_global
+  pattern: Cardinal
+  weight: 0.5
+  page_scope: any
+  enabled: true
+- id: provider.cardinal_commerce.network_host.1
+  version: 1
+  signal_type: network_host
+  pattern: '*.cardinalcommerce.com'
+  weight: 0.6
+  page_scope: checkout
+  enabled: true

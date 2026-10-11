@@ -1,0 +1,25 @@
+# Detection rules for provider `riskified` (FR-DT-01, FR-DT-02; role fraud_tool, FR-DT-06).
+# Signatures come from the provider's official documentation (see `source`);
+# rules with needs_verification: true are disabled until confirmed (brief rule 8).
+target_type: provider
+target_id: riskified
+source: https://developers.riskified.com/docs/beacon-for-web
+rules:
+- id: provider.riskified.script_src.1
+  version: 1
+  signal_type: script_src
+  pattern: beacon.riskified.com/beacon.js
+  weight: 0.7
+  page_scope: any
+  enabled: false
+  needs_verification: true
+  note: the beacon page (developers.riskified.com/docs/beacon-for-web) is closed to crawlers; the snippet is handed out by the integration engineer (support.riskified.com article 360012160393)
+- id: provider.riskified.network_host.1
+  version: 1
+  signal_type: network_host
+  pattern: '*.riskified.com'
+  weight: 0.5
+  page_scope: any
+  enabled: false
+  needs_verification: true
+  note: own domain of the vendor; exact beacon host not confirmed from an open official page

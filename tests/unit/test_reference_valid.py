@@ -125,6 +125,19 @@ def test_required_psps_and_orchestrators_present() -> None:
             assert p["role"] == ProviderRole.ORCHESTRATOR.value  # FR-DT-06
 
 
+FRAUD_TOOLS = {"sift", "signifyd", "riskified", "forter", "ravelin", "kount"}
+THREEDS_SDKS = {"cardinal_commerce"}
+
+
+def test_fraud_tools_and_3ds_sdks_carry_their_roles() -> None:
+    """FR-DT-06: all seven roles are populated; fraud tools and 3DS SDKs are never gateways."""
+    ref = load_reference()
+    roles = {p["id"]: p["role"] for p in ref.providers}
+    assert {roles[p] for p in FRAUD_TOOLS} == {ProviderRole.FRAUD_TOOL.value}
+    assert {roles[p] for p in THREEDS_SDKS} == {ProviderRole.THREEDS_SDK.value}
+    assert set(roles.values()) == {r.value for r in ProviderRole}
+
+
 def test_payment_method_taxonomy_matches_5_3() -> None:
     ref = load_reference()
     by_type: dict[str, set[str]] = {}

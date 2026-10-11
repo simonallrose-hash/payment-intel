@@ -1,0 +1,16 @@
+# Detection rules for provider `kount` (FR-DT-01, FR-DT-02; role fraud_tool, FR-DT-06).
+# Signatures come from the provider's official documentation (see `source`);
+# rules with needs_verification: true are disabled until confirmed (brief rule 8).
+target_type: provider
+target_id: kount
+source: https://developer.kount.com/hc/en-us/articles/36045691202452-Command-to-Payments-Fraud-SDK-Migration
+rules:
+- id: provider.kount.network_host.1
+  version: 1
+  signal_type: network_host
+  pattern: '*.kaptcha.com'
+  weight: 0.6
+  page_scope: any
+  enabled: false
+  needs_verification: true
+  note: data-collector host known from integrator pages only; developer.kount.com documents server SDKs (api.kount.com) and not the browser collector

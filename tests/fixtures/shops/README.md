@@ -12,7 +12,8 @@ Two kinds of fixtures live here:
   (`available` | `wall_with_guest` | `none` | `none_closed`), `registration`
   (`ok` | `email_verification` | `captcha` | `sms` | `documents` | `payment`),
   `protection` (`cloudflare` | `403` | `429` | `captcha` | `geo` | `age`),
-  `stop` (forced stop scenario), `payment_fields_required`, `variants`,
+  `stop` (forced stop scenario), `payment_fields_required`, `tokenizer` (`stripe` |
+  `spreedly`: card fields served by an orchestrator, no gateway on the page), `variants`,
   `slow_seconds`, `external_checkout` (the cart's checkout link points at a
   provider's hosted page) and `checkout_redirect` (the checkout path sends the
   browser to a hosted or foreign host; ADR-0032). The browser reaches a shop
