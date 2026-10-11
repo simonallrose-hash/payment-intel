@@ -13,11 +13,18 @@ import pytest
 from typer.testing import CliRunner
 
 from payintel.cli import app
+from payintel.core.reference_loader import load_reference
 from payintel.core.settings import ClickHouseSettings, S3Settings
 from payintel.discovery.psl import PSL_PATH
 
 pytestmark = pytest.mark.integration
 SOURCES = Path(__file__).resolve().parents[1] / "fixtures" / "sources"
+
+
+def _reference_rows() -> int:
+    """Rows `payintel seed` inserts into an empty database (every dictionary of the reference)."""
+    ref = load_reference()
+    return len(ref.providers) + len(ref.payment_methods) + len(ref.platforms) + len(ref.verticals)
 
 
 def test_cli_stage1_commands(
@@ -59,7 +66,7 @@ def test_cli_stage1_commands(
     try:
         steps = [
             (["migrate"], "postgres: migrated to head"),
-            (["seed"], "reference: +226"),
+            (["seed"], f"reference: +{_reference_rows()}"),
             (
                 ["discovery", "import", str(SOURCES / "tranco_sample.csv"), "--source", "tranco"],
                 "tranco: batch tranco:",

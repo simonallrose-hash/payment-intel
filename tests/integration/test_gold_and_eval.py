@@ -19,6 +19,7 @@ from payintel.core.models.domains import Host
 from payintel.core.models.store import StoreProfile
 from payintel.core.reference_loader import load_reference, sync_reference
 from payintel.core.settings import QualitySettings
+from payintel.detect.rules import load_rules
 from payintel.quality import eval as eval_mod
 from payintel.quality.findings import import_findings_csv
 from payintel.quality.gold import gold_size, import_gold_csv
@@ -159,11 +160,14 @@ def test_cli_end_to_end(tmp_path: Path, fresh_database: str, ch_settings, monkey
     get_settings.cache_clear()
     get_engine.cache_clear()
     runner = CliRunner()
+    ref = load_reference()
+    n_ref = len(ref.providers) + len(ref.payment_methods) + len(ref.platforms) + len(ref.verticals)
+    n_rules = len(load_rules(reference=ref).rules)
     try:
         steps = [
             (["migrate"], "postgres: migrated to head"),
-            (["seed"], "reference: +226 ~0 =0; rules: +708"),
-            (["seed"], "reference: +0 ~0 =226; rules: +0 ~0 =708"),
+            (["seed"], f"reference: +{n_ref} ~0 =0; rules: +{n_rules}"),
+            (["seed"], f"reference: +0 ~0 ={n_ref}; rules: +0 ~0 ={n_rules}"),
             (["gold", "import", str(FIXTURES / "sample_labels.csv"), "--labeled-by", "ci"], "+74"),
             (["gold", "import-findings", str(FIXTURES / "sample_findings.csv")], "observations 48"),
             (["eval", "--report", str(tmp_path / "r.json")], "gate: PASS"),
