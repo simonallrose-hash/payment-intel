@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import asyncio
 import socket
-import subprocess
 import sys
 from collections.abc import AsyncIterator
 from pathlib import Path
@@ -82,29 +81,26 @@ def _free_port() -> int:
 async def browser_server() -> AsyncIterator[str]:
     """`playwright run-server` as a separate process, the way the `browser` container runs it."""
     port = _free_port()
-    proc = subprocess.Popen(  # noqa: S603 - fixed argv, no shell
-        [
-            sys.executable,
-            "-m",
-            "playwright",
-            "run-server",
-            "--host",
-            "127.0.0.1",
-            "--port",
-            str(port),
-        ],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
+    proc = await asyncio.create_subprocess_exec(
+        sys.executable,
+        "-m",
+        "playwright",
+        "run-server",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        str(port),
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.STDOUT,
     )
     assert proc.stdout is not None
-    line = await asyncio.get_running_loop().run_in_executor(None, proc.stdout.readline)
+    line = (await asyncio.wait_for(proc.stdout.readline(), timeout=60)).decode()
     try:
         assert "Listening on" in line, line
         yield f"ws://127.0.0.1:{port}/"
     finally:
         proc.terminate()
-        proc.wait(timeout=10)
+        await asyncio.wait_for(proc.wait(), timeout=10)
 
 
 @pytest.mark.asyncio(loop_scope="session")
