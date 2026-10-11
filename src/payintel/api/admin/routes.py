@@ -32,6 +32,7 @@ from payintel.compliance import optout as optout_mod
 from payintel.compliance import sanctions as sanctions_mod
 from payintel.compliance import users as users_mod
 from payintel.core import audit
+from payintel.core import heartbeat as heartbeat_mod
 from payintel.core.errors import ConfigurationError, NotFoundError, ValidationError
 from payintel.core.flags import FlagService
 from payintel.core.models.abuse import AbuseIncident
@@ -811,6 +812,10 @@ def crawler(request: Request, state: StateDep, session: SessionDep, ctx: ui.Staf
         by_status=[(t.value, s.value, n) for t, s, n in by_status],
         throughput=throughput,
         workers=workers,
+        heartbeats=heartbeat_mod.workers(
+            session, now=now, interval_seconds=state.settings.scan.heartbeat_seconds
+        ),
+        heartbeat_seconds=state.settings.scan.heartbeat_seconds,
         asn_limits=complaints_mod.active(session),
         asn_lifted=complaints_mod.recent_lifted(session),
         asn_table_configured=state.settings.scan.asn_table_path is not None,

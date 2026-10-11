@@ -398,3 +398,54 @@ def test_store_card_shows_evidence_for_full_profile_only(
     assert r.status_code == 200
     assert "Detection evidence" not in r.text and "network_host" not in r.text
     assert "2026-09-08" in r.text and "high" in r.text
+
+
+def test_crawler_page_lists_worker_heartbeats_with_host_load(
+    client: TestClient,
+    db_session: Session,
+    world: World,
+    app_state: AppState,
+    fixed_clock: FixedClock,
+) -> None:
+    """FR-ADM-03 «загрузка серверов»: the admin crawler page shows every worker's host,
+    load, RAM and in-flight count from its heartbeat, and flags silent workers."""
+    from payintel.core import heartbeat as hb
+
+    load = hb.HostLoad("crawl-1", 4242, 3.5, 2.0, 4, 16000, 12000)
+    for i in range(2):  # the same worker twice: one row, started_at kept, counters updated
+        hb.beat(
+            db_session,
+            worker_id="worker-light-0",
+            kind="light",
+            concurrency=200,
+            in_flight=150 + i,
+            done=10 * i,
+            load=load,
+            clock=fixed_clock,
+        )
+        fixed_clock.advance(seconds=30)
+    hb.beat(
+        db_session,
+        worker_id="worker-checkout-0",
+        kind="checkout",
+        concurrency=4,
+        in_flight=0,
+        done=7,
+        load=hb.HostLoad("crawl-2", 7, 0.1, 0.1, 8, 32000, 8000),
+        stopped=True,
+        clock=fixed_clock,
+    )
+    db_session.flush()
+    fixed_clock.advance(seconds=200)  # > 3 intervals since the light worker's last beat
+    views = {v.row.worker_id: v for v in hb.workers(db_session, now=fixed_clock.now())}
+    light = views["worker-light-0"]
+    assert light.state == "stale" and light.row.in_flight == 151 and light.row.scans_done == 10
+    assert light.row.started_at < light.row.updated_at
+    assert views["worker-checkout-0"].state == "stopped"
+
+    login(client, world.staff_support_email, state=app_state, session=db_session)
+    r = client.get("/admin/crawler")
+    assert r.status_code == 200
+    for needle in ("crawl-1", "151 / 200", "3.50 / 2.00", "12000 / 16000 MB", "75.0 %", "stale"):
+        assert needle in r.text, needle
+    assert "crawl-2" in r.text and "stopped" in r.text

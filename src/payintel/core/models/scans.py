@@ -1,4 +1,5 @@
-"""`scan_plan`, `scan_run`, `store_account` (5.1; FR-SC-01, FR-SC-04, FR-CW-09, FR-CW-12)."""
+"""`scan_plan`, `scan_run`, `store_account`, `worker_heartbeat` (5.1; FR-SC-01, FR-SC-04, FR-CW-09,
+FR-CW-12, FR-ADM-03)."""
 
 from __future__ import annotations
 
@@ -169,3 +170,28 @@ class AsnLimit(Base):
         comment="Set by staff after the manual review; the limit no longer applies",
     )
     lifted_by: Mapped[str | None] = mapped_column(String(128), nullable=True)
+
+
+class WorkerHeartbeat(Base):
+    """FR-ADM-03: one row per crawl worker, refreshed every ~30 s with the host load."""
+
+    __tablename__ = "worker_heartbeat"
+    __table_args__ = {"comment": "FR-ADM-03: worker liveness and host load (core/heartbeat.py)"}
+
+    worker_id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    kind: Mapped[str] = mapped_column(String(32), nullable=False, comment="light | checkout | …")
+    hostname: Mapped[str] = mapped_column(String(255), nullable=False)
+    pid: Mapped[int] = mapped_column(Integer, nullable=False)
+    load1: Mapped[float] = mapped_column(Float, nullable=False, comment="1-minute load average")
+    load5: Mapped[float] = mapped_column(Float, nullable=False, comment="5-minute load average")
+    cpu_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    mem_total_mb: Mapped[int] = mapped_column(Integer, nullable=False)
+    mem_used_mb: Mapped[int] = mapped_column(Integer, nullable=False)
+    concurrency: Mapped[int] = mapped_column(Integer, nullable=False)
+    in_flight: Mapped[int] = mapped_column(Integer, nullable=False)
+    scans_done: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    stopped_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, comment="set by the last beat of a clean shutdown"
+    )

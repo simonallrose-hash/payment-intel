@@ -22,6 +22,7 @@ from payintel.core.ch import apply_migrations, make_ch_client
 from payintel.core.clock import SYSTEM_CLOCK
 from payintel.core.db import get_engine, session_scope
 from payintel.core.flags import FlagService
+from payintel.core.heartbeat import Heartbeat
 from payintel.core.logging import configure_logging, get_logger
 from payintel.core.models.base import (
     ConfidenceLevel,
@@ -517,6 +518,19 @@ def scheduler_prioritize(
 # --- stage 1: light worker ----------------------------------------------------
 
 
+def _heartbeat(
+    factory: sessionmaker[Session], settings: Settings, worker_id: str, kind: str, concurrency: int
+) -> Heartbeat:
+    """FR-ADM-03: the worker reports itself and its host load to the admin crawler page."""
+    return Heartbeat(
+        factory,
+        worker_id=worker_id,
+        kind=kind,
+        concurrency=concurrency,
+        interval_seconds=settings.scan.heartbeat_seconds,
+    )
+
+
 @app.command("worker-light")
 def worker_light(
     once: Annotated[bool, typer.Option(help="Process one batch and exit")] = False,
@@ -578,7 +592,13 @@ def worker_light(
                     f"ok {sum(o.status.value == 'ok' for o in outcomes)}"
                 )
                 return
-            await run_pipeline(factory, scanner, concurrency=conc, poll_seconds=poll_seconds)
+            await run_pipeline(
+                factory,
+                scanner,
+                concurrency=conc,
+                poll_seconds=poll_seconds,
+                heartbeat=_heartbeat(factory, settings, worker_id, "light", conc),
+            )
         finally:
             ctx.buffer.flush()
             await ctx.fetcher.aclose()
@@ -848,7 +868,11 @@ def worker_checkout(
                     )
                     return
                 await run_checkout_pipeline(
-                    factory, scanner, concurrency=conc, poll_seconds=poll_seconds
+                    factory,
+                    scanner,
+                    concurrency=conc,
+                    poll_seconds=poll_seconds,
+                    heartbeat=_heartbeat(factory, settings, worker_id, "checkout", conc),
                 )
             finally:
                 ctx.buffer.flush()

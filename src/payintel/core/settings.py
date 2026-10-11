@@ -126,6 +126,9 @@ class ScanSettings(BaseModel):
     )
     max_failures_before_unreachable: int = Field(default=4, description="FR-SC-05")
     lease_seconds: int = Field(default=600, description="FR-SC-04 task lease timeout")
+    heartbeat_seconds: float = Field(
+        default=30.0, description="FR-ADM-03: worker heartbeat with host load (core/heartbeat.py)"
+    )
     max_requests_per_second_per_host: float = Field(default=1.0, description="FR-SC-06")
     max_browser_sessions_per_etld1: int = Field(default=1, description="FR-SC-06")
     max_requests_per_second_per_ip: float = Field(default=5.0, description="FR-SC-06")

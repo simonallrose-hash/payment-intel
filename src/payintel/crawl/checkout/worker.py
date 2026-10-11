@@ -44,6 +44,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from payintel.core import metrics
 from payintel.core.clock import SYSTEM_CLOCK, Clock
 from payintel.core.flags import FlagService
+from payintel.core.heartbeat import Heartbeat
 from payintel.core.logging import get_logger, log_context
 from payintel.core.models.alerts import WatchlistItem
 from payintel.core.models.base import (
@@ -1080,8 +1081,10 @@ async def run_pipeline(
     poll_seconds: float = 5.0,
     stop_when_empty: bool = False,
     on_outcome: Callable[[CheckoutOutcome], None] | None = None,
+    heartbeat: Heartbeat | None = None,
 ) -> int:
-    """Keep `concurrency` walks in flight; lease more as slots free up."""
+    """Keep `concurrency` walks in flight; lease more as slots free up; with a
+    `heartbeat` the worker reports itself and its host load every interval (FR-ADM-03)."""
     ctx = scanner.ctx
     inflight: set[asyncio.Task[None]] = set()
     done_count = 0
@@ -1102,6 +1105,8 @@ async def run_pipeline(
 
     try:
         while True:
+            if heartbeat is not None:
+                await heartbeat.maybe_beat(in_flight=len(inflight), done=done_count)
             free = concurrency - len(inflight)
             if free > 0:
                 ids = await asyncio.to_thread(_lease, factory, ctx, free)
@@ -1122,4 +1127,6 @@ async def run_pipeline(
         if inflight:
             await asyncio.gather(*inflight, return_exceptions=True)
         ctx.buffer.flush()
+        if heartbeat is not None:
+            await heartbeat.stop(done=done_count)
     return done_count

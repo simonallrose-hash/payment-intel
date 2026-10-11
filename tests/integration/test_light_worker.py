@@ -27,6 +27,7 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from payintel.core.clock import FixedClock
+from payintel.core.heartbeat import Heartbeat
 from payintel.core.models.assets import HostJsAsset, JsAsset
 from payintel.core.models.base import (
     Coverage,
@@ -36,13 +37,13 @@ from payintel.core.models.base import (
     ScanType,
 )
 from payintel.core.models.domains import Domain, DomainSource, Host
-from payintel.core.models.scans import ScanPlan, ScanRun
+from payintel.core.models.scans import ScanPlan, ScanRun, WorkerHeartbeat
 from payintel.core.models.store import StoreProfile, StoreProvider
 from payintel.core.reference_loader import load_reference, sync_reference
 from payintel.core.s3 import ObjectStore
 from payintel.core.settings import LightScanSettings, S3Settings, Settings
 from payintel.crawl.light.runtime import build_context
-from payintel.crawl.light.worker import LightScanner, LightScanOutcome, run_batch
+from payintel.crawl.light.worker import LightScanner, LightScanOutcome, run_batch, run_pipeline
 from payintel.crawl.sanitize import EMAIL_MASK, PHONE_MASK
 from payintel.discovery.ingest import ingest
 from payintel.discovery.sources import SourceRecord
@@ -501,6 +502,21 @@ def test_run_batch_commits_and_flushes_to_clickhouse(
             assert len(list(runs)) == 3
             plans = check.execute(select(ScanPlan).join(Host).where(Host.hostname.in_(names)))
             assert all(p.locked_until is None for p in plans.scalars().all())
+        # FR-ADM-03: the pipeline loop reports the worker and its host load, and marks a
+        # clean shutdown (queue empty → stop_when_empty) in the same row.
+        beat = Heartbeat(
+            factory, worker_id="w-batch", kind="light", concurrency=3, clock=fixed_clock
+        )
+        done = run_sync(
+            run_pipeline(
+                factory, LightScanner(ctx), concurrency=3, stop_when_empty=True, heartbeat=beat
+            )
+        )
+        assert done == 0 and beat.beats == 2  # first loop iteration + stop
+        with factory() as check:
+            row = check.get(WorkerHeartbeat, "w-batch")
+            assert row is not None and row.kind == "light" and row.stopped_at is not None
+            assert row.cpu_count >= 1 and row.hostname and row.concurrency == 3
     finally:
         run_sync(ctx.fetcher.aclose())
         engine.dispose()
