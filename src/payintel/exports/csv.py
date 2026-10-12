@@ -8,8 +8,9 @@ from __future__ import annotations
 
 import csv
 import io
+from collections.abc import Iterable
 from datetime import date, datetime
-from typing import Any
+from typing import Any, TextIO
 
 from payintel.exports.schema import Field
 
@@ -26,15 +27,28 @@ def _cell(value: Any) -> str:
     return str(value)
 
 
+def write_csv_to(
+    sink: TextIO,
+    rows: Iterable[dict[str, Any]],
+    fields: tuple[Field, ...],
+    metadata: dict[str, str],
+) -> int:
+    """Stream `rows` into a text sink; returns the number of data rows written."""
+    sink.write("# " + " ".join(f"{k}={v}" for k, v in metadata.items()) + "\n")
+    writer = csv.writer(sink, lineterminator="\n")
+    writer.writerow([f.name for f in fields])
+    written = 0
+    for r in rows:
+        writer.writerow([_cell(r.get(f.name)) for f in fields])
+        written += 1
+    return written
+
+
 def write_csv(
     rows: list[dict[str, Any]], fields: tuple[Field, ...], metadata: dict[str, str]
 ) -> bytes:
     buf = io.StringIO()
-    buf.write("# " + " ".join(f"{k}={v}" for k, v in metadata.items()) + "\n")
-    writer = csv.writer(buf, lineterminator="\n")
-    writer.writerow([f.name for f in fields])
-    for r in rows:
-        writer.writerow([_cell(r.get(f.name)) for f in fields])
+    write_csv_to(buf, rows, fields, metadata)
     return buf.getvalue().encode("utf-8")
 
 

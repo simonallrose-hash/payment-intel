@@ -274,6 +274,12 @@ class ExportSettings(BaseModel):
     default_max_rows: int = Field(default=200_000, description="FR-EX-06 default per export")
     default_schedule: str = Field(default="monthly", description="FR-EX-03")
     rows_per_chunk: int = Field(default=50_000, description="Row batches while building")
+    scratch_dir: str = Field(
+        default="",
+        description="Disk directory for export assembly (sorted chunks and the output file, "
+        "ADR-0037); empty = the system temp dir. On the exporter it must be a real disk, not "
+        "tmpfs, or the memory saving is lost.",
+    )
 
 
 class QualitySettings(BaseModel):

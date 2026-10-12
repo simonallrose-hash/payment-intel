@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from collections.abc import Iterator
 from datetime import date, datetime
 from typing import Any
 
@@ -32,9 +33,24 @@ def snapshot_rows(
     platforms: list[str],
     page_size: int = 5_000,
 ) -> list[dict[str, Any]]:
+    return list(
+        iter_snapshot_rows(
+            session, grant, countries=countries, platforms=platforms, page_size=page_size
+        )
+    )
+
+
+def iter_snapshot_rows(
+    session: Session,
+    grant: Grant,
+    *,
+    countries: list[str],
+    platforms: list[str],
+    page_size: int = 5_000,
+) -> Iterator[dict[str, Any]]:
+    """Snapshot rows page by page (`page_size` stores and their joins in memory at a time)."""
     filters = read.StoreFilters(countries=countries, platforms=platforms)
     types = _method_types(session)
-    out: list[dict[str, Any]] = []
     cursor: str | None = None
     while True:
         page, cursor = read.search(
@@ -75,45 +91,40 @@ def snapshot_rows(
             seen_first = [sp.first_seen for sp in ps]
             seen_last = [sp.last_seen for sp in ps]
             scans = [t for t in (p.last_light_scan_at, p.last_checkout_scan_at) if t]
-            out.append(
-                {
-                    "domain": r.domain,
-                    "as_of": max(scans) if scans else p.updated_at,
-                    "platform_id": p.platform_id,
-                    "platform_confidence": p.platform_confidence.value
-                    if p.platform_confidence
-                    else None,
-                    "country": p.country,
-                    "country_confidence": p.country_confidence.value
-                    if p.country_confidence
-                    else None,
-                    "currency": p.currency,
-                    "vertical_id": p.vertical_id,
-                    "checkout_status": p.checkout_status.value if p.checkout_status else None,
-                    "coverage": p.coverage.value if p.coverage else None,
-                    "acquirer_hidden": p.acquirer_hidden,
-                    "provider_ids": [sp.provider_id for sp in ps],
-                    "providers": [
-                        f"{sp.provider_id}:{sp.role.value}:{sp.confidence.value}" for sp in ps
-                    ],
-                    "providers_active_on_checkout": [
-                        sp.provider_id for sp in ps if sp.active_on_checkout
-                    ],
-                    "method_ids": [sm.method_id for sm in ms],
-                    "methods": [
-                        f"{sm.method_id}:{types.get(sm.method_id, 'other')}:{sm.confidence.value}"
-                        for sm in ms
-                    ],
-                    "checkout_psp_hosts": psp_hosts.get(r.host_id, []),
-                    "traffic_rank": p.traffic_rank,
-                    "first_seen": min(seen_first) if seen_first else None,
-                    "last_seen": max(seen_last) if seen_last else None,
-                    "last_checkout_scan_at": p.last_checkout_scan_at,
-                }
-            )
+            yield {
+                "domain": r.domain,
+                "as_of": max(scans) if scans else p.updated_at,
+                "platform_id": p.platform_id,
+                "platform_confidence": p.platform_confidence.value
+                if p.platform_confidence
+                else None,
+                "country": p.country,
+                "country_confidence": p.country_confidence.value if p.country_confidence else None,
+                "currency": p.currency,
+                "vertical_id": p.vertical_id,
+                "checkout_status": p.checkout_status.value if p.checkout_status else None,
+                "coverage": p.coverage.value if p.coverage else None,
+                "acquirer_hidden": p.acquirer_hidden,
+                "provider_ids": [sp.provider_id for sp in ps],
+                "providers": [
+                    f"{sp.provider_id}:{sp.role.value}:{sp.confidence.value}" for sp in ps
+                ],
+                "providers_active_on_checkout": [
+                    sp.provider_id for sp in ps if sp.active_on_checkout
+                ],
+                "method_ids": [sm.method_id for sm in ms],
+                "methods": [
+                    f"{sm.method_id}:{types.get(sm.method_id, 'other')}:{sm.confidence.value}"
+                    for sm in ms
+                ],
+                "checkout_psp_hosts": psp_hosts.get(r.host_id, []),
+                "traffic_rank": p.traffic_rank,
+                "first_seen": min(seen_first) if seen_first else None,
+                "last_seen": max(seen_last) if seen_last else None,
+                "last_checkout_scan_at": p.last_checkout_scan_at,
+            }
         if cursor is None:
             break
-    return out
 
 
 def increment_rows(
@@ -126,9 +137,32 @@ def increment_rows(
     platforms: list[str],
     page_size: int = 5_000,
 ) -> list[dict[str, Any]]:
+    return list(
+        iter_increment_rows(
+            session,
+            grant,
+            since=since,
+            until=until,
+            countries=countries,
+            platforms=platforms,
+            page_size=page_size,
+        )
+    )
+
+
+def iter_increment_rows(
+    session: Session,
+    grant: Grant,
+    *,
+    since: date | None,
+    until: datetime | None,
+    countries: list[str],
+    platforms: list[str],
+    page_size: int = 5_000,
+) -> Iterator[dict[str, Any]]:
+    """Change events page by page."""
     from payintel.core.models.base import FieldProfile
 
-    out: list[dict[str, Any]] = []
     cursor: str | None = None
     since_dt = datetime.combine(since, datetime.min.time(), tzinfo=UTC_TZ) if since else None
     while True:
@@ -145,19 +179,16 @@ def increment_rows(
             cursor=cursor,
         )
         for c in page:
-            out.append(
-                {
-                    "domain": c.domain,
-                    "event_type": c.type,
-                    "entity": c.entity,
-                    "old_value": c.old_value,
-                    "new_value": c.new_value,
-                    "detected_at": c.detected_at,
-                }
-            )
+            yield {
+                "domain": c.domain,
+                "event_type": c.type,
+                "entity": c.entity,
+                "old_value": c.old_value,
+                "new_value": c.new_value,
+                "detected_at": c.detected_at,
+            }
         if cursor is None:
             break
-    return out
 
 
 def aggregate_rows(

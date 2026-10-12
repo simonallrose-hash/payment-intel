@@ -38,6 +38,35 @@ def _run_all(db_session: Session, app_state: AppState, export_store: ObjectStore
     assert not r.failed, r.failed
 
 
+def test_snapshot_export_spills_to_disk_when_rows_exceed_a_chunk(
+    client: TestClient,
+    db_session: Session,
+    world: World,
+    app_state: AppState,
+    export_store: ObjectStore,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: __import__("pathlib").Path,
+) -> None:
+    """NFR-P-06 / ADR-0037: with a 2-row chunk the sorter spills every chunk to the scratch
+    dir and the merged file still carries the watermark order and all rows."""
+    monkeypatch.setattr(app_state.settings.export, "rows_per_chunk", 2)
+    monkeypatch.setattr(app_state.settings.export, "scratch_dir", str(tmp_path))
+    r = client.post(
+        "/v1/exports", json={"type": "full_snapshot", "format": "csv"}, headers=auth(world.api_key)
+    )
+    assert r.status_code == 202, r.text
+    _run_all(db_session, app_state, export_store)
+    job = db_session.get(ExportJob, __import__("uuid").UUID(r.json()["id"]))
+    assert job is not None and job.status == ExportStatus.DONE and job.file_key
+    meta, rows = csv_mod.read_csv(
+        export_store.get_bytes(app_state.settings.s3.bucket_exports, job.file_key)
+    )
+    assert meta["payintel.watermark"] == str(job.watermark_id)
+    assert job.rows == len(rows) == 3 + len(job.canary_ids)
+    assert watermark.order_matches(rows, job.watermark_id, lambda x: str(x["domain"]))
+    assert list(tmp_path.iterdir()) == []  # scratch cleaned up after the upload
+
+
 def test_snapshot_export_has_canaries_watermark_and_journaled_download(
     client: TestClient,
     db_session: Session,

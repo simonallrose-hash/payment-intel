@@ -431,6 +431,11 @@ WAL — 30 дней, удаление по lifecycle бакета.
   периодические экспорты по `export_schedule`, строит `pending` задания в
   S3 (`exports/<org>/<job>.<fmt>`), ссылки на 72 ч. Полные снимки ждут
   одобрения в `/admin/exports` (`staff_compliance`).
+  Сборка идёт на диске (ADR-0037): строки сортируются порциями во
+  временных файлах в `PAYINTEL_EXPORT__SCRATCH_DIR` (том
+  `exporter-scratch`, не tmpfs), файл пишется по row-group'ам и
+  загружается multipart'ом; память экспортёра не зависит от размера
+  выгрузки, диск должен вмещать ~2 объёма выгрузки в сыром виде.
   Тот же процесс раз в сутки (`--retention-interval`, 86 400 с) удаляет
   сырые артефакты сканов старше `retention.raw_artifacts_days` (п. 11,
   LR-08, ADR-0036); вручную — `payintel artifacts sweep [--dry-run] [--days N]`.

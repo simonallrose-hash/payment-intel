@@ -10,6 +10,7 @@ journaled (FR-EX-04).
 from __future__ import annotations
 
 import json
+import tempfile
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
@@ -39,9 +40,10 @@ from payintel.entitlements.model import Grant, Principal
 from payintel.entitlements.quotas import check_record_quota
 from payintel.entitlements.segment import countries_in_segment, platforms_in_segment
 from payintel.exports import builder, canary, watermark
-from payintel.exports.csv import write_csv
-from payintel.exports.parquet import write_parquet
+from payintel.exports.csv import write_csv_to
+from payintel.exports.parquet import write_parquet_to
 from payintel.exports.schema import dictionary, fields_for
+from payintel.exports.stream import SpillSorter
 
 
 @dataclass(frozen=True)
@@ -204,7 +206,13 @@ def run_job(
     settings: Settings,
     clock: Clock,
 ) -> ExportJob:
-    """Build, watermark, upload. Raises on quota; marks the job failed on errors."""
+    """Build, watermark, upload. Raises on quota; marks the job failed on errors.
+
+    Rows stream from the database into an on-disk sorter keyed by the watermark order
+    (`SpillSorter`), then row group by row group into a temporary file, which is
+    uploaded as a file: peak memory is one chunk of rows plus Arrow buffers whatever
+    the export size (NFR-P-06, ADR-0037).
+    """
     if job.status != ExportStatus.PENDING:
         raise ConflictError("export is not pending", status=job.status.value)
     now = clock.now()
@@ -217,105 +225,78 @@ def run_job(
         tuple(job.params.get("countries", [])),
         tuple(job.params.get("platforms", [])),
     )
+    row_key = _row_key(job.type)
     try:
         countries = list(spec.countries)
         platforms = list(spec.platforms)
-        if job.type == ExportType.FULL_SNAPSHOT:
-            rows = builder.snapshot_rows(session, grant, countries=countries, platforms=platforms)
-            seg_countries = countries or sorted(grant.countries)
-            seg_platforms = platforms or sorted(grant.platforms)
-            rows += canary.canary_rows(
+        scratch = settings.export.scratch_dir or None
+        with SpillSorter(
+            lambda r: watermark.order_key(job.watermark_id, row_key(r)),
+            chunk_rows=settings.export.rows_per_chunk,
+            scratch_dir=scratch,
+        ) as sorter:
+            canaries = _collect_rows(
+                sorter,
                 session,
-                org_id=job.org_id,
-                export_id=job.id,
-                zone=settings.identity.canary_zone,
-                countries=seg_countries,
-                platforms=seg_platforms,
+                job,
+                grant=grant,
+                spec=spec,
+                settings=settings,
                 now=now,
-                low=settings.export.canary_min,
-                high=settings.export.canary_max,
-            )
-        elif job.type == ExportType.INCREMENT:
-            rows = builder.increment_rows(
-                session,
-                grant,
-                since=spec.since,
-                until=now,
                 countries=countries,
                 platforms=platforms,
             )
-            rows += [
-                {
-                    "domain": c["domain"],
-                    "event_type": "provider_added",
-                    "entity": c["provider_ids"][0],
-                    "old_value": None,
-                    "new_value": c["provider_ids"][0],
-                    "detected_at": c["as_of"],
-                }
-                for c in canary.canary_rows(
-                    session,
-                    org_id=job.org_id,
-                    export_id=job.id,
-                    zone=settings.identity.canary_zone,
-                    countries=countries or sorted(grant.countries),
-                    platforms=platforms or sorted(grant.platforms),
-                    now=now,
-                    low=settings.export.canary_min,
-                    high=settings.export.canary_max,
-                )
-            ]
-        else:
-            rows = builder.aggregate_rows(
+            real_rows = sorter.count - canaries
+            check_record_quota(
                 session,
-                grant,
-                countries=countries,
-                platforms=platforms,
-                min_cell=settings.quality.report_min_cell_size,
+                job.org_id,
+                daily_limit=grant.daily_records,
+                monthly_limit=grant.monthly_records,
+                now=now,
+                about_to_add=real_rows,
             )
-        real_rows = len(rows) - len(
-            [r for r in rows if str(r.get("domain", "")).endswith(settings.identity.canary_zone)]
-        )
-        check_record_quota(
-            session,
-            job.org_id,
-            daily_limit=grant.daily_records,
-            monthly_limit=grant.monthly_records,
-            now=now,
-            about_to_add=real_rows,
-        )
-        if real_rows > grant.export_max_rows and not job.params.get("approved_by"):
-            raise ConflictError("export exceeds the row limit and is not approved")
-        rows = watermark.order_rows(rows, job.watermark_id, _row_key(job.type))
-        fields = fields_for(job.type.value, grant.profile)
-        meta = watermark.metadata(
-            export_id=job.id,
-            watermark_id=job.watermark_id,
-            org_id=job.org_id,
-            export_type=job.type.value,
-            profile=grant.profile.value,
-            generated_at=now.isoformat(),
-            methodology_url=settings.api.methodology_url,
-        )
-        data = (
-            write_parquet(rows, fields, meta, rows_per_group=settings.export.rows_per_chunk)
-            if job.format == ExportFormat.PARQUET
-            else write_csv(rows, fields, meta)
-        )
-        key = file_key(job)
-        bucket = settings.s3.bucket_exports
-        store.ensure_bucket(bucket)
-        content_type = (
-            "application/vnd.apache.parquet" if job.format == ExportFormat.PARQUET else "text/csv"
-        )
-        store.put_bytes(bucket, key, data, content_type=content_type)
+            if real_rows > grant.export_max_rows and not job.params.get("approved_by"):
+                raise ConflictError("export exceeds the row limit and is not approved")
+            fields = fields_for(job.type.value, grant.profile)
+            meta = watermark.metadata(
+                export_id=job.id,
+                watermark_id=job.watermark_id,
+                org_id=job.org_id,
+                export_type=job.type.value,
+                profile=grant.profile.value,
+                generated_at=now.isoformat(),
+                methodology_url=settings.api.methodology_url,
+            )
+            key = file_key(job)
+            bucket = settings.s3.bucket_exports
+            store.ensure_bucket(bucket)
+            parquet_format = job.format == ExportFormat.PARQUET
+            content_type = "application/vnd.apache.parquet" if parquet_format else "text/csv"
+            with tempfile.NamedTemporaryFile(
+                prefix="payintel-export-",
+                suffix=".parquet" if parquet_format else ".csv",
+                dir=scratch,
+            ) as out:
+                if parquet_format:
+                    write_parquet_to(
+                        out.name,
+                        iter(sorter),
+                        fields,
+                        meta,
+                        rows_per_group=settings.export.rows_per_chunk,
+                    )
+                else:
+                    with open(out.name, "w", encoding="utf-8", newline="") as text:
+                        write_csv_to(text, iter(sorter), fields, meta)
+                store.put_file(bucket, key, out.name, content_type=content_type)
+            total_rows = sorter.count
         store.put_bytes(
             bucket,
             key + ".schema.json",
             json.dumps(dictionary(fields, meta), indent=2).encode(),
             content_type="application/json",
         )
-        job.rows = len(rows)
+        job.rows = total_rows
         job.file_key = key
         job.status = ExportStatus.DONE
         job.finished_at = clock.now()  # a 1M-row build takes minutes (NFR-P-06)
@@ -345,6 +326,82 @@ def run_job(
         session.flush()
         raise
     return job
+
+
+def _collect_rows(
+    sorter: SpillSorter,
+    session: Session,
+    job: ExportJob,
+    *,
+    grant: Grant,
+    spec: ExportSpec,
+    settings: Settings,
+    now: datetime,
+    countries: list[str],
+    platforms: list[str],
+) -> int:
+    """Feed the export's rows (and its canaries) into `sorter`; returns the canary count."""
+    if job.type == ExportType.FULL_SNAPSHOT:
+        sorter.extend(
+            builder.iter_snapshot_rows(session, grant, countries=countries, platforms=platforms)
+        )
+        extra = canary.canary_rows(
+            session,
+            org_id=job.org_id,
+            export_id=job.id,
+            zone=settings.identity.canary_zone,
+            countries=countries or sorted(grant.countries),
+            platforms=platforms or sorted(grant.platforms),
+            now=now,
+            low=settings.export.canary_min,
+            high=settings.export.canary_max,
+        )
+        sorter.extend(extra)
+        return len(extra)
+    if job.type == ExportType.INCREMENT:
+        sorter.extend(
+            builder.iter_increment_rows(
+                session,
+                grant,
+                since=spec.since,
+                until=now,
+                countries=countries,
+                platforms=platforms,
+            )
+        )
+        extra = [
+            {
+                "domain": c["domain"],
+                "event_type": "provider_added",
+                "entity": c["provider_ids"][0],
+                "old_value": None,
+                "new_value": c["provider_ids"][0],
+                "detected_at": c["as_of"],
+            }
+            for c in canary.canary_rows(
+                session,
+                org_id=job.org_id,
+                export_id=job.id,
+                zone=settings.identity.canary_zone,
+                countries=countries or sorted(grant.countries),
+                platforms=platforms or sorted(grant.platforms),
+                now=now,
+                low=settings.export.canary_min,
+                high=settings.export.canary_max,
+            )
+        ]
+        sorter.extend(extra)
+        return len(extra)
+    sorter.extend(
+        builder.aggregate_rows(
+            session,
+            grant,
+            countries=countries,
+            platforms=platforms,
+            min_cell=settings.quality.report_min_cell_size,
+        )
+    )
+    return 0
 
 
 def download(

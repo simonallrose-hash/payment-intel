@@ -7,6 +7,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 import boto3
+from boto3.exceptions import S3UploadFailedError
 from botocore.config import Config
 from botocore.exceptions import ClientError
 
@@ -72,6 +73,17 @@ class ObjectStore:
             )
         except ClientError as exc:
             raise StorageError("put_object failed", bucket=bucket, key=key) from exc
+
+    def put_file(self, bucket: str, key: str, path: str, *, content_type: str) -> None:
+        """Upload a file from disk; boto3 switches to multipart above 8 MB, so an export
+        of any size is streamed from the file and never held in memory (ADR-0037)."""
+        extra: dict[str, Any] = {"ContentType": content_type}
+        if self._sse:
+            extra["ServerSideEncryption"] = self._sse
+        try:
+            self._client.upload_file(path, bucket, key, ExtraArgs=extra)
+        except (ClientError, S3UploadFailedError, OSError) as exc:
+            raise StorageError("upload_file failed", bucket=bucket, key=key) from exc
 
     def ensure_lifecycle(self, bucket: str, *, days: int, prefixes: Sequence[str]) -> None:
         """Expire objects under each prefix after `days` (raw HTML/HAR/screenshots: 90 days)."""

@@ -22,7 +22,8 @@ COPY rules ./rules
 RUN uv sync --frozen --no-dev
 
 RUN groupadd --system payintel && useradd --system --gid payintel --home /app payintel \
-    && chown -R payintel:payintel /app
+    && chown -R payintel:payintel /app \
+    && mkdir -p /var/tmp/payintel && chown payintel:payintel /var/tmp/payintel  # export scratch (ADR-0037)
 USER payintel
 
 ENV PATH="/opt/venv/bin:${PATH}"

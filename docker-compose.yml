@@ -147,9 +147,15 @@ services:
     profiles: [app-1]
     command: ["payintel", "exports", "run", "--interval", "60"]
     depends_on: [postgres]
+    environment:
+      # ADR-0037: exports are sorted and written on disk, not in memory; the scratch
+      # volume is a real disk (the root FS is read-only and /tmp is tmpfs).
+      PAYINTEL_EXPORT__SCRATCH_DIR: /var/tmp/payintel
+    volumes:
+      - exporter-scratch:/var/tmp/payintel
     deploy:
       resources:
-        limits: { memory: 4g }   # 1M-row Parquet snapshot peaks at ~3.2 GB (capacity.md §3, NFR-P-06)
+        limits: { memory: 4g }   # measured peak for a 1M-row snapshot: capacity.md §3 (NFR-P-06)
     networks: [app]
 
   audit-verify:
@@ -221,6 +227,7 @@ volumes:
   pg-data:
   ch-data:
   s3-data:
+  exporter-scratch:
   caddy-data:
 
 # NFR-S-08: three segments per server. `edge` is the only one with published ports (Caddy);
