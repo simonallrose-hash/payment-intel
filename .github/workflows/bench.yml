@@ -122,6 +122,8 @@ jobs:
         run: |
           docker logs s3 2>&1 | tail -n 20 || true
           tail -n 20 api.log 2>/dev/null || true
+          # the verdict lines as annotations: readable through the API without the log
+          grep -hE '^(PASS|FAIL) ' bench-api.log bench-export.log 2>/dev/null | sed 's/^/::notice::/' || true
           { echo '### bench (stores='"$BENCH_STORES"', duration='"$BENCH_DURATION"' s)'; echo; echo '```'; cat bench-api.log 2>/dev/null; cat bench-export.log 2>/dev/null; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         if: always()

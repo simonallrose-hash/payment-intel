@@ -155,7 +155,7 @@ services:
       - exporter-scratch:/var/tmp/payintel
     deploy:
       resources:
-        limits: { memory: 4g }   # measured peak for a 1M-row snapshot: capacity.md §3 (NFR-P-06)
+        limits: { memory: 1g }   # 1M-row snapshot peaks at ~450 MB since ADR-0037 (capacity.md §3, NFR-P-06)
     networks: [app]
 
   audit-verify:
