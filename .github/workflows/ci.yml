@@ -63,11 +63,14 @@ jobs:
       - name: Chromium for the checkout e2e tests (FR-CW-01)
         run: uv run playwright install --with-deps chromium
       - name: Tests with coverage (NFR-M-01)
+        # `shell: bash` runs the step with `-eo pipefail`; the default shell has no pipefail,
+        # so `make test | tee` passed even when pytest failed (seen 12.10: 2 failed, job green).
+        shell: bash
         run: make test 2>&1 | tee test.log
       - name: Failures as annotations (readable without downloading the log)
-        if: failure()
+        if: always()
         run: |
-          grep -E '^(FAILED|ERROR) |^E  |Error|[0-9]+ (passed|failed)' test.log | head -60 | sed 's/^/::error::/' || true
+          grep -E '^(FAILED|ERROR) tests/' test.log | head -60 | sed 's/^/::error::/' || true
       - name: Result line as an annotation (test counts without downloading the log)
         if: always()
         run: |
