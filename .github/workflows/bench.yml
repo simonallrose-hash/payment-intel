@@ -102,10 +102,10 @@ jobs:
         run: |
           nohup uv run payintel api serve --port 8900 --workers 2 > api.log 2>&1 &
           for i in $(seq 1 60); do
-            curl -fsS http://127.0.0.1:8900/v1/openapi.json > /dev/null && break
+            curl -fsS http://127.0.0.1:8900/healthz > /dev/null && break
             sleep 2
           done
-          curl -fsS http://127.0.0.1:8900/v1/openapi.json > /dev/null
+          curl -fsS http://127.0.0.1:8900/healthz > /dev/null || { tail -n 50 api.log; exit 1; }
       - name: NFR-P-03 / P-04 / P-05 (scripts/bench_api.py, exit 1 on a threshold miss)
         run: |
           uv run python scripts/bench_api.py --base-url http://127.0.0.1:8900 \
@@ -121,6 +121,7 @@ jobs:
         if: always()
         run: |
           docker logs s3 2>&1 | tail -n 20 || true
+          tail -n 20 api.log 2>/dev/null || true
           { echo '### bench (stores='"$BENCH_STORES"', duration='"$BENCH_DURATION"' s)'; echo; echo '```'; cat bench-api.log 2>/dev/null; cat bench-export.log 2>/dev/null; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         if: always()
