@@ -85,7 +85,7 @@ jobs:
             sleep 2
           done
           curl -fsS http://127.0.0.1:9000/healthz > /dev/null
-      - uses: astral-sh/setup-uv@v5
+      - uses: astral-sh/setup-uv@v7
         with:
           python-version: "3.12"
       - run: uv sync --all-groups
