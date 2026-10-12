@@ -73,7 +73,7 @@ jobs:
         image: redis:7-alpine
         ports: ["6379:6379"]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: S3 store (SeaweedFS, ADR-0036; service containers take no command)
         run: |
           docker run -d --name s3 -p 9000:9000 \
