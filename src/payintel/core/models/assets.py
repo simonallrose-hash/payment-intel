@@ -53,17 +53,29 @@ class JsAssetUrl(Base):
     """
 
     __tablename__ = "js_asset_url"
+    __table_args__ = {
+        "comment": "FR-LS-03: third-party scripts are downloaded once, by URL (ADR-0038)"
+    }
 
     url: Mapped[str] = mapped_column(String(2048), primary_key=True)
     hostname: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
-    status: Mapped[str] = mapped_column(String(16), nullable=False, default="pending", index=True)
+    status: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="pending", index=True, comment="pending | ok | error"
+    )
     sha256: Mapped[str | None] = mapped_column(
-        String(64), ForeignKey("js_asset.sha256", ondelete="SET NULL"), nullable=True
+        String(64),
+        ForeignKey("js_asset.sha256", ondelete="SET NULL"),
+        nullable=True,
+        comment="body hash once fetched (kept while a refresh is pending)",
     )
     attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     last_error: Mapped[str | None] = mapped_column(String(300), nullable=True)
     fetched_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    next_fetch_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    next_fetch_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        comment="pending: not before; ok: refresh after light.third_party_js_ttl_days",
+    )
     locked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     locked_by: Mapped[str | None] = mapped_column(String(128), nullable=True)
     first_seen: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
@@ -75,7 +87,10 @@ class JsAssetUrlHost(Base):
     links when the pool has the body (FR-LS-03)."""
 
     __tablename__ = "js_asset_url_host"
-    __table_args__ = (UniqueConstraint("url", "host_id", name="uq_js_asset_url_host"),)
+    __table_args__ = (
+        UniqueConstraint("url", "host_id", name="uq_js_asset_url_host"),
+        {"comment": "hosts waiting for a script URL; becomes host_js_asset when fetched"},
+    )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     url: Mapped[str] = mapped_column(
