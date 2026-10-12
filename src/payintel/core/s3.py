@@ -1,8 +1,9 @@
-"""S3-compatible object storage client (MinIO) for artifacts and exports (AS-16)."""
+"""S3-compatible object storage client for artifacts and exports (AS-16, ADR-0036)."""
 
 from __future__ import annotations
 
 from collections.abc import Sequence
+from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 import boto3
@@ -14,7 +15,7 @@ from payintel.core.settings import S3Settings
 
 if TYPE_CHECKING:
     from mypy_boto3_s3.client import S3Client
-    from mypy_boto3_s3.type_defs import LifecycleRuleTypeDef
+    from mypy_boto3_s3.type_defs import LifecycleRuleTypeDef, ObjectIdentifierTypeDef
 
 
 def make_s3_client(settings: S3Settings) -> S3Client:
@@ -44,7 +45,8 @@ class ObjectStore:
     """Thin wrapper: put/get/presign with timeouts and uniform errors.
 
     `server_side_encryption` (NFR-S-07) is sent with every put; `ensure_lifecycle`
-    provisions the retention of raw artefacts (FR-LS-04, FR-CW-08, LR-08).
+    provisions the retention of raw artefacts (FR-LS-04, FR-CW-08, LR-08) as a bucket
+    rule and `expire_prefix` enforces it from the application side (ADR-0036).
     """
 
     def __init__(self, client: S3Client, *, server_side_encryption: str = "") -> None:
@@ -125,3 +127,48 @@ class ObjectStore:
             self._client.delete_object(Bucket=bucket, Key=key)
         except ClientError as exc:
             raise StorageError("delete_object failed", bucket=bucket, key=key) from exc
+
+    def expire_prefix(
+        self, bucket: str, prefix: str, *, before: datetime, dry_run: bool = False
+    ) -> int:
+        """Delete every object under `prefix` last modified before `before` (tz-aware).
+
+        The retention period of raw artefacts (LR-08) is enforced here, not only by the
+        bucket lifecycle rule: the rule is advisory on stores that do not run a lifecycle
+        worker (ADR-0036). Objects are listed page by page and deleted in batches of
+        1 000, so memory does not depend on the bucket size. Returns the number of
+        objects deleted (or, with `dry_run`, the number that would have been).
+        """
+        if before.tzinfo is None:
+            raise ValueError("`before` must be timezone-aware")
+        paginator = self._client.get_paginator("list_objects_v2")
+        count = 0
+        batch: list[ObjectIdentifierTypeDef] = []
+        try:
+            for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
+                for obj in page.get("Contents", []):
+                    if obj["LastModified"] >= before:
+                        continue
+                    count += 1
+                    if dry_run:
+                        continue
+                    batch.append({"Key": obj["Key"]})
+                    if len(batch) == 1000:
+                        self._delete_batch(bucket, batch)
+                        batch = []
+            if batch:
+                self._delete_batch(bucket, batch)
+        except ClientError as exc:
+            raise StorageError("expire_prefix failed", bucket=bucket, key=prefix) from exc
+        return count
+
+    def _delete_batch(self, bucket: str, keys: list[ObjectIdentifierTypeDef]) -> None:
+        resp = self._client.delete_objects(Bucket=bucket, Delete={"Objects": keys, "Quiet": True})
+        errors = resp.get("Errors", [])
+        if errors:
+            first = errors[0]
+            raise StorageError(
+                f"delete_objects failed for {len(errors)} keys: {first.get('Code')}",
+                bucket=bucket,
+                key=str(first.get("Key", "")),
+            )

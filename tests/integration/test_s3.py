@@ -33,3 +33,30 @@ def test_lifecycle_rule_expires_raw_artifacts(
     assert object_store.lifecycle_days(bucket) == {"light/": 90, "checkout/": 90}
     object_store.ensure_lifecycle(bucket, days=45, prefixes=("light/",))  # re-applying replaces
     assert object_store.lifecycle_days(bucket) == {"light/": 45}
+
+
+def test_expire_prefix_deletes_only_older_objects(
+    object_store: ObjectStore, s3_settings: S3Settings
+) -> None:
+    """LR-08 enforced by the application (ADR-0036): objects older than `before` go,
+    newer ones and other prefixes stay; `dry_run` only counts."""
+    from datetime import UTC, datetime, timedelta
+
+    bucket = s3_settings.bucket_artifacts
+    for key in ("light/a.example/1/manifest.json", "light/a.example/1/pages/home.html.gz"):
+        object_store.put_bytes(bucket, key, b"{}", content_type="application/json")
+    object_store.put_bytes(bucket, "js/ab/abcd.js.gz", b"x", content_type="application/gzip")
+    now = datetime.now(UTC)
+    assert object_store.expire_prefix(bucket, "light/", before=now - timedelta(days=1)) == 0
+    assert object_store.get_bytes(bucket, "light/a.example/1/manifest.json") == b"{}"
+    future = now + timedelta(minutes=5)
+    assert object_store.expire_prefix(bucket, "light/", before=future, dry_run=True) == 2
+    assert object_store.get_bytes(bucket, "light/a.example/1/manifest.json") == b"{}"
+    assert object_store.expire_prefix(bucket, "light/", before=future) == 2
+    with pytest.raises(StorageError):
+        object_store.get_bytes(bucket, "light/a.example/1/manifest.json")
+    assert object_store.get_bytes(bucket, "js/ab/abcd.js.gz") == b"x"
+    assert object_store.expire_prefix(bucket, "light/", before=future) == 0
+    with pytest.raises(ValueError, match="timezone-aware"):
+        object_store.expire_prefix(bucket, "light/", before=datetime(2026, 1, 1))
+    object_store.delete(bucket, "js/ab/abcd.js.gz")

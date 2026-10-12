@@ -71,12 +71,16 @@ accounts_app = typer.Typer(no_args_is_help=True, help="System shop accounts (FR-
 abuse_app = typer.Typer(no_args_is_help=True, help="Anti-abuse detectors and canaries (FR-AB-*)")
 crawler_app = typer.Typer(no_args_is_help=True, help="Crawler limits and complaints (FR-OO-04)")
 stats_app = typer.Typer(no_args_is_help=True, help="Precomputed statistics (NFR-P-05)")
+artifacts_app = typer.Typer(
+    no_args_is_help=True, help="Raw scan artefacts in S3 (FR-LS-04, FR-CW-08, LR-08)"
+)
 app.add_typer(api_app, name="api")
 app.add_typer(alerts_app, name="alerts")
 app.add_typer(exports_app, name="exports")
 app.add_typer(abuse_app, name="abuse")
 app.add_typer(crawler_app, name="crawler")
 app.add_typer(stats_app, name="stats")
+app.add_typer(artifacts_app, name="artifacts")
 app.add_typer(report_app, name="report")
 app.add_typer(optout_app, name="optout")
 app.add_typer(dsar_app, name="dsar")
@@ -914,17 +918,37 @@ def worker_checkout(
 # --- stage 3: API, portal, alerts, exports, reports, compliance ------------------
 
 
-RAW_ARTIFACT_PREFIXES = ("light/", "checkout/")
-
-
 def _ensure_artifact_retention(store: ObjectStore, settings: Settings) -> None:
     """Raw HTML/HAR/screenshots expire after `retention.raw_artifacts_days` (FR-LS-04,
-    FR-CW-08, LR-08): the bucket rule is (re)applied at every worker start."""
-    store.ensure_lifecycle(
-        settings.s3.bucket_artifacts,
-        days=settings.retention.raw_artifacts_days,
-        prefixes=RAW_ARTIFACT_PREFIXES,
-    )
+    FR-CW-08, LR-08): the bucket rule is (re)applied at every worker start; the period
+    itself is enforced by `payintel artifacts sweep` / the exporter (ADR-0036)."""
+    from payintel.core.retention import ensure_raw_lifecycle
+
+    ensure_raw_lifecycle(store, settings)
+
+
+@artifacts_app.command("sweep")
+def artifacts_sweep(
+    dry_run: Annotated[
+        bool, typer.Option("--dry-run", help="Count what would be deleted, delete nothing")
+    ] = False,
+    days: Annotated[
+        int | None, typer.Option(help="Override `retention.raw_artifacts_days` (default 90)")
+    ] = None,
+) -> None:
+    """Delete raw scan artefacts (`light/`, `checkout/`) older than the retention period.
+
+    LR-08 is enforced here regardless of whether the S3 store executes its bucket
+    lifecycle rule (ADR-0036); the exporter runs the same sweep once a day.
+    """
+    from payintel.core.retention import sweep_raw_artifacts
+
+    settings = get_settings()
+    store = make_object_store(settings.s3)
+    counts = sweep_raw_artifacts(store, settings, clock=SYSTEM_CLOCK, days=days, dry_run=dry_run)
+    verb = "would_delete" if dry_run else "deleted"
+    for prefix, n in counts.items():
+        typer.echo(f"{prefix} {verb}={n}")
 
 
 def _cli_principal(actor: str) -> Principal:
@@ -1120,14 +1144,20 @@ def exports_run(
     optout_interval: Annotated[
         float, typer.Option(help="Seconds between opt-out proof checks (FR-OO-02)")
     ] = 3600.0,
+    retention_interval: Annotated[
+        float, typer.Option(help="Seconds between raw-artefact retention sweeps (LR-08)")
+    ] = 86400.0,
 ) -> None:
     """Schedule periodic exports and build pending jobs into S3 (FR-EX-03/04/05).
 
     The same loop verifies pending opt-out proofs every `--optout-interval` seconds
     (runbook §17), so a published TXT record or well-known file is applied within
-    the hour, not only when an operator runs `payintel optout verify-pending`.
+    the hour, not only when an operator runs `payintel optout verify-pending`, and
+    sweeps raw scan artefacts older than `retention.raw_artifacts_days` every
+    `--retention-interval` seconds (`payintel artifacts sweep`, ADR-0036).
     """
     from payintel.compliance import optout, resolvers
+    from payintel.core.retention import sweep_raw_artifacts
     from payintel.exports.worker import run_once
 
     settings = get_settings()
@@ -1137,9 +1167,14 @@ def exports_run(
     factory = sessionmaker(bind=engine, expire_on_commit=False)
     dns_txt = resolvers.dns_txt_lookup(settings)
     next_optout_check = time.monotonic()
+    next_sweep = time.monotonic()
     while True:
         r = run_once(factory, settings=settings, clock=SYSTEM_CLOCK, store=store, limit=limit)
         typer.echo(f"scheduled={r.scheduled} built={r.built} failed={len(r.failed)}")
+        if time.monotonic() >= next_sweep:
+            next_sweep = time.monotonic() + retention_interval
+            swept = sweep_raw_artifacts(store, settings, clock=SYSTEM_CLOCK)
+            typer.echo("artifacts swept " + " ".join(f"{k}={v}" for k, v in swept.items()))
         if time.monotonic() >= next_optout_check:
             next_optout_check = time.monotonic() + optout_interval
             with session_scope(engine) as session:
