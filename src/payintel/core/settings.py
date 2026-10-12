@@ -181,6 +181,24 @@ class LightScanSettings(BaseModel):
     max_page_bytes: int = Field(default=5 * 1024 * 1024, description="FR-LS-07 (5 MB)")
     max_product_pages: int = Field(default=2, description="FR-LS-01")
     concurrency_per_worker: int = Field(default=200, description="6.1 worker-light")
+    # Third-party scripts (FR-LS-03, ADR-0038): scans record the URLs, the script pool
+    # fetches each URL once and links every host that referenced it to the body hash.
+    max_third_party_scripts: int = Field(
+        default=25, ge=0, description="third-party script URLs recorded per scan (0 = off)"
+    )
+    third_party_js_ttl_days: int = Field(
+        default=7, ge=1, description="a fetched URL is re-checked after this many days"
+    )
+    third_party_js_max_attempts: int = Field(
+        default=3, ge=1, description="failed fetches before the URL is parked as `error`"
+    )
+    third_party_js_interval_seconds: float = Field(
+        default=30.0, gt=0, description="how often worker-light runs a script-pool pass"
+    )
+    third_party_js_batch: int = Field(default=200, ge=1, description="URLs leased per pass")
+    third_party_js_concurrency: int = Field(
+        default=20, ge=1, description="parallel script fetches per pass"
+    )
 
 
 class CheckoutSettings(BaseModel):

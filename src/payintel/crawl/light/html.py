@@ -7,6 +7,8 @@ a browser), the e-commerce classifier (FR-DS-08) and country detection
 
 from __future__ import annotations
 
+import html
+import html.entities
 import json
 import re
 from dataclasses import dataclass, field
@@ -73,6 +75,42 @@ class HtmlFeatures:
         return out
 
 
+# A legacy named reference without ';' (&curren, &copy, &reg …) is left alone inside an
+# attribute value when '=' or an alphanumeric follows (HTML spec 13.2.5.73); html.parser
+# decodes it anyway, turning `?client-id=x&currency=EUR` into `…x¤cy=EUR`. The names are
+# the ones the spec allows without ';' (html.entities.html5), longest first.
+_LEGACY_NAMES = sorted(
+    {k for k in html.entities.html5 if not k.endswith(";")}, key=lambda n: (-len(n), n)
+)
+_LEGACY_REF_IN_ATTR = re.compile(
+    "&(" + "|".join(re.escape(n) for n in _LEGACY_NAMES) + ")(?=[=A-Za-z0-9])"
+)
+_RAW_ATTR = re.compile(
+    r"""([^\s"'<>/=]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+))""",
+)
+
+
+def unescape_attr(raw: str) -> str:
+    """Decode an attribute value the way a browser does (see `_LEGACY_REF_IN_ATTR`)."""
+    return html.unescape(_LEGACY_REF_IN_ATTR.sub(lambda m: "&amp;" + m.group(1), raw))
+
+
+def _browser_attrs(starttag: str | None, attrs: list[tuple[str, str | None]]) -> dict[str, str]:
+    """Attributes of a start tag with browser-compatible decoding of their values;
+    html.parser's own (already decoded) values are the fallback."""
+    out = {k.lower(): (v or "") for k, v in attrs}
+    if not starttag or "&" not in starttag:
+        return out
+    for m in _RAW_ATTR.finditer(starttag[1:]):
+        name = m.group(1).lower()
+        value = m.group(2) if m.group(2) is not None else m.group(3)
+        if value is None:
+            value = m.group(4) or ""
+        if name in out and "&" in value:
+            out[name] = unescape_attr(value)
+    return out
+
+
 class _Extractor(HTMLParser):
     _BUTTONISH = {"button", "a", "input", "span", "div"}
 
@@ -87,7 +125,7 @@ class _Extractor(HTMLParser):
         self._in_title = False
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
-        a = {k.lower(): (v or "") for k, v in attrs}
+        a = _browser_attrs(self.get_starttag_text(), attrs)
         self._stack.append(tag)
         if tag == "html" and a.get("lang"):
             self.f.lang = a["lang"].strip().lower()

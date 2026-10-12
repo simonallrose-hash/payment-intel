@@ -7,8 +7,9 @@ import json
 import shutil
 import sys
 import time
+from collections.abc import Awaitable
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any
 
 import typer
 from alembic import command as alembic_command
@@ -72,6 +73,7 @@ accounts_app = typer.Typer(no_args_is_help=True, help="System shop accounts (FR-
 abuse_app = typer.Typer(no_args_is_help=True, help="Anti-abuse detectors and canaries (FR-AB-*)")
 crawler_app = typer.Typer(no_args_is_help=True, help="Crawler limits and complaints (FR-OO-04)")
 stats_app = typer.Typer(no_args_is_help=True, help="Precomputed statistics (NFR-P-05)")
+scripts_app = typer.Typer(no_args_is_help=True, help="Third-party script pool (FR-LS-03, ADR-0038)")
 artifacts_app = typer.Typer(
     no_args_is_help=True, help="Raw scan artefacts in S3 (FR-LS-04, FR-CW-08, LR-08)"
 )
@@ -82,6 +84,7 @@ app.add_typer(abuse_app, name="abuse")
 app.add_typer(crawler_app, name="crawler")
 app.add_typer(stats_app, name="stats")
 app.add_typer(artifacts_app, name="artifacts")
+app.add_typer(scripts_app, name="scripts")
 app.add_typer(report_app, name="report")
 app.add_typer(optout_app, name="optout")
 app.add_typer(dsar_app, name="dsar")
@@ -613,6 +616,17 @@ def worker_light(
     )
     scanner = LightScanner(ctx)
     conc = concurrency or settings.light.concurrency_per_worker
+    from payintel.crawl.light.scripts import fetch_script_urls
+
+    def script_pool() -> Awaitable[Any]:
+        return fetch_script_urls(
+            factory,
+            fetcher=ctx.fetcher,
+            writer=ctx.writer,
+            settings=settings.light,
+            worker_id=worker_id,
+            clock=ctx.clock,
+        )
 
     async def loop() -> None:
         try:
@@ -625,6 +639,11 @@ def worker_light(
                     f"({len(outcomes) / elapsed if elapsed else 0:.1f}/s); "
                     f"ok {sum(o.status.value == 'ok' for o in outcomes)}"
                 )
+                st = await script_pool()
+                typer.echo(
+                    f"scripts: leased={st.leased} fetched={st.fetched} failed={st.failed} "
+                    f"linked_hosts={st.linked_hosts}"
+                )
                 return
             await run_pipeline(
                 factory,
@@ -632,6 +651,8 @@ def worker_light(
                 concurrency=conc,
                 poll_seconds=poll_seconds,
                 heartbeat=_heartbeat(factory, settings, worker_id, "light", conc),
+                background=script_pool,
+                background_interval=settings.light.third_party_js_interval_seconds,
             )
         finally:
             ctx.buffer.flush()
@@ -926,6 +947,68 @@ def _ensure_artifact_retention(store: ObjectStore, settings: Settings) -> None:
     from payintel.core.retention import ensure_raw_lifecycle
 
     ensure_raw_lifecycle(store, settings)
+
+
+@scripts_app.command("fetch")
+def scripts_fetch(
+    once: Annotated[bool, typer.Option(help="One pass, then exit")] = False,
+    worker_id: Annotated[str, typer.Option(help="Lease owner id")] = "scripts-0",
+    allow_private: Annotated[
+        bool, typer.Option(help="LOCAL TEST STANDS ONLY: private targets allowed (NFR-S-09)")
+    ] = False,
+) -> None:
+    """Fetch queued third-party script URLs (FR-LS-03, ADR-0038). `worker-light` runs the
+    same pass beside its scans; this command is for stands and for draining a backlog."""
+    from redis.asyncio import Redis
+
+    from payintel.crawl.light.scripts import fetch_script_urls
+
+    settings = get_settings()
+    store = make_object_store(settings.s3)
+    store.ensure_bucket(settings.s3.bucket_artifacts)
+    redis = Redis.from_url(settings.redis.url)
+    factory = sessionmaker(bind=get_engine(), expire_on_commit=False)
+    ctx = build_context(
+        settings,
+        worker_id=worker_id,
+        store=store,
+        limiter=RedisRateLimiter(redis),
+        allow_private=allow_private,
+    )
+
+    async def loop() -> None:
+        try:
+            while True:
+                st = await fetch_script_urls(
+                    factory,
+                    fetcher=ctx.fetcher,
+                    writer=ctx.writer,
+                    settings=settings.light,
+                    worker_id=worker_id,
+                    clock=ctx.clock,
+                )
+                typer.echo(
+                    f"leased={st.leased} fetched={st.fetched} failed={st.failed} "
+                    f"parked={st.parked} linked_hosts={st.linked_hosts} errors={st.errors}"
+                )
+                if once:
+                    return
+                await asyncio.sleep(settings.light.third_party_js_interval_seconds)
+        finally:
+            await ctx.fetcher.aclose()
+            await redis.aclose()
+
+    asyncio.run(loop())
+
+
+@scripts_app.command("status")
+def scripts_status() -> None:
+    """Queue of third-party script URLs by status, and hosts still waiting for a body."""
+    from payintel.crawl.light.scripts import status_counts
+
+    with session_scope(get_engine()) as session:
+        for key, n in sorted(status_counts(session).items()):
+            typer.echo(f"{key}={n}")
 
 
 @artifacts_app.command("sweep")

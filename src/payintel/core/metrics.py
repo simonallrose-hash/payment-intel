@@ -65,6 +65,11 @@ LIGHT_SCANS_TOTAL = Counter(
     "Finished light scans by status (NFR-P-01 throughput, NFR-C-02).",
     ["status"],
 )
+JS_FETCH_TOTAL = Counter(
+    "payintel_js_fetch_total",
+    "Third-party script fetches by the script pool (FR-LS-03, ADR-0038): ok | failed.",
+    ["result"],
+)
 
 
 def render(registry: CollectorRegistry = REGISTRY) -> tuple[bytes, str]:

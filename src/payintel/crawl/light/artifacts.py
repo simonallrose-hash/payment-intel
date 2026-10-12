@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
 from payintel.core.models.assets import HostJsAsset, JsAsset
@@ -78,38 +78,37 @@ class ScriptMeta:
     s3_key: str
 
 
+def record_asset(session: Session, *, meta: ScriptMeta, now: datetime) -> bool:
+    """The `js_asset` row for a body already in S3; concurrent scans that saw the same
+    body race on the primary key, so this is an upsert. Returns True when new."""
+    stmt = insert(JsAsset).values(
+        sha256=meta.sha256,
+        size_bytes=meta.size_bytes,
+        content_type=(meta.content_type or "")[:128] or None,
+        s3_key=meta.s3_key,
+        first_seen=now,
+        last_seen=now,
+    )
+    upsert = stmt.on_conflict_do_update(index_elements=["sha256"], set_={"last_seen": now})
+    first_seen = session.execute(upsert.returning(JsAsset.first_seen)).scalar_one()
+    return bool(first_seen == now)
+
+
 def record_script(session: Session, *, host_id: int, meta: ScriptMeta, now: datetime) -> bool:
     """Dedup by SHA-256 (FR-LS-03); the object is already in S3. Returns True when new."""
-    asset = session.get(JsAsset, meta.sha256)
-    new = asset is None
-    if asset is None:
-        session.add(
-            JsAsset(
-                sha256=meta.sha256,
-                size_bytes=meta.size_bytes,
-                content_type=(meta.content_type or "")[:128] or None,
-                s3_key=meta.s3_key,
-                first_seen=now,
-                last_seen=now,
-            )
+    new = record_asset(session, meta=meta, now=now)
+    link = insert(HostJsAsset).values(
+        host_id=host_id,
+        sha256=meta.sha256,
+        src_url=meta.src_url[:2048],
+        first_seen=now,
+        last_seen=now,
+    )
+    session.execute(
+        link.on_conflict_do_update(
+            constraint="uq_host_js_asset_host_id_sha256",
+            set_={"last_seen": now, "src_url": meta.src_url[:2048]},
         )
-    else:
-        asset.last_seen = now
-    link = session.execute(
-        select(HostJsAsset).where(HostJsAsset.host_id == host_id, HostJsAsset.sha256 == meta.sha256)
-    ).scalar_one_or_none()
-    if link is None:
-        session.add(
-            HostJsAsset(
-                host_id=host_id,
-                sha256=meta.sha256,
-                src_url=meta.src_url[:2048],
-                first_seen=now,
-                last_seen=now,
-            )
-        )
-    else:
-        link.last_seen = now
-        link.src_url = meta.src_url[:2048]
+    )
     session.flush()
     return new

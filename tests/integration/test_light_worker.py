@@ -18,6 +18,7 @@ from dataclasses import dataclass, field
 from datetime import timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from typing import Any
 
 import httpx
 import pytest
@@ -28,7 +29,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from payintel.core.clock import FixedClock
 from payintel.core.heartbeat import Heartbeat
-from payintel.core.models.assets import HostJsAsset, JsAsset
+from payintel.core.models.assets import HostJsAsset, JsAsset, JsAssetUrl, JsAssetUrlHost
 from payintel.core.models.base import (
     Coverage,
     DomainSourceKind,
@@ -43,6 +44,7 @@ from payintel.core.reference_loader import load_reference, sync_reference
 from payintel.core.s3 import ObjectStore
 from payintel.core.settings import LightScanSettings, S3Settings, Settings
 from payintel.crawl.light.runtime import build_context
+from payintel.crawl.light.scripts import fetch_script_urls, record_script_requests
 from payintel.crawl.light.worker import LightScanner, LightScanOutcome, run_batch, run_pipeline
 from payintel.crawl.sanitize import EMAIL_MASK, PHONE_MASK
 from payintel.discovery.ingest import ingest
@@ -62,8 +64,16 @@ HOST_DIRS = {
     "parked.de": "parked",
     "blog.fr": "blog",
     "pii-shop.com": "pii",
+    "woo-two.de": "woo-shop",  # a second shop with the same third-party scripts (FR-LS-03)
 }
 JS_BODY = b"/*! jQuery v3.7.1 */ window.jQuery = function () {};"
+# third-party script hosts the fixtures reference; served only to the script pool
+THIRD_PARTY_JS = {
+    "js.stripe.com": b"/* stripe.js v3 */ window.Stripe = function () {};",
+    "www.paypal.com": b"/* paypal sdk */ window.paypal = {};",
+}
+STRIPE_URL = "https://js.stripe.com/v3/"
+PAYPAL_URL = "https://www.paypal.com/sdk/js?client-id=test&currency=EUR"
 
 
 @dataclass
@@ -120,6 +130,9 @@ def _handler(server: ShopServer) -> type[BaseHTTPRequestHandler]:
                 return
             if path.endswith(".js"):
                 self._send(200, JS_BODY, "application/javascript")
+                return
+            if host in THIRD_PARTY_JS:
+                self._send(200, THIRD_PARTY_JS[host], "application/javascript")
                 return
             directory = HOST_DIRS.get(host)
             if directory is None:
@@ -636,6 +649,202 @@ def test_run_batch_commits_and_flushes_to_clickhouse(
             row = check.get(WorkerHeartbeat, "w-batch")
             assert row is not None and row.kind == "light" and row.stopped_at is not None
             assert row.cpu_count >= 1 and row.hostname and row.concurrency == 3
+    finally:
+        run_sync(ctx.fetcher.aclose())
+        engine.dispose()
+
+
+# --- FR-LS-03: third-party scripts are fetched once, by the script pool (ADR-0038) ----
+
+
+def test_scan_records_third_party_script_urls_without_fetching_them(
+    db_session: Session,
+    fixed_clock: FixedClock,
+    scanner: tuple[LightScanner, VirtualTime],
+    shop_server: ShopServer,
+) -> None:
+    sc, _ = scanner
+    shop_server.requests.clear()
+    plan = _plan_for(db_session, fixed_clock, "woo-shop.de")
+    out = _scan(sc, db_session, plan)
+    assert out.status == ScanStatus.OK
+    # homepage + product reference stripe.js, the cart the PayPal SDK: two URLs, page order
+    assert out.third_party_scripts == [STRIPE_URL, PAYPAL_URL]
+    assert not shop_server.paths("js.stripe.com") and not shop_server.paths("www.paypal.com")
+    rows = {r.url: r for r in db_session.execute(select(JsAssetUrl)).scalars()}
+    assert set(rows) == {STRIPE_URL, PAYPAL_URL}
+    assert all(r.status == "pending" and r.sha256 is None for r in rows.values())
+    assert rows[STRIPE_URL].hostname == "js.stripe.com"
+    waiting = db_session.execute(select(JsAssetUrlHost)).scalars().all()
+    assert {w.url for w in waiting} == {STRIPE_URL, PAYPAL_URL}
+    assert all(w.host_id == out.host_id for w in waiting)
+    # first-party scripts are still downloaded and linked right away
+    assert len(db_session.execute(select(HostJsAsset)).scalars().all()) == 1
+
+    # A body the pool already has is linked at scan time; a stale one is re-queued but
+    # keeps its hash so the host is linked meanwhile.
+    now = fixed_clock.now()
+    db_session.add(
+        JsAsset(
+            sha256="a" * 64,
+            size_bytes=1,
+            content_type=None,
+            s3_key="js/aa/x",
+            first_seen=now,
+            last_seen=now,
+        )
+    )
+    stripe = rows[STRIPE_URL]
+    stripe.status, stripe.sha256, stripe.next_fetch_at = "ok", "a" * 64, now + timedelta(days=7)
+    paypal = rows[PAYPAL_URL]
+    paypal.status, paypal.sha256, paypal.next_fetch_at = "ok", "a" * 64, now - timedelta(days=1)
+    db_session.flush()
+    other = db_session.execute(select(Host).where(Host.hostname == "woo-shop.de")).scalar_one()
+    stats = record_script_requests(
+        db_session, host_id=other.id, urls=[STRIPE_URL, PAYPAL_URL], now=now, ttl=timedelta(days=7)
+    )
+    assert stats.linked == 2 and stats.queued == 1  # the stale PayPal URL goes back to the pool
+    assert paypal.status == "pending" and paypal.sha256 == "a" * 64
+    assert stripe.status == "ok"
+    links = db_session.execute(select(HostJsAsset).where(HostJsAsset.sha256 == "a" * 64)).scalars()
+    assert [link.host_id for link in links] == [other.id]
+
+
+def test_script_pool_fetches_each_url_once_and_links_every_host(
+    fresh_database: str, fixed_clock: FixedClock, shop_server: ShopServer
+) -> None:
+    """Two shops reference the same CDN scripts: the scans queue the URLs, one pool pass
+    fetches each URL exactly once and links both hosts; failures back off and park."""
+    alembic_command.upgrade(alembic_config_for(fresh_database), "head")
+    engine = create_engine(fresh_database, future=True)
+    factory = sessionmaker(bind=engine, expire_on_commit=False)
+    names = ["woo-shop.de", "woo-two.de"]
+    vt = VirtualTime()
+    ctx = build_context(
+        _settings(),
+        clock=fixed_clock,
+        worker_id="w-pool",
+        limiter=MemoryRateLimiter(now=lambda: vt.now),
+        resolve=_loopback,
+        allow_private=True,
+        transport=LoopbackTransport(shop_server.port),
+        sleep=vt.sleep,
+        base_scheme="http",
+    )
+    light = ctx.settings.light
+
+    def pool() -> Any:
+        return fetch_script_urls(
+            factory,
+            fetcher=ctx.fetcher,
+            writer=ctx.writer,
+            settings=light,
+            worker_id="w-pool",
+            clock=fixed_clock,
+        )
+
+    try:
+        with factory() as setup:
+            sync_reference(setup, load_reference(), clock=fixed_clock)
+            ingest(
+                setup,
+                [SourceRecord(n, rank=i + 1) for i, n in enumerate(names)],
+                source=DomainSourceKind.MANUAL,
+                origin="pool",
+                clock=fixed_clock,
+            )
+            planner.ensure_plans(setup, ScanType.LIGHT, s=Settings().scan, clock=fixed_clock)
+            setup.commit()
+        shop_server.requests.clear()
+        outcomes = run_sync(run_batch(factory, LightScanner(ctx), limit=10, concurrency=2))
+        assert {o.etld1: o.status for o in outcomes} == dict.fromkeys(names, ScanStatus.OK)
+        assert not shop_server.paths("js.stripe.com") and not shop_server.paths("www.paypal.com")
+        with factory() as check:
+            assert check.execute(select(JsAssetUrl)).scalars().all().__len__() == 2
+            assert len(check.execute(select(JsAssetUrlHost)).scalars().all()) == 4
+            hosts = {h.hostname: h.id for h in check.execute(select(Host)).scalars()}
+
+        st = run_sync(pool())
+        assert (st.leased, st.fetched, st.failed, st.linked_hosts) == (2, 2, 0, 4)
+        assert shop_server.paths("js.stripe.com") == ["/v3/"]
+        assert shop_server.paths("www.paypal.com") == ["/sdk/js"]
+        with factory() as check:
+            rows = {r.url: r for r in check.execute(select(JsAssetUrl)).scalars()}
+            assert all(r.status == "ok" and r.locked_until is None for r in rows.values())
+            assert rows[STRIPE_URL].next_fetch_at == fixed_clock.now() + timedelta(days=7)
+            assets = {a.sha256: a for a in check.execute(select(JsAsset)).scalars()}
+            assert len(assets) == 3  # jQuery (first-party, both shops) + stripe + paypal
+            assert assets[rows[STRIPE_URL].sha256 or ""].size_bytes == len(
+                THIRD_PARTY_JS["js.stripe.com"]
+            )
+            for name in names:
+                links = check.execute(
+                    select(HostJsAsset).where(HostJsAsset.host_id == hosts[name])
+                ).scalars()
+                assert {link.sha256 for link in links} == set(assets)
+            assert check.execute(select(JsAssetUrlHost)).scalars().all() == []
+        assert run_sync(pool()).leased == 0  # nothing due: fetched once
+
+        # worker-light runs the pool beside the scans: once at start and once before exit
+        calls: list[int] = []
+
+        async def counting() -> None:
+            calls.append(1)
+
+        done = run_sync(
+            run_pipeline(
+                factory, LightScanner(ctx), concurrency=2, stop_when_empty=True, background=counting
+            )
+        )
+        assert done == 0 and calls == [1, 1]
+
+        # a stale URL is refreshed by the pool, the host stays linked meanwhile
+        fixed_clock.advance(days=8)
+        with factory() as s2:
+            stats = record_script_requests(
+                s2,
+                host_id=hosts["woo-shop.de"],
+                urls=[STRIPE_URL],
+                now=fixed_clock.now(),
+                ttl=timedelta(days=7),
+            )
+            s2.commit()
+        assert (stats.linked, stats.queued) == (1, 1)
+        st = run_sync(pool())
+        assert (st.leased, st.fetched) == (1, 1) and shop_server.paths("js.stripe.com") == [
+            "/v3/",
+            "/v3/",
+        ]
+
+        # failures: backoff per attempt, parked as `error` after max attempts
+        broken = "https://broken-cdn.net/lib/"
+        with factory() as s3:
+            record_script_requests(
+                s3,
+                host_id=hosts["woo-two.de"],
+                urls=[broken],
+                now=fixed_clock.now(),
+                ttl=timedelta(days=7),
+            )
+            s3.commit()
+        for attempt in range(1, light.third_party_js_max_attempts + 1):
+            st = run_sync(pool())
+            assert (st.leased, st.failed) == (1, 1) and st.errors == {"http_404": 1}
+            with factory() as check:
+                row = check.get(JsAssetUrl, broken)
+                assert row is not None and row.locked_until is None
+                if attempt < light.third_party_js_max_attempts:
+                    assert row.status == "pending" and row.attempts == attempt
+                    assert row.next_fetch_at == fixed_clock.now() + timedelta(hours=attempt)
+                    assert run_sync(pool()).leased == 0  # not due yet
+                    fixed_clock.advance(seconds=attempt * 3600)
+                else:
+                    assert st.parked == 1 and row.status == "error" and row.attempts == 0
+                    assert row.next_fetch_at == fixed_clock.now() + timedelta(days=7)
+                    assert row.last_error == "http_404"
+        with factory() as check:  # the waiting host stays queued for the day the URL works
+            assert len(check.execute(select(JsAssetUrlHost)).scalars().all()) == 1
+
     finally:
         run_sync(ctx.fetcher.aclose())
         engine.dispose()

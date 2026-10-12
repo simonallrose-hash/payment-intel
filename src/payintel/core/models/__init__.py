@@ -6,7 +6,7 @@ Importing this package registers all tables on `Base.metadata` (used by Alembic)
 from payintel.core.models.abuse import AbuseIncident, CanaryHit, UsageReport
 from payintel.core.models.access import ApiKey, Membership, User
 from payintel.core.models.alerts import AlertRule, Delivery, Watchlist, WatchlistItem, Webhook
-from payintel.core.models.assets import HostJsAsset, JsAsset
+from payintel.core.models.assets import HostJsAsset, JsAsset, JsAssetUrl, JsAssetUrlHost
 from payintel.core.models.audit import AuditLog, FeatureFlag, OptoutRequest, UsageLog
 from payintel.core.models.base import Base
 from payintel.core.models.domains import Domain, DomainSource, Host, ImportBatch
@@ -51,6 +51,8 @@ __all__ = [
     "HostJsAsset",
     "ImportBatch",
     "JsAsset",
+    "JsAssetUrl",
+    "JsAssetUrlHost",
     "KycRecord",
     "MarketShareCell",
     "Membership",

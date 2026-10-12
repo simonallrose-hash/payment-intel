@@ -11,8 +11,9 @@ from __future__ import annotations
 
 import asyncio
 import re
+import time
 import uuid
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
@@ -42,6 +43,7 @@ from payintel.crawl.light.artifacts import ArtifactWriter, ScriptMeta, record_sc
 from payintel.crawl.light.fetcher import Fetcher, FetchResult
 from payintel.crawl.light.html import HtmlFeatures, extract
 from payintel.crawl.light.robots import RobotsRules, agent_token, parse_robots
+from payintel.crawl.light.scripts import record_script_requests, third_party_script_urls
 from payintel.crawl.sanitize import SanitizeStats, sanitize_headers, sanitize_text
 from payintel.detect.country import CountryDetector, CountryResult
 from payintel.detect.engine import Finding, PageSignals, match_page
@@ -118,6 +120,7 @@ class LightScanOutcome:
     new_link_candidates: int = 0
     script_meta: list[ScriptMeta] = field(default_factory=list)
     vertical: VerticalResult | None = None
+    third_party_scripts: list[str] = field(default_factory=list)  # FR-LS-03: fetched by the pool
 
     @property
     def providers(self) -> list[TargetScore]:
@@ -249,7 +252,8 @@ class LightScanner:
         """First-party scripts only (same eTLD+1): third-party CDN hosts such as
         js.stripe.com are shared by thousands of shops, and the 1 rps per host rule
         (FR-SC-06) would otherwise serialise the whole fleet on them. Their URLs are
-        still signals for the rule engine (`script_src`), only the bodies are skipped."""
+        signals for the rule engine (`script_src`) right away and are recorded for the
+        script pool, which fetches each one once (`crawl/light/scripts.py`, ADR-0038)."""
         seen: list[str] = []
         for cap in pages:
             if cap.features is None:
@@ -407,6 +411,11 @@ class LightScanner:
         platform = best_platform(scores)
         platform_id = platform.target_id if platform else None
         script_meta = await self._download_scripts(pages, domain.etld1)
+        third_party = third_party_script_urls(
+            [src for p in pages if p.features is not None for src in p.features.scripts_src],
+            domain.etld1,
+            limit=s.light.max_third_party_scripts,
+        )
         country = self.ctx.country.detect(
             home.features,
             etld1=domain.etld1,
@@ -447,6 +456,7 @@ class LightScanner:
             duration_ms=0,
             script_meta=script_meta,
             vertical=vertical,
+            third_party_scripts=third_party,
         )
 
     # --- persistence --------------------------------------------------------------
@@ -482,6 +492,14 @@ class LightScanner:
             metrics.LIGHT_SCANS_TOTAL.labels(o.status.value).inc()
         for meta in o.script_meta:
             record_script(session, host_id=host.id, meta=meta, now=now)
+        if o.third_party_scripts:
+            record_script_requests(
+                session,
+                host_id=host.id,
+                urls=o.third_party_scripts,
+                now=now,
+                ttl=timedelta(days=self.ctx.settings.light.third_party_js_ttl_days),
+            )
         self._write_artifacts(o)
         self._write_observations(host, domain, o, now)
         if o.status == ScanStatus.OK:
@@ -509,6 +527,7 @@ class LightScanner:
             "scanner_version": self.ctx.settings.scanner_version,
             "pages": [],
             "scripts": o.scripts,
+            "third_party_scripts": o.third_party_scripts,  # bodies arrive via the script pool
         }
         for p in o.pages:
             headers, _ = sanitize_headers(p.fetch.headers)
@@ -804,16 +823,30 @@ async def run_pipeline(
     stop_when_empty: bool = False,
     on_outcome: Callable[[LightScanOutcome], None] | None = None,
     heartbeat: Heartbeat | None = None,
+    background: Callable[[], Awaitable[object]] | None = None,
+    background_interval: float = 30.0,
 ) -> int:
     """Keep `concurrency` scans in flight; lease more as slots free up (no batch barrier).
 
     Throughput is then concurrency / mean scan time instead of concurrency / slowest
     scan in the batch. Returns the number of completed scans (when it stops). With a
     `heartbeat` the worker reports itself and its host load every interval (FR-ADM-03).
+    `background` (the script pool, FR-LS-03) runs every `background_interval` seconds
+    beside the scans, one pass at a time, and once more before the loop returns.
     """
     ctx = scanner.ctx
     inflight: set[asyncio.Task[None]] = set()
     done_count = 0
+    bg_task: asyncio.Task[object] | None = None
+    next_bg = 0.0
+
+    async def run_background() -> object:
+        try:
+            return await background()  # type: ignore[misc]
+        except Exception as exc:
+            log.error("background pass crashed", error=repr(exc))
+            return None
+
     lease_floor = max(1, concurrency // 10)
     # Persistence runs in threads; the default executor (cpu+4 workers) would queue it
     # behind itself at 200 in-flight scans.
@@ -866,6 +899,13 @@ async def run_pipeline(
         while True:
             if heartbeat is not None:
                 await heartbeat.maybe_beat(in_flight=len(inflight), done=done_count)
+            if (
+                background is not None
+                and time.monotonic() >= next_bg
+                and (bg_task is None or bg_task.done())
+            ):
+                next_bg = time.monotonic() + background_interval
+                bg_task = asyncio.create_task(run_background())
             free = concurrency - len(inflight)
             if free >= lease_floor:
                 ids = await asyncio.to_thread(lease, free)
@@ -885,6 +925,10 @@ async def run_pipeline(
     finally:
         if inflight:
             await asyncio.gather(*inflight, return_exceptions=True)
+        if bg_task is not None and not bg_task.done():
+            await bg_task
+        if background is not None:
+            await run_background()  # what the last scans queued
         ctx.buffer.flush()
         if heartbeat is not None:
             await heartbeat.stop(done=done_count)
