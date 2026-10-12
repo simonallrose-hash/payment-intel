@@ -54,7 +54,7 @@ class S3Settings(BaseModel):
     server_side_encryption: str = Field(
         default="",
         description="`AES256` (SSE-S3) or `aws:kms` sent with every put (NFR-S-07); empty for "
-        "a MinIO without KES. Production sets AES256 with KES configured on data-1.",
+        "a store without server-side encryption. Production sets AES256 (SSE-S3, ADR-0036).",
     )
 
 

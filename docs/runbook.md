@@ -11,7 +11,7 @@
 | --- | --- | --- |
 | `app-1` | приложение | Caddy (80/443), Postgres 16, Redis 7, `migrate` (одноразовый), `api` (API + портал + админка), `notifier` (алерты), `exporter` (экспорты, opt-out) |
 | `crawl-1` | сканер | Unbound, `worker-light` (масштабируется `--scale worker-light=N`), `worker-checkout` |
-| `data-1` | данные | ClickHouse 24.8, MinIO |
+| `data-1` | данные | ClickHouse 24.8, `s3` (SeaweedFS 4.45, S3-шлюз на 9000; ADR-0036) |
 
 Запуск на сервере: `docker compose --profile app-1 up -d` (и аналогично для
 остальных). Секреты берутся из `.env`, файл не хранится в репозитории
@@ -20,16 +20,16 @@
 
 Сегментация (NFR-S-08). В compose четыре сети: `edge` (только Caddy),
 `app` (api, notifier, exporter, audit-verify, Postgres, Redis), `crawl`
-(Unbound, `worker-light`, `worker-checkout`) и `data` (ClickHouse, MinIO).
+(Unbound, `worker-light`, `worker-checkout`) и `data` (ClickHouse, `s3`).
 Сервис попадает только в те сети, к которым обращается: воркеры не видят
 Redis/Postgres иначе как через `app`, Caddy не видит ничего, кроме `api`.
 Между серверами трафик Postgres (5432), Redis (6379), ClickHouse (8123) и
-MinIO (9000) идёт только по приватной сети (Hetzner vSwitch или WireGuard);
+S3 (9000) идёт только по приватной сети (Hetzner vSwitch или WireGuard);
 на публичных интерфейсах файрвол пропускает только 22 (с allow-list IP
 администраторов), 80 и 443 на `app-1`. Браузеры Playwright работают в
 отдельном контейнере `browser` на `crawl-1` (`playwright run-server`,
 только сеть `crawl`: видит Unbound и интернет, не видит Postgres, Redis,
-ClickHouse и MinIO; read-only FS, без capabilities, `shm_size 1g`, лимит
+ClickHouse и S3; read-only FS, без capabilities, `shm_size 1g`, лимит
 памяти 6 ГБ). `worker-checkout` подключается к нему по
 `PAYINTEL_CHECKOUT__BROWSER_WS_ENDPOINT=ws://browser:3000/` и сам Chromium
 не содержит (образ `app`, лимит 1 ГБ); каждый перезапуск браузера
@@ -109,13 +109,13 @@ RTO ≤ 8 ч (процедура — п. 18). Хранить 30 дней, коп
 | Postgres (все таблицы) | `pg_dump -Fc payintel` | ежедневно 02:00 UTC | локально 1 день + Storage Box (другой ДЦ, `rclone`/`borg`) + S3-бакет другого провайдера |
 | Postgres WAL | `archive_command` → `wal-g wal-push` (или `pgBackRest`) | непрерывно | тот же Storage Box; даёт RPO 0 для `audit_log` и `contract` |
 | ClickHouse `payintel` | `BACKUP DATABASE payintel TO S3('…/ch/<дата>')` (инкремент от воскресного полного: `SETTINGS base_backup = …`) | ежедневно 03:00 UTC | бакет другого провайдера |
-| MinIO: артефакты | версионирование бакета + `mc mirror --watch` | непрерывно | второй MinIO/S3 у другого провайдера |
-| MinIO: экспорты, KYC, договоры, отчёты | `mc mirror` | ежедневно | то же; договоры и KYC-документы — в зашифрованном `age`-архиве |
+| S3 (`s3`, SeaweedFS): артефакты | `rclone sync` бакета `payintel-artifacts` | ежечасно | S3-бакет другого провайдера |
+| S3: экспорты, KYC, договоры, отчёты | `rclone sync` | ежедневно | то же; договоры и KYC-документы — в зашифрованном `age`-архиве |
 | `.env`, ключи `age`, TOTP-семя админов | вручную | при каждой смене | password-менеджер компании + бумажный конверт (п. 18) |
 
 Шифрование: дампы и архивы шифруются `age -r <публичный ключ>` до
 отправки; бакеты бэкапов — с SSE (`PAYINTEL_S3__SERVER_SIDE_ENCRYPTION=AES256`
-для собственного MinIO, SSE-KMS у провайдера). Ротация: 30 суточных копий,
+для собственного SeaweedFS, SSE-KMS у провайдера). Ротация: 30 суточных копий,
 WAL — 30 дней, удаление по lifecycle бакета.
 
 Ежемесячная проверка восстановления (NFR-R-04): в первый понедельник
@@ -208,7 +208,10 @@ WAL — 30 дней, удаление по lifecycle бакета.
   проходят санитайзер (email/телефоны → маски), cookie/authorization не
   сохраняются. Lifecycle `retention.raw_artifacts_days` (90) на префиксы
   `light/` и `checkout/` воркер ставит на бакет сам при старте
-  (`ObjectStore.ensure_lifecycle`, LR-08); проверка — `mc ilm ls`.
+  (`ObjectStore.ensure_lifecycle`), а срок исполняет сам `payintel`:
+  `exporter` раз в сутки удаляет объекты старше срока (`payintel artifacts
+  sweep`, LR-08, ADR-0036); проверка — `payintel artifacts sweep --dry-run`
+  (печатает, сколько объектов подлежит удалению, ничего не удаляя).
 - Наблюдения: `obs_scan`, `obs_tech`, `obs_provider`, `obs_payment_method`
   батчами (10 000 строк или 5 с); `store_profile`/`store_provider`
   материализуются в той же транзакции, что `scan_run`.
@@ -263,7 +266,8 @@ WAL — 30 дней, удаление по lifecycle бакета.
   (журнал действий, шаги, запросы, находки, стоп), `payment_step.html.gz`,
   `payment_block.html.gz`, `screenshot.jpg` (≤300 КБ), `har.json.gz` (без
   cookie, authorization и тел), при стопе `stop.jpg` + `stop.html.gz`.
-  Lifecycle 90 дней на бакете ставит воркер при старте (п. 11, LR-08).
+  Lifecycle 90 дней на бакете ставит воркер при старте, удаляет по сроку
+  `exporter` (п. 11, LR-08).
 - Наблюдения: `obs_scan` (`scan_type=checkout`), `obs_scan_stop`,
   `obs_provider` (с `active_on_checkout`), `obs_payment_method`, `obs_tech`,
   `obs_checkout_host`; состояние: `scan_run`, `store_profile`
@@ -427,6 +431,9 @@ WAL — 30 дней, удаление по lifecycle бакета.
   периодические экспорты по `export_schedule`, строит `pending` задания в
   S3 (`exports/<org>/<job>.<fmt>`), ссылки на 72 ч. Полные снимки ждут
   одобрения в `/admin/exports` (`staff_compliance`).
+  Тот же процесс раз в сутки (`--retention-interval`, 86 400 с) удаляет
+  сырые артефакты сканов старше `retention.raw_artifacts_days` (п. 11,
+  LR-08, ADR-0036); вручную — `payintel artifacts sweep [--dry-run] [--days N]`.
 - Утечка файла: по метаданным или порядку строк →
   `payintel exports identify <файл>` не входит в этап 3; используйте
   `exports.watermark.order_matches` из Python-сессии с `watermark_id`
@@ -479,15 +486,16 @@ WAL — 30 дней, удаление по lifecycle бакета.
 1. (15 мин) Поднять ОС, Docker, приватную сеть; склонировать репозиторий
    нужного тега; восстановить `.env` и ключи `age` из password-менеджера.
 2. (10 мин) `docker compose --profile app-1 up -d postgres redis`,
-   `--profile data-1 up -d clickhouse minio`.
+   `--profile data-1 up -d clickhouse s3`.
 3. (1–2 ч на 10 ГБ) Postgres: `pg_restore -d payintel --no-owner <дамп>`,
    затем WAL до нужной точки (`wal-g backup-fetch` + `recovery_target_time`),
    если нужен RPO 0 для `audit_log`.
 4. (30 мин) `payintel audit verify` — цепочка должна быть целой до
    `first_broken_id = NULL`; разрыв = восстанавливать более ранний WAL.
 5. (1–3 ч на 1 ТБ) ClickHouse: `RESTORE DATABASE payintel FROM S3('…')`.
-6. (параллельно) MinIO: `mc mirror` из зеркала обратно; проверить
-   `mc ilm ls` (lifecycle пересоздаст воркер при старте).
+6. (параллельно) S3: `rclone sync` из зеркала обратно в бакеты сервиса
+   `s3`; lifecycle пересоздаст воркер при старте, срок исполняет
+   `exporter` (п. 11).
 7. (5 мин) `docker compose run --rm migrate` (ничего не должно
    примениться), `payintel stats refresh`.
 8. (10 мин) `up -d` остальных сервисов; проверки: `/healthz`,

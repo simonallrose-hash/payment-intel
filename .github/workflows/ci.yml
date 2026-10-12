@@ -68,6 +68,10 @@ jobs:
         if: failure()
         run: |
           grep -E '^(FAILED|ERROR) |^E  |Error|[0-9]+ (passed|failed)' test.log | head -60 | sed 's/^/::error::/' || true
+      - name: Result line as an annotation (test counts without downloading the log)
+        if: always()
+        run: |
+          grep -E '[0-9]+ (passed|failed|error)' test.log | tail -1 | sed 's/^/::notice::/' || true
       - uses: actions/upload-artifact@v4
         if: always()
         with:

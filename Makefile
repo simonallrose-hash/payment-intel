@@ -11,7 +11,7 @@ help: ## Show this help
 install: ## Install project and dev dependencies into .venv (uv)
 	$(UV) sync --all-groups --frozen
 
-dev: install ## Start the full dev environment (Postgres, ClickHouse, Redis, MinIO, Unbound, Caddy), apply migrations and seed references
+dev: install ## Start the full dev environment (Postgres, ClickHouse, Redis, S3, Unbound, Caddy), apply migrations and seed references
 	$(COMPOSE_DEV) up -d --wait
 	$(MAKE) migrate
 	$(MAKE) seed

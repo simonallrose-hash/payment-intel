@@ -20,7 +20,7 @@ B2B-датасет «домен e-commerce × PSP × способы оплаты
 ```bash
 git clone <repo> payment-intel && cd payment-intel
 cp .env.example .env          # для локальной разработки значения можно оставить пустыми
-make dev                      # uv sync → compose up (Postgres, ClickHouse, Redis, MinIO, Unbound, Caddy) → migrate → seed
+make dev                      # uv sync → compose up (Postgres, ClickHouse, Redis, SeaweedFS S3, Unbound, Caddy) → migrate → seed
 make eval                     # метрики по gold set (пока пустой: gate "not applicable", exit 0)
 make test                     # полный прогон: unit + integration (testcontainers) + покрытие
 ```
@@ -30,7 +30,7 @@ make test                     # полный прогон: unit + integration (t
 | Шаг | Команда | Результат |
 | --- | --- | --- |
 | 1 | `uv sync --all-groups --frozen` | `.venv` с закреплёнными версиями из `uv.lock` |
-| 2 | `docker compose -f docker-compose.dev.yml up -d --wait` | Postgres 16 `:5432`, ClickHouse 24.8 `:8123`, Redis 7 `:6379`, MinIO `:9002` (консоль `:9001`), Unbound `:5335`, Caddy `:8080` |
+| 2 | `docker compose -f docker-compose.dev.yml up -d --wait` | Postgres 16 `:5432`, ClickHouse 24.8 `:8123`, Redis 7 `:6379`, SeaweedFS S3 `:9002`, Unbound `:5335`, Caddy `:8080` |
 | 3 | `payintel migrate` | Alembic → head (35 таблиц, партиции `usage_log`, append-only триггер `audit_log`); ClickHouse `0001…0007` |
 | 4 | `payintel seed` | 135 PSP, 50 способов оплаты, 21 платформа, 20 вертикалей, 708 правил детекции |
 

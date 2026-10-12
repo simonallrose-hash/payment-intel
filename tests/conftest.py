@@ -36,7 +36,7 @@ from payintel.core.settings import ClickHouseSettings, S3Settings, get_settings
 ROOT = Path(__file__).resolve().parents[1]
 PG_IMAGE = os.environ.get("PAYINTEL_TEST_PG_IMAGE", "postgres:16-alpine")
 CH_IMAGE = os.environ.get("PAYINTEL_TEST_CH_IMAGE", "clickhouse/clickhouse-server:24.8")
-S3_IMAGE = os.environ.get("PAYINTEL_TEST_S3_IMAGE", "minio/minio:RELEASE.2024-12-18T13-15-44Z")
+S3_IMAGE = os.environ.get("PAYINTEL_TEST_S3_IMAGE", "chrislusf/seaweedfs:4.45")
 
 FIXED_NOW = datetime(2026, 10, 8, 12, 0, 0, tzinfo=UTC)
 
@@ -219,14 +219,17 @@ def s3_settings() -> Iterator[S3Settings]:
 
     container = (
         DockerContainer(S3_IMAGE)
-        .with_env("MINIO_ROOT_USER", "testtest")
-        .with_env("MINIO_ROOT_PASSWORD", "testtesttest")
-        .with_command("server /data")
+        .with_env("AWS_ACCESS_KEY_ID", "testtest")
+        .with_env("AWS_SECRET_ACCESS_KEY", "testtesttest")
+        .with_command(
+            "server -s3 -s3.port=9000 -s3.port.iceberg=0 -s3.port.lance=0 -dir=/data "
+            "-ip.bind=0.0.0.0 -master.telemetry=false"
+        )
         .with_exposed_ports(9000)
-        .waiting_for(HttpWaitStrategy(9000).for_path("/minio/health/live"))
+        .waiting_for(HttpWaitStrategy(9000, path="/healthz"))
     )
-    with container as minio:
-        port = minio.get_exposed_port(9000)
+    with container as s3:
+        port = s3.get_exposed_port(9000)
         yield S3Settings(
             endpoint=f"http://127.0.0.1:{port}",
             access_key="testtest",

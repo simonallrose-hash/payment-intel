@@ -1,7 +1,7 @@
 """Stage-3 fixtures: an application bound to the test transaction and a seeded world.
 
 `app_state` wires `AppState` to the `db_session` connection (savepoints per
-request commit), a `FixedClock`, an in-memory rate limiter, MinIO for exports
+request commit), a `FixedClock`, an in-memory rate limiter, an S3 container for exports
 and fake proof resolvers. `world` seeds reference data, one active client
 organisation with a `c1_full` entitlement for DE, staff and org users, an API
 key with every scope, and a handful of stores inside and outside the segment.

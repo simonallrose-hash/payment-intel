@@ -72,15 +72,19 @@ jobs:
       redis:
         image: redis:7-alpine
         ports: ["6379:6379"]
-      minio:
-        # bitnami's image starts `minio server` by itself (GitHub services take no command)
-        image: bitnami/minio:2024
-        env:
-          MINIO_ROOT_USER: payintel
-          MINIO_ROOT_PASSWORD: payintel-ci-not-a-secret
-        ports: ["9000:9000"]
     steps:
       - uses: actions/checkout@v4
+      - name: S3 store (SeaweedFS, ADR-0036; service containers take no command)
+        run: |
+          docker run -d --name s3 -p 9000:9000 \
+            -e AWS_ACCESS_KEY_ID="$PAYINTEL_S3__ACCESS_KEY" -e AWS_SECRET_ACCESS_KEY="$PAYINTEL_S3__SECRET_KEY" \
+            chrislusf/seaweedfs:4.45 server -s3 -s3.port=9000 -s3.port.iceberg=0 -s3.port.lance=0 \
+            -dir=/data -ip.bind=0.0.0.0 -master.telemetry=false
+          for i in $(seq 1 60); do
+            curl -fsS http://127.0.0.1:9000/healthz > /dev/null && break
+            sleep 2
+          done
+          curl -fsS http://127.0.0.1:9000/healthz > /dev/null
       - uses: astral-sh/setup-uv@v5
         with:
           python-version: "3.12"
@@ -116,6 +120,7 @@ jobs:
       - name: Summary
         if: always()
         run: |
+          docker logs s3 2>&1 | tail -n 20 || true
           { echo '### bench (stores='"$BENCH_STORES"', duration='"$BENCH_DURATION"' s)'; echo; echo '```'; cat bench-api.log 2>/dev/null; cat bench-export.log 2>/dev/null; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         if: always()
