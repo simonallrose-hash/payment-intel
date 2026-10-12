@@ -119,7 +119,8 @@ jobs:
         run: |
           curl -fsS -H "Authorization: Bearer $(cat bench_key.txt)" -H 'Content-Type: application/json' \
             -d '{"type":"full_snapshot","format":"parquet"}' http://127.0.0.1:8900/v1/exports | tee export-request.json
-          uv run python scripts/bench_export.py --limit-seconds 900 --out bench-export.json | tee bench-export.log
+          uv run python scripts/bench_export.py --limit-seconds 900 --out bench-export.json \
+            --job-id "$(jq -r .id export-request.json)" | tee bench-export.log
       - name: Summary
         if: always()
         run: |

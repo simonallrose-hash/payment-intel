@@ -7,6 +7,11 @@
 Runs one exporter pass (`payintel exports run --once --limit 1`) in a child process,
 reports elapsed wall time, the child's peak RSS and the resulting export_job row,
 and exits 1 when the job did not finish within `--limit-seconds` or failed.
+
+The job is named with `--job-id` (the `id` from the POST /v1/exports response);
+without it the newest job that is not a scheduled monthly export is taken — the
+exporter pass itself creates the scheduled one (FR-EX-03), and it would otherwise
+be mistaken for the benchmarked job.
 """
 
 from __future__ import annotations
@@ -17,6 +22,7 @@ import resource
 import subprocess
 import sys
 import time
+import uuid
 from pathlib import Path
 
 from sqlalchemy import select
@@ -30,6 +36,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--limit-seconds", type=float, default=900.0, help="NFR-P-06: 15 min")
     parser.add_argument("--out", type=Path, help="JSON report path")
+    parser.add_argument("--job-id", type=uuid.UUID, help="export id from POST /v1/exports")
     args = parser.parse_args()
 
     started = time.monotonic()
@@ -42,8 +49,13 @@ def main() -> int:
     elapsed = time.monotonic() - started
     peak_mb = resource.getrusage(resource.RUSAGE_CHILDREN).ru_maxrss / 1024
     with session_scope(get_engine()) as session:
+        query = select(ExportJob)
+        if args.job_id is not None:
+            query = query.where(ExportJob.id == args.job_id)
+        else:
+            query = query.where(ExportJob.params["scheduled"].as_boolean().is_not(True))
         job = session.execute(
-            select(ExportJob).order_by(ExportJob.created_at.desc()).limit(1)
+            query.order_by(ExportJob.created_at.desc()).limit(1)
         ).scalar_one_or_none()
         report = {
             "requirement": "NFR-P-06",
@@ -69,8 +81,9 @@ def main() -> int:
         f"rows={job_info.get('rows')} status={job_info.get('status')} "
         f"peak_rss={peak_mb:.0f}MB exit={proc.returncode}"
     )
-    if proc.returncode != 0:
-        print(proc.stderr[-2000:], file=sys.stderr)
+    if not report["passed"]:  # the exporter's own output is the only diagnostic there is
+        print(proc.stdout[-1000:], file=sys.stderr)
+        print(proc.stderr[-3000:], file=sys.stderr)
     if args.out:
         args.out.write_text(json.dumps(report, indent=2), encoding="utf-8")
     return 0 if report["passed"] else 1
