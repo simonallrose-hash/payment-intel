@@ -200,6 +200,17 @@ WAL — 30 дней, удаление по lifecycle бакета.
   первосторонние скрипты. Страница чекаута не запрашивается. Запрещённое
   robots для `PayIntelBot` не запрашивается; недоступный robots (5xx,
   таймаут) = запрет (консервативно).
+- Сторонние скрипты (CDN, SDK провайдеров; FR-LS-03, ADR-0038) скан не
+  качает и не ждёт: их URL (≤ `light.max_third_party_scripts` = 25 на скан)
+  попадают в `js_asset_url`, а фоновый проход того же `worker-light` раз в
+  `light.third_party_js_interval_seconds` (30 с) скачивает каждый URL один
+  раз (лимиты politeness те же), кладёт тело в `js/<aa>/<sha256>.js.gz` и
+  привязывает все ссылающиеся хосты (`host_js_asset`). Повторная проверка
+  URL — через `light.third_party_js_ttl_days` (7); ошибки — повтор через
+  `попытки × 1 ч`, после 3 попыток URL паркуется (`status=error`) на тот же
+  срок. Очередь: `payintel scripts status` (`pending`/`ok`/`error`,
+  `waiting_hosts`); разгрузить вручную — `payintel scripts fetch --once`;
+  метрика `payintel_js_fetch_total{result}`.
 - Лимиты: 1 rps на хост и 5 rps на IP (Redis token bucket), 5 МБ на страницу,
   таймауты `light.connect_timeout_seconds`/`read_timeout_seconds`, ≤5 редиректов,
   egress-фильтр на каждом переходе (NFR-S-09, ADR-0010).

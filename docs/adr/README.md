@@ -37,3 +37,6 @@
 - [ADR-0033](0033-market-share-snapshot.md) — Доля рынка (`/v1/stats/market-share`) из предрасчитанного снимка `market_share_cell` (`payintel stats refresh`), NFR-P-05
 - [ADR-0035](0035-confidence-two-signals.md) — Что считается «двумя независимыми сигналами» для `high` (FR-DT-04)
 - [ADR-0034](0034-load-stand.md) — Нагрузочный стенд NFR-P: синтетический миллион магазинов, собственный нагрузчик, что исправлено по результатам (AC-12)
+- [ADR-0036](0036-s3-store-seaweedfs.md) — S3-хранилище: SeaweedFS вместо MinIO (образы MinIO ушли с Docker Hub); срок хранения артефактов исполняет сам payintel (LR-08)
+- [ADR-0037](0037-streaming-exports.md) — Потоковая сборка выгрузок с внешней сортировкой на диске (NFR-P-06)
+- [ADR-0038](0038-third-party-scripts-pool.md) — Сторонние скрипты скачивает отдельный пул, по URL и один раз (FR-LS-03; уточняет ADR-0011)
