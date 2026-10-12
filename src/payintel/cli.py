@@ -21,6 +21,7 @@ from payintel.core import audit as audit_mod
 from payintel.core.ch import apply_migrations, make_ch_client
 from payintel.core.clock import SYSTEM_CLOCK
 from payintel.core.db import get_engine, session_scope
+from payintel.core.errors import StorageError
 from payintel.core.flags import FlagService
 from payintel.core.heartbeat import Heartbeat
 from payintel.core.logging import configure_logging, get_logger
@@ -1173,8 +1174,13 @@ def exports_run(
         typer.echo(f"scheduled={r.scheduled} built={r.built} failed={len(r.failed)}")
         if time.monotonic() >= next_sweep:
             next_sweep = time.monotonic() + retention_interval
-            swept = sweep_raw_artifacts(store, settings, clock=SYSTEM_CLOCK)
-            typer.echo("artifacts swept " + " ".join(f"{k}={v}" for k, v in swept.items()))
+            try:
+                swept = sweep_raw_artifacts(store, settings, clock=SYSTEM_CLOCK)
+            except StorageError as exc:  # the next pass retries; exports keep flowing
+                log.error("artifact retention sweep failed", error=str(exc))
+                typer.echo(f"artifacts sweep failed: {exc}", err=True)
+            else:
+                typer.echo("artifacts swept " + " ".join(f"{k}={v}" for k, v in swept.items()))
         if time.monotonic() >= next_optout_check:
             next_optout_check = time.monotonic() + optout_interval
             with session_scope(engine) as session:

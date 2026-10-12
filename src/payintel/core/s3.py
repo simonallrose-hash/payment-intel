@@ -171,6 +171,8 @@ class ObjectStore:
             if batch:
                 self._delete_batch(bucket, batch)
         except ClientError as exc:
+            if exc.response.get("Error", {}).get("Code") == "NoSuchBucket":
+                return 0  # no artefacts were ever written: nothing to expire
             raise StorageError("expire_prefix failed", bucket=bucket, key=prefix) from exc
         return count
 

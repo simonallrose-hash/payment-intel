@@ -109,3 +109,21 @@ def test_cli_artifacts_sweep_dry_run(monkeypatch: pytest.MonkeyPatch) -> None:
     assert result.exit_code == 0, result.output
     assert "light/ deleted=5" in result.output
     assert fake.objects == {}
+
+
+def test_sweep_treats_a_missing_bucket_as_empty() -> None:
+    from botocore.exceptions import ClientError
+
+    class NoBucketPaginator(FakePaginator):
+        def paginate(self, *, Bucket: str, Prefix: str) -> list[dict[str, Any]]:
+            raise ClientError({"Error": {"Code": "NoSuchBucket", "Message": "x"}}, "ListObjectsV2")
+
+    class NoBucket(FakeS3):
+        def get_paginator(self, name: str) -> FakePaginator:
+            return NoBucketPaginator({}, 1)
+
+    store = ObjectStore(NoBucket({}))  # type: ignore[arg-type]
+    assert sweep_raw_artifacts(store, Settings(), clock=FixedClock(NOW)) == {
+        "light/": 0,
+        "checkout/": 0,
+    }
