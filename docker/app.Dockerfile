@@ -1,5 +1,5 @@
 # Application image: API, workers, CLI. Runs as a non-root user (NFR-S-08).
-FROM python:3.12-slim-bookworm AS base
+FROM python:3.14-slim-bookworm AS base
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
